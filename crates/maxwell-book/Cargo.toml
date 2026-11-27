@@ -1,0 +1,23 @@
+
+[package]
+name = "maxwell-book"
+version = "0.1.0"
+edition = "2024"
+description = "Low-latency deterministic L1, L2, and L3 market data order book reconstruction"
+publish = false
+
+[lib]
+name = "maxwell_book"
+path = "src/lib.rs"
+
+[dependencies]
+maxwell-core = { path = "../maxwell-core", version = "0.1.0" }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+
