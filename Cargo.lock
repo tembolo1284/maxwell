@@ -27,6 +27,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "maxwell-recovery"
+version = "0.1.0"
+dependencies = [
+ "maxwell-core",
+]
+
+[[package]]
 name = "maxwell-sequencer"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,23 @@
+
+[package]
+name = "maxwell-recovery"
+version = "0.1.0"
+edition = "2024"
+description = "Deterministic market data gap recovery and snapshot synchronization"
+publish = false
+
+[lib]
+name = "maxwell_recovery"
+path = "src/lib.rs"
+
+[dependencies]
+maxwell-core = { path = "../maxwell-core" }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+
