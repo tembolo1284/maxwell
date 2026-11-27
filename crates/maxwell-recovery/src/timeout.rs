@@ -14,6 +14,11 @@ pub struct RecoveryDeadline {
 }
 
 impl RecoveryDeadline {
+    /// Creates a deadline `timeout` after `now`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DeadlineOverflow` if the expiry is not representable.
     pub fn new(now: MonotonicTimestamp, timeout: NanoDuration) -> RecoveryResult<Self> {
         let expires_at = now
             .checked_add(timeout)
@@ -35,6 +40,11 @@ impl RecoveryDeadline {
         self.expires_at
     }
 
+    /// Reports whether the deadline has passed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ClockWentBackward` if `now` precedes the creation time.
     pub fn is_expired(self, now: MonotonicTimestamp) -> RecoveryResult<bool> {
         if now < self.started_at {
             return Err(RecoveryError::ClockWentBackward);
@@ -43,11 +53,21 @@ impl RecoveryDeadline {
         Ok(now >= self.expires_at)
     }
 
+    /// Returns the time elapsed since creation.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ClockWentBackward` if `now` precedes the creation time.
     pub fn elapsed(self, now: MonotonicTimestamp) -> RecoveryResult<NanoDuration> {
         now.duration_since(self.started_at)
             .ok_or(RecoveryError::ClockWentBackward)
     }
 
+    /// Returns the time left before expiry.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ClockWentBackward` if `now` precedes the creation time.
     pub fn remaining(self, now: MonotonicTimestamp) -> RecoveryResult<NanoDuration> {
         if now < self.started_at {
             return Err(RecoveryError::ClockWentBackward);

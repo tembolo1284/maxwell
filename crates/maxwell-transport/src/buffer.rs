@@ -12,6 +12,12 @@ pub struct ReceiveBuffer {
 }
 
 impl ReceiveBuffer {
+    /// Allocates a zeroed receive buffer of fixed capacity.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidConfiguration` if `capacity` is zero, or
+    /// `AllocationFailed` if the storage cannot be reserved.
     pub fn new(capacity: usize) -> TransportResult<Self> {
         if capacity == 0 {
             return Err(TransportError::InvalidConfiguration(
@@ -68,8 +74,12 @@ impl ReceiveBuffer {
     }
 
     /// Commits the number of bytes received.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferTooSmall` if `length` exceeds the capacity.
     #[inline]
-    pub fn commit(&mut self, length: usize) -> TransportResult<()> {
+    pub const fn commit(&mut self, length: usize) -> TransportResult<()> {
         if length > self.capacity() {
             return Err(TransportError::BufferTooSmall {
                 required: length,
@@ -83,10 +93,15 @@ impl ReceiveBuffer {
     }
 
     #[inline]
-    pub fn clear(&mut self) {
+    pub const fn clear(&mut self) {
         self.length = 0;
     }
 
+    /// Replaces the buffer contents with a copy of `data`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferTooSmall` if `data` exceeds the capacity.
     pub fn copy_from(&mut self, data: &[u8]) -> TransportResult<()> {
         if data.len() > self.capacity() {
             return Err(TransportError::BufferTooSmall {

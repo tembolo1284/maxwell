@@ -2,13 +2,20 @@
 //!
 //! These tests validate correctness rather than latency.
 
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::too_many_lines,
+    reason = "deterministic test workloads use small bounded values"
+)]
+
 use std::collections::BTreeMap;
 
 use maxwell_core::*;
 
 use maxwell_book::{BookConfig, BookSnapshot, BookUpdate, BookUpdateKind, Level1, OrderBook};
 
-fn feed() -> FeedId {
+const fn feed() -> FeedId {
     FeedId::new(StreamId::new(1), SessionId::new(1))
 }
 
@@ -54,7 +61,7 @@ impl XorShift64 {
         }
     }
 
-    fn next(&mut self) -> u64 {
+    const fn next(&mut self) -> u64 {
         let mut value = self.state;
 
         value ^= value << 13;

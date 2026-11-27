@@ -21,6 +21,12 @@ pub struct TcpAcceptor {
 }
 
 impl TcpAcceptor {
+    /// Binds a listening socket to `address`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid or the socket
+    /// cannot be created, bound, or put into the listening state.
     pub fn bind(address: SocketAddr, config: TcpConfig) -> TransportResult<Self> {
         config.validate()?;
 
@@ -59,6 +65,11 @@ impl TcpAcceptor {
         self.accept_errors
     }
 
+    /// Returns the local listening address.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operating system cannot report it.
     pub fn local_addr(&self) -> TransportResult<SocketAddr> {
         Ok(self.listener.local_addr()?)
     }
@@ -66,6 +77,11 @@ impl TcpAcceptor {
     /// Attempts to accept one pending connection.
     ///
     /// None indicates that no connection is available.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the accept call fails or the accepted
+    /// stream cannot be configured.
     pub fn accept(&mut self) -> TransportResult<Option<(TcpConnection, SocketAddr)>> {
         loop {
             match self.listener.accept() {
@@ -87,9 +103,7 @@ impl TcpAcceptor {
                     return Ok(None);
                 }
 
-                Err(error) if error.kind() == ErrorKind::Interrupted => {
-                    continue;
-                }
+                Err(error) if error.kind() == ErrorKind::Interrupted => {}
 
                 Err(error) => {
                     self.accept_errors = self.accept_errors.saturating_add(1);
@@ -100,6 +114,11 @@ impl TcpAcceptor {
         }
     }
 
+    /// Switches the listener between blocking and nonblocking mode.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the socket mode cannot be changed.
     pub fn set_nonblocking(&mut self, enabled: bool) -> TransportResult<()> {
         self.listener.set_nonblocking(enabled)?;
         self.config.socket.nonblocking = enabled;

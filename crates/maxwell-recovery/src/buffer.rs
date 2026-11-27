@@ -20,7 +20,12 @@ pub struct RecoveryBuffer {
 }
 
 impl RecoveryBuffer {
-    pub fn new(feed: FeedId, capacity: usize) -> RecoveryResult<Self> {
+    /// Creates a bounded buffer for one feed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidConfiguration` if `capacity` is zero.
+    pub const fn new(feed: FeedId, capacity: usize) -> RecoveryResult<Self> {
         if capacity == 0 {
             return Err(RecoveryError::InvalidConfiguration(
                 "recovery buffer capacity must be positive",
@@ -79,6 +84,13 @@ impl RecoveryBuffer {
         self.events.contains_key(&sequence)
     }
 
+    /// Stores an out-of-order event for later replay.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FeedMismatch` or `InvalidEvent` for an event that
+    /// does not belong here, `ConflictingEvent` if a different event
+    /// already holds the sequence, or `BufferFull` at capacity.
     pub fn insert(&mut self, event: EventEnvelope) -> RecoveryResult<InsertOutcome> {
         if event.feed() != self.feed {
             return Err(RecoveryError::FeedMismatch {
@@ -131,6 +143,7 @@ impl RecoveryBuffer {
         previous_length - self.len()
     }
 
+    #[must_use]
     pub fn iter(&self) -> impl DoubleEndedIterator<Item = &EventEnvelope> {
         self.events.values()
     }

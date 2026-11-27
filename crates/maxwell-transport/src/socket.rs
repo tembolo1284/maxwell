@@ -14,7 +14,7 @@ pub struct SocketBufferSizes {
 }
 
 #[must_use]
-pub(crate) fn domain(address: SocketAddr) -> Domain {
+pub(crate) const fn domain(address: SocketAddr) -> Domain {
     match address {
         SocketAddr::V4(_) => Domain::IPV4,
         SocketAddr::V6(_) => Domain::IPV6,

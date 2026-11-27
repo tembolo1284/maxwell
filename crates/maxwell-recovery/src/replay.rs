@@ -28,6 +28,12 @@ impl ReplayCursor {
         self.next_expected.previous()
     }
 
+    /// Checks that `sequence` is the next one to apply.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnexpectedSequence` if it is not, or
+    /// `SequenceExhausted` if the sequence space is used up.
     pub fn validate(self, sequence: SequenceNumber) -> RecoveryResult<()> {
         if sequence != self.next_expected {
             return Err(RecoveryError::UnexpectedSequence {
@@ -43,6 +49,12 @@ impl ReplayCursor {
         Ok(())
     }
 
+    /// Advances the cursor past an applied `sequence`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnexpectedSequence` if `sequence` is not the next
+    /// one, or `SequenceExhausted` if the cursor cannot advance.
     pub fn commit(&mut self, sequence: SequenceNumber) -> RecoveryResult<()> {
         self.validate(sequence)?;
 
@@ -51,7 +63,7 @@ impl ReplayCursor {
         Ok(())
     }
 
-    pub fn reset(&mut self, next_expected: SequenceNumber) {
+    pub const fn reset(&mut self, next_expected: SequenceNumber) {
         self.next_expected = next_expected;
     }
 }

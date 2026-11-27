@@ -35,6 +35,13 @@ pub struct MulticastConfig {
 }
 
 impl MulticastConfig {
+    /// Validates the multicast options.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidMulticastAddress` if the group is not a
+    /// multicast address, or `InvalidConfiguration` if another field
+    /// is out of range.
     pub fn validate(self) -> TransportResult<()> {
         self.udp.validate()?;
 
@@ -86,6 +93,11 @@ pub struct UdpMulticast {
 
 impl UdpMulticast {
     /// Creates a receiving socket and joins the group.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid, the socket
+    /// cannot be created or bound, or the group cannot be joined.
     pub fn subscribe(mut config: MulticastConfig) -> TransportResult<Self> {
         config.validate()?;
 
@@ -115,6 +127,11 @@ impl UdpMulticast {
     }
 
     /// Creates a publishing socket without joining the group.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid or the
+    /// socket cannot be created, bound, or configured.
     pub fn publisher(config: MulticastConfig) -> TransportResult<Self> {
         config.validate()?;
 
@@ -163,14 +180,29 @@ impl UdpMulticast {
         &self.socket
     }
 
+    /// Returns the socket buffer sizes granted by the kernel.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the socket options cannot be read.
     pub fn buffer_sizes(&self) -> TransportResult<SocketBufferSizes> {
         socket::buffer_sizes(&SockRef::from(&self.socket))
     }
 
+    /// Allocates a buffer able to detect oversized datagrams.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AllocationFailed` if the storage cannot be reserved.
     pub fn create_receive_buffer(&self) -> TransportResult<ReceiveBuffer> {
         ReceiveBuffer::new(self.config.udp.max_datagram_size + 1)
     }
 
+    /// Joins the multicast group if not already joined.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the group membership cannot be added.
     pub fn join(&mut self) -> TransportResult<()> {
         if !self.joined {
             self.socket
@@ -182,6 +214,11 @@ impl UdpMulticast {
         Ok(())
     }
 
+    /// Leaves the multicast group if currently joined.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the group membership cannot be dropped.
     pub fn leave(&mut self) -> TransportResult<()> {
         if self.joined {
             self.socket
@@ -193,11 +230,23 @@ impl UdpMulticast {
         Ok(())
     }
 
+    /// Sends one datagram to the configured group and port.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the payload exceeds the datagram limit
+    /// or the socket send fails.
     #[inline]
     pub fn publish(&mut self, payload: &[u8]) -> TransportResult<WriteOutcome> {
         self.send_to(payload, self.config.destination())
     }
 
+    /// Receives one datagram into `buffer` and commits its length.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the datagram does not fit in `buffer`
+    /// or the socket receive fails.
     #[inline]
     pub fn receive_into(
         &mut self,

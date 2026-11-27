@@ -315,7 +315,7 @@ impl std::error::Error for CoreError {
 // ============================================================
 
 /// Implements conversion from a specific foundational error
-/// into the unified CoreError representation.
+/// into the unified `CoreError` representation.
 ///
 /// These conversions enable automatic error propagation
 /// through Rust's question mark operator.

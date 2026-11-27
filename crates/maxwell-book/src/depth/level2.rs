@@ -96,7 +96,7 @@ impl<'a> Level2<'a> {
 
     #[must_use]
     #[inline]
-    pub fn active_levels(&self, side: Side) -> usize {
+    pub const fn active_levels(&self, side: Side) -> usize {
         self.book.ladder(side).active_levels()
     }
 }

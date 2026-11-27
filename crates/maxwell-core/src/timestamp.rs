@@ -419,7 +419,7 @@ fn nanos_to_system_time(nanos: u64) -> Result<SystemTime, TimestampError> {
 // ============================================================
 
 impl ExchangeTimestamp {
-    /// Constructs an exchange timestamp from a SystemTime.
+    /// Constructs an exchange timestamp from a `SystemTime`.
     ///
     /// # Errors
     ///
@@ -430,7 +430,7 @@ impl ExchangeTimestamp {
         system_time_to_nanos(time).map(Self)
     }
 
-    /// Converts the timestamp to SystemTime.
+    /// Converts the timestamp to `SystemTime`.
     ///
     /// # Errors
     ///
@@ -472,7 +472,7 @@ impl ReceiveTimestamp {
         Self::from_system_time(SystemTime::now())
     }
 
-    /// Constructs a receive timestamp from SystemTime.
+    /// Constructs a receive timestamp from `SystemTime`.
     ///
     /// # Errors
     ///
@@ -483,7 +483,7 @@ impl ReceiveTimestamp {
         system_time_to_nanos(time).map(Self)
     }
 
-    /// Converts the timestamp to SystemTime.
+    /// Converts the timestamp to `SystemTime`.
     ///
     /// # Errors
     ///

@@ -35,7 +35,7 @@ macro_rules! increment_counter {
     ($($method:ident => $field:ident),+ $(,)?) => {
         $(
             #[inline]
-            pub fn $method(&mut self) {
+            pub const fn $method(&mut self) {
                 self.$field = self.$field.saturating_add(1);
             }
         )+

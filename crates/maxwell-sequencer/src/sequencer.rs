@@ -20,6 +20,12 @@ pub struct Sequencer {
 }
 
 impl Sequencer {
+    /// Creates a sequencer with preallocated stream slots.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid, or
+    /// `AllocationFailed` if storage cannot be reserved.
     pub fn new(config: SequencerConfig) -> SequencerResult<Self> {
         config.validate()?;
 
@@ -54,6 +60,12 @@ impl Sequencer {
     /// initial expected sequence.
     ///
     /// This is a control-path operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StreamAlreadyRegistered` for a duplicate,
+    /// `StreamCapacityExceeded` if no slot is free, or the error
+    /// from constructing the stream.
     pub fn register(
         &mut self,
         stream_id: StreamId,
@@ -87,6 +99,11 @@ impl Sequencer {
     }
 
     /// Routes an event to its registered stream sequencer.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnknownStream` if the stream is not registered.
+    /// Otherwise propagates the error from the stream.
     #[inline]
     pub fn ingest<F>(&mut self, event: EventEnvelope, deliver: F) -> SequencerResult<IngestOutcome>
     where
@@ -102,6 +119,11 @@ impl Sequencer {
         stream.ingest(event, deliver)
     }
 
+    /// Marks one stream as requiring recovery.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnknownStream` if the stream is not registered.
     pub fn require_recovery(&mut self, stream_id: StreamId) -> SequencerResult<()> {
         let stream = self
             .streams
@@ -113,6 +135,12 @@ impl Sequencer {
         Ok(())
     }
 
+    /// Installs a recovery checkpoint on one stream.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnknownStream` if the stream is not registered.
+    /// Otherwise propagates the error from the stream.
     pub fn install_checkpoint(
         &mut self,
         stream_id: StreamId,
@@ -126,6 +154,12 @@ impl Sequencer {
         stream.install_checkpoint(expected)
     }
 
+    /// Starts a new upstream session on one stream.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnknownStream` if the stream is not registered.
+    /// Otherwise propagates the error from the stream.
     pub fn start_session(
         &mut self,
         stream_id: StreamId,

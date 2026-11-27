@@ -6,7 +6,7 @@ use maxwell_protocol::{Decoder, Encoder, ProtocolError, ProtocolMessage, Protoco
 
 use maxwell_protocol::constants::*;
 
-fn sample_event() -> EventEnvelope {
+const fn sample_event() -> EventEnvelope {
     EventEnvelope::new(
         EventHeader::new(
             EventId::new(

@@ -30,7 +30,7 @@ fn connection_pair() -> (TcpConnection, TcpConnection) {
             return (client, server);
         }
 
-        assert!(Instant::now() < deadline, "TCP accept timed out",);
+        assert!(Instant::now() < deadline, "TCP accept timed out");
 
         thread::yield_now();
     }
@@ -254,7 +254,9 @@ fn transfer_large_payload() {
 
     let (mut client, mut server) = connection_pair();
 
-    let payload: Vec<u8> = (0..SIZE).map(|index| (index % 251) as u8).collect();
+    let payload: Vec<u8> = (0..SIZE)
+        .map(|index| u8::try_from(index % 251).unwrap())
+        .collect();
 
     let expected = payload.clone();
 

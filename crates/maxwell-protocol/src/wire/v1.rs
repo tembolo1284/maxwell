@@ -120,15 +120,12 @@ const fn decode_scope(value: u8) -> ProtocolResult<BookClearScope> {
 
 #[inline]
 fn encode_order_count(count: Option<u32>, writer: &mut ByteWriter<'_>) -> ProtocolResult<()> {
-    match count {
-        Some(value) => {
-            writer.write_u8(1)?;
-            writer.write_u32(value)?;
-        }
-        None => {
-            writer.write_u8(0)?;
-            writer.write_u32(0)?;
-        }
+    if let Some(value) = count {
+        writer.write_u8(1)?;
+        writer.write_u32(value)?;
+    } else {
+        writer.write_u8(0)?;
+        writer.write_u32(0)?;
     }
 
     Ok(())
@@ -151,6 +148,13 @@ fn decode_order_count(reader: &mut ByteReader<'_>) -> ProtocolResult<Option<u32>
 // Payload decoding
 // ============================================================
 
+/// Decodes a V1 payload of the given kind.
+///
+/// # Errors
+///
+/// Returns an error if the payload is truncated, holds an
+/// invalid field value, or fails event validation.
+/// The reader is left unchanged on failure.
 #[inline]
 pub fn decode_payload(
     kind: MessageKind,
@@ -231,6 +235,12 @@ pub fn decode_payload(
 // Payload encoding
 // ============================================================
 
+/// Encodes a V1 payload.
+///
+/// # Errors
+///
+/// Returns an error if the event fails validation or the
+/// writer lacks capacity.
 #[inline]
 pub fn encode_payload(event: MarketEvent, writer: &mut ByteWriter<'_>) -> ProtocolResult<()> {
     event.validate()?;

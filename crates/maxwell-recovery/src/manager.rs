@@ -66,8 +66,12 @@ pub struct RecoveryManager {
 impl RecoveryManager {
     /// Creates an unsynchronized manager.
     ///
-    /// Call start_snapshot() or initialize_live()
+    /// Call `start_snapshot()` or `initialize_live()`
     /// before processing market data.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid.
     pub fn new(feed: FeedId, config: RecoveryConfig) -> RecoveryResult<Self> {
         config.validate()?;
 
@@ -94,7 +98,11 @@ impl RecoveryManager {
     /// checkpoint.
     ///
     /// The caller must guarantee that the book already
-    /// represents all events before next_expected.
+    /// represents all events before `next_expected`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidState` unless the manager is uninitialized.
     pub fn initialize_live(&mut self, next_expected: SequenceNumber) -> RecoveryResult<()> {
         if self.state != RecoveryState::Uninitialized {
             return Err(RecoveryError::InvalidState);
@@ -165,6 +173,10 @@ impl RecoveryManager {
     /// submitted to the transport.
     ///
     /// Do not acknowledge a partial TCP write.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StaleResponse` if `id` is not the pending request.
     pub fn acknowledge_request(&mut self, id: RequestId) -> RecoveryResult<()> {
         match self.outbound {
             Some(request) if request.id() == id => {
@@ -194,20 +206,20 @@ impl RecoveryManager {
         Ok(id)
     }
 
-    fn cancel_requests(&mut self) {
+    const fn cancel_requests(&mut self) {
         self.retransmission = None;
         self.snapshot = None;
         self.outbound = None;
     }
 
-    fn fail(&mut self, reason: RecoveryReason) {
+    const fn fail(&mut self, reason: RecoveryReason) {
         self.cancel_requests();
         self.state = RecoveryState::Failed;
         self.reason = Some(reason);
         self.stats.record_recovery_failure();
     }
 
-    fn mark_live(&mut self) {
+    const fn mark_live(&mut self) {
         let recovering = self.state.is_recovering();
 
         self.cancel_requests();
@@ -297,6 +309,12 @@ impl RecoveryManager {
         Ok(())
     }
 
+    /// Begins snapshot recovery for the feed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `now` moves backward or the snapshot
+    /// request cannot be issued.
     pub fn start_snapshot(&mut self, now: MonotonicTimestamp) -> RecoveryResult<()> {
         self.observe_time(now)?;
 
@@ -318,6 +336,12 @@ impl RecoveryManager {
     /// Session transitions must be explicitly authorized
     /// by the runtime. Arbitrary incoming packets cannot
     /// reset the recovery manager.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidRequest` if `feed` is the current feed
+    /// identity, or an error if `now` moves backward or the
+    /// snapshot request cannot be issued.
     pub fn transition_session(
         &mut self,
         feed: FeedId,
@@ -510,7 +534,7 @@ impl RecoveryManager {
 
                 // The replacement snapshot must cover
                 // every event we are about to discard.
-                let highest = self.highest_seen.unwrap_or(event.sequence());
+                let highest = self.highest_seen.unwrap_or_else(|| event.sequence());
 
                 self.required_watermark = self.required_watermark.max(highest);
 
@@ -552,6 +576,12 @@ impl RecoveryManager {
     ///
     /// This method never applies an event ahead of the
     /// committed sequence cursor.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidState` if the manager is uninitialized or
+    /// failed, `ConflictingEvent` if the event contradicts a buffered
+    /// one, or any error from validation, buffering, or `apply`.
     pub fn ingest<F>(
         &mut self,
         event: EventEnvelope,
@@ -591,13 +621,13 @@ impl RecoveryManager {
         }
 
         if sequence == expected {
-            if let Some(buffered) = self.buffer.get(sequence) {
-                if *buffered != event {
-                    self.stats.record_conflict();
-                    self.fail(RecoveryReason::ConflictingEvent);
+            if let Some(buffered) = self.buffer.get(sequence)
+                && *buffered != event
+            {
+                self.stats.record_conflict();
+                self.fail(RecoveryReason::ConflictingEvent);
 
-                    return Err(RecoveryError::ConflictingEvent { sequence });
-                }
+                return Err(RecoveryError::ConflictingEvent { sequence });
             }
 
             let replayed = self.state.is_recovering();
@@ -627,6 +657,11 @@ impl RecoveryManager {
 
     /// Validates retransmission request correlation
     /// before admitting recovered events.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StaleResponse` if no matching request is active, or
+    /// any error from [`Self::ingest`].
     pub fn ingest_retransmission<F>(
         &mut self,
         request_id: RequestId,
@@ -646,6 +681,11 @@ impl RecoveryManager {
 
     /// Called when the upstream server cannot provide
     /// the requested historical events.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StaleResponse` if no matching request is active, or
+    /// an error if `now` moves backward.
     pub fn retransmission_unavailable(
         &mut self,
         request_id: RequestId,
@@ -670,6 +710,13 @@ impl RecoveryManager {
     ///
     /// The install callback must replace the entire
     /// feed state, not merely one instrument.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StaleResponse` if no snapshot request is active,
+    /// `SnapshotTooOld` if the watermark does not cover the required
+    /// sequence, `SnapshotInstallFailed` if `install` fails, or any
+    /// error from replaying buffered events.
     pub fn install_snapshot<S, F>(
         &mut self,
         watermark: SnapshotWatermark,
@@ -729,6 +776,12 @@ impl RecoveryManager {
     /// monotonic clock.
     ///
     /// Deadlines include outbound queueing time.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidState` if the manager is uninitialized or
+    /// failed, or an error if `now` moves backward or a follow-up
+    /// request cannot be issued.
     pub fn poll(&mut self, now: MonotonicTimestamp) -> RecoveryResult<()> {
         self.observe_time(now)?;
 
@@ -785,6 +838,12 @@ impl RecoveryManager {
     ///
     /// Unlike ordinary gap detection, this does not
     /// require receiving a later market data event.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FeedMismatch` for another feed, `InvalidState` if
+    /// the manager is uninitialized or failed, or an error if `now`
+    /// moves backward.
     pub fn observe_watermark(
         &mut self,
         feed: FeedId,

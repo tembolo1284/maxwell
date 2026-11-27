@@ -349,7 +349,7 @@ impl Instrument {
     // Price ladder indexing
     // ========================================================
 
-    /// Returns the zero-based tick index relative to min_price.
+    /// Returns the zero-based tick index relative to `min_price`.
     ///
     /// Returns None for invalid or misaligned prices.
     ///
@@ -389,7 +389,7 @@ impl Instrument {
 
     /// Returns the number of representable price levels.
     ///
-    /// Returns None if the number of levels exceeds u64::MAX.
+    /// Returns None if the number of levels exceeds `u64::MAX`.
     ///
     /// This is a mathematical count, not a guarantee that a
     /// dense ladder of this size can be allocated.

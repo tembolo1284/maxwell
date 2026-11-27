@@ -32,6 +32,12 @@ impl BookConfig {
         }
     }
 
+    /// Validates the capacity limits.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidInstrumentCapacity`, `InvalidOrderCapacity`,
+    /// or `InvalidPriceLevelCapacity` for an out-of-range limit.
     pub const fn validate(self) -> BookResult<()> {
         if self.max_price_levels == 0 || self.max_price_levels > MAX_PRICE_LEVELS {
             return Err(BookError::InvalidPriceLevelCapacity(self.max_price_levels));

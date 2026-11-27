@@ -7,7 +7,7 @@ use maxwell_book::{
     RestingOrder,
 };
 
-fn feed() -> FeedId {
+const fn feed() -> FeedId {
     FeedId::new(StreamId::new(1), SessionId::new(1))
 }
 
@@ -26,7 +26,7 @@ fn instrument() -> Instrument {
     .unwrap()
 }
 
-fn config() -> BookConfig {
+const fn config() -> BookConfig {
     BookConfig::new(4_096, 1_024, 4)
 }
 

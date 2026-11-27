@@ -27,6 +27,12 @@ pub struct UdpUnicast {
 }
 
 impl UdpUnicast {
+    /// Binds a UDP socket to `address`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid or the
+    /// socket cannot be created, bound, or configured.
     pub fn bind(address: SocketAddr, config: UdpConfig) -> TransportResult<Self> {
         config.validate()?;
 
@@ -70,14 +76,30 @@ impl UdpUnicast {
         self.config.max_datagram_size + 1
     }
 
+    /// Returns the socket buffer sizes granted by the kernel.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the socket options cannot be read.
     pub fn buffer_sizes(&self) -> TransportResult<SocketBufferSizes> {
         socket::buffer_sizes(&SockRef::from(&self.socket))
     }
 
+    /// Allocates a buffer able to detect oversized datagrams.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AllocationFailed` if the storage cannot be reserved.
     pub fn create_receive_buffer(&self) -> TransportResult<ReceiveBuffer> {
         ReceiveBuffer::new(self.required_receive_capacity())
     }
 
+    /// Receives one datagram into `buffer` and commits its length.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the datagram does not fit in `buffer`
+    /// or the socket receive fails.
     #[inline]
     pub fn receive_into(
         &mut self,
@@ -92,6 +114,11 @@ impl UdpUnicast {
         Ok(result)
     }
 
+    /// Switches the socket between blocking and nonblocking mode.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the socket mode cannot be changed.
     pub fn set_nonblocking(&mut self, enabled: bool) -> TransportResult<()> {
         self.socket.set_nonblocking(enabled)?;
         self.config.socket.nonblocking = enabled;

@@ -101,9 +101,9 @@ fn replay(seed: u64, registration_order: &[u64]) -> ReplayResult {
     for index in 1u64..=10_000 {
         let random = next_random(&mut random_state);
 
-        let instrument = if random % 2 == 0 { 100 } else { 200 };
+        let instrument = if random.is_multiple_of(2) { 100 } else { 200 };
 
-        let kind = if random % 3 == 0 {
+        let kind = if random.is_multiple_of(3) {
             EventKind::Trade
         } else {
             EventKind::BookUpdate

@@ -2,7 +2,11 @@
 
 use maxwell_core::{EventEnvelope, EventKind};
 
-use crate::constants::*;
+use crate::constants::{
+    BOOK_CLEARED_SIZE, HEADER_SIZE, ORDER_ADDED_SIZE, ORDER_CANCELLED_SIZE, ORDER_DELETED_SIZE,
+    ORDER_EXECUTED_SIZE, ORDER_MODIFIED_SIZE, PRICE_LEVEL_UPDATED_SIZE, TRADE_SIZE,
+    TRADING_STATUS_CHANGED_SIZE,
+};
 use crate::error::{ProtocolError, ProtocolResult};
 use crate::header::MessageHeader;
 use crate::version::ProtocolVersion;
@@ -120,6 +124,12 @@ impl ProtocolMessage {
         self.kind().encoded_size()
     }
 
+    /// Builds the wire header for this message.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PayloadTooLarge` if the payload length does not fit
+    /// the length field, or an error if the version is unsupported.
     #[inline]
     pub fn header(self) -> ProtocolResult<MessageHeader> {
         self.version.validate()?;

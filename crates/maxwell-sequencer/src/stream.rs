@@ -33,6 +33,12 @@ pub struct StreamSequencer {
 }
 
 impl StreamSequencer {
+    /// Creates a sequencer for one feed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid or the
+    /// reorder buffer cannot be created.
     pub fn new(
         feed: FeedId,
         expected: SequenceNumber,
@@ -104,6 +110,12 @@ impl StreamSequencer {
     /// No allocation is performed by the sequencer.
     ///
     /// The delivery callback must not fail or panic.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FeedMismatch` for another feed, `RecoveryRequired`
+    /// if the stream is not accepting events, or
+    /// `SequenceExhausted` if the sequence space is used up.
     pub fn ingest<F>(
         &mut self,
         event: EventEnvelope,
@@ -240,7 +252,7 @@ impl StreamSequencer {
     }
 
     #[inline]
-    fn refresh_state(&mut self) {
+    const fn refresh_state(&mut self) {
         let previous = self.state;
 
         self.state = if self.tracker.is_exhausted() {
@@ -260,7 +272,7 @@ impl StreamSequencer {
     ///
     /// May be called by an external gap timeout, transport
     /// failure, or downstream consistency check.
-    pub fn require_recovery(&mut self) {
+    pub const fn require_recovery(&mut self) {
         if !self.state.requires_recovery() {
             self.metrics.on_recovery_requested();
         }
@@ -275,6 +287,12 @@ impl StreamSequencer {
     ///
     /// Buffered events are discarded. The recovery layer
     /// must replay any events still needed after this point.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidRecoverySequence` if `expected` would move
+    /// the stream backward, or `SequenceExhausted` if the stream
+    /// has no next sequence.
     pub fn install_checkpoint(&mut self, expected: SequenceNumber) -> SequencerResult<()> {
         let current = self
             .tracker
@@ -300,6 +318,11 @@ impl StreamSequencer {
     /// initialize downstream state before calling this.
     ///
     /// Reusing the current feed identity is prohibited.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidRecoverySequence` if `feed` is the current
+    /// feed identity.
     pub fn start_session(&mut self, feed: FeedId, expected: SequenceNumber) -> SequencerResult<()> {
         if feed == self.feed {
             return Err(SequencerError::InvalidRecoverySequence);

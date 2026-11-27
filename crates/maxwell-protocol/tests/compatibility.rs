@@ -46,7 +46,7 @@ const GOLDEN_ORDER_ADDED: [u8; 65] = [
     0x00,
 ];
 
-fn expected_order_added() -> EventEnvelope {
+const fn expected_order_added() -> EventEnvelope {
     EventEnvelope::new(
         EventHeader::new(
             EventId::new(
@@ -80,7 +80,7 @@ const GOLDEN_ORDER_DELETED: [u8; 48] = [
     0xE9, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
-fn expected_order_deleted() -> EventEnvelope {
+const fn expected_order_deleted() -> EventEnvelope {
     EventEnvelope::new(
         EventHeader::new(
             EventId::new(
@@ -220,9 +220,9 @@ fn golden_frames_concatenated() {
 
     let decoder = Decoder::new();
 
-    let decoded: Vec<_> = decoder.frames(&buffer).collect::<Result<_, _>>().unwrap();
+    let frames: Vec<_> = decoder.frames(&buffer).collect::<Result<_, _>>().unwrap();
 
-    assert_eq!(decoded.len(), 2);
-    assert_eq!(decoded[0].envelope, expected_order_added());
-    assert_eq!(decoded[1].envelope, expected_order_deleted());
+    assert_eq!(frames.len(), 2);
+    assert_eq!(frames[0].envelope, expected_order_added());
+    assert_eq!(frames[1].envelope, expected_order_deleted());
 }

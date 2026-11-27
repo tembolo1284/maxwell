@@ -182,6 +182,6 @@ mod tests {
     fn full_price_range_spread() {
         let value = bbo(Some(quote(i64::MIN)), Some(quote(i64::MAX)));
 
-        assert_eq!(value.spread(), Some(u64::MAX as i128));
+        assert_eq!(value.spread(), Some(i128::from(u64::MAX)));
     }
 }

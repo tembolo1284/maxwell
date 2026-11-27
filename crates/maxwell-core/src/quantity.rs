@@ -165,7 +165,7 @@ impl Quantity {
     #[must_use]
     #[inline]
     pub const fn is_lot_aligned(self, lot_size: u64) -> bool {
-        lot_size != 0 && self.0 % lot_size == 0
+        lot_size != 0 && self.0.is_multiple_of(lot_size)
     }
 
     /// Rounds the quantity down to the nearest lot.

@@ -13,6 +13,12 @@ use crate::message::ProtocolMessage;
 // Header validation
 // ============================================================
 
+/// Validates version and declared payload length.
+///
+/// # Errors
+///
+/// Returns `InvalidPayloadLength` if the length does not match
+/// the message kind, or an error if the version is unsupported.
 #[inline]
 pub fn validate_header(header: MessageHeader) -> ProtocolResult<()> {
     header.version.validate()?;
@@ -31,6 +37,12 @@ pub fn validate_header(header: MessageHeader) -> ProtocolResult<()> {
 // Payload validation
 // ============================================================
 
+/// Checks an actual payload length against the header.
+///
+/// # Errors
+///
+/// Returns `PayloadTooLarge` or `InvalidPayloadLength` if the
+/// lengths disagree.
 #[inline]
 pub fn validate_payload_length(header: MessageHeader, actual: usize) -> ProtocolResult<()> {
     if actual > MAX_PAYLOAD_SIZE {
@@ -50,6 +62,11 @@ pub fn validate_payload_length(header: MessageHeader, actual: usize) -> Protocol
 // Complete message validation
 // ============================================================
 
+/// Validates a complete logical message before encoding.
+///
+/// # Errors
+///
+/// Returns an error if the version, header, or event is invalid.
 #[inline]
 pub fn validate_message(message: ProtocolMessage) -> ProtocolResult<()> {
     message.version.validate()?;
@@ -64,6 +81,13 @@ pub fn validate_message(message: ProtocolMessage) -> ProtocolResult<()> {
 // Frame validation
 // ============================================================
 
+/// Checks that a buffer holds exactly one frame.
+///
+/// # Errors
+///
+/// Returns `UnexpectedEnd` if the frame is truncated,
+/// `TrailingBytes` if extra bytes follow it, or any error from
+/// [`validate_header`].
 #[inline]
 pub fn validate_frame_length(header: MessageHeader, available: usize) -> ProtocolResult<()> {
     validate_header(header)?;

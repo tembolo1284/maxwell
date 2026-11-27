@@ -4,7 +4,7 @@ use core::fmt;
 
 /// Represents the synchronization state of a feed.
 ///
-/// RecoveryRequired is sticky until the caller explicitly
+/// `RecoveryRequired` is sticky until the caller explicitly
 /// installs a recovered sequence checkpoint or a new session.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

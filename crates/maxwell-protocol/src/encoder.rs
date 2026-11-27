@@ -21,6 +21,10 @@ impl Encoder {
     }
 
     /// Returns the required encoded size.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the message fails validation.
     #[inline]
     pub fn required_size(&self, message: ProtocolMessage) -> ProtocolResult<usize> {
         validation::validate_message(message)?;
@@ -31,6 +35,11 @@ impl Encoder {
     /// Encodes a complete protocol message.
     ///
     /// Returns the number of bytes written.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the message fails validation or does
+    /// not fit in `buffer`.
     #[inline]
     pub fn encode(&self, message: ProtocolMessage, buffer: &mut [u8]) -> ProtocolResult<usize> {
         let mut writer = ByteWriter::new(buffer);
@@ -41,6 +50,11 @@ impl Encoder {
     /// Appends a message to an existing binary writer.
     ///
     /// Allows multiple frames to be encoded into one buffer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the message fails validation or does
+    /// not fit in the writer's remaining capacity.
     #[inline]
     pub fn encode_into(
         &self,
@@ -68,6 +82,10 @@ impl Encoder {
     }
 
     /// Encodes a canonical event using the current version.
+    ///
+    /// # Errors
+    ///
+    /// Returns any error from [`Self::encode`].
     #[inline]
     pub fn encode_event(
         &self,
@@ -78,6 +96,10 @@ impl Encoder {
     }
 
     /// Encodes a message and returns its written byte region.
+    ///
+    /// # Errors
+    ///
+    /// Returns any error from [`Self::encode`].
     #[inline]
     pub fn encode_slice<'a>(
         &self,

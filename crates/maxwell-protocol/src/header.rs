@@ -57,6 +57,12 @@ impl MessageHeader {
         }
     }
 
+    /// Writes the fixed-width header.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the version is unsupported or the
+    /// writer lacks capacity.
     #[inline]
     pub fn encode(self, writer: &mut ByteWriter<'_>) -> ProtocolResult<()> {
         self.version.validate()?;
@@ -82,6 +88,14 @@ impl MessageHeader {
         Ok(())
     }
 
+    /// Reads and validates one fixed-width header.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidMagic`, `InvalidFlags`, or
+    /// `NonCanonicalEncoding` for a malformed header, or an error if
+    /// the input is truncated or the version is unsupported.
+    /// The reader is left unchanged on failure.
     #[inline]
     pub fn decode(reader: &mut ByteReader<'_>) -> ProtocolResult<Self> {
         // Parse through a temporary cursor so failures do

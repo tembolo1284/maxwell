@@ -23,7 +23,12 @@ pub struct SocketConfig {
 }
 
 impl SocketConfig {
-    pub fn validate(self) -> TransportResult<()> {
+    /// Validates the socket options.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidConfiguration` if a buffer size is out of range.
+    pub const fn validate(self) -> TransportResult<()> {
         if self.receive_buffer_size == 0 || self.send_buffer_size == 0 {
             return Err(TransportError::InvalidConfiguration(
                 "socket buffer sizes must be positive",
@@ -64,6 +69,11 @@ pub struct UdpConfig {
 }
 
 impl UdpConfig {
+    /// Validates the UDP options.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidConfiguration` if a field is out of range.
     pub fn validate(self) -> TransportResult<()> {
         self.socket.validate()?;
 
@@ -111,6 +121,11 @@ pub struct TcpConfig {
 }
 
 impl TcpConfig {
+    /// Validates the TCP options.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidConfiguration` if a field is out of range.
     pub fn validate(self) -> TransportResult<()> {
         self.socket.validate()?;
 
@@ -151,7 +166,13 @@ pub struct FramingConfig {
 }
 
 impl FramingConfig {
-    pub fn validate(self) -> TransportResult<()> {
+    /// Validates the framing limits.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidConfiguration` if the maximum frame size is
+    /// zero or exceeds the protocol limit.
+    pub const fn validate(self) -> TransportResult<()> {
         if self.max_frame_size == 0 || self.max_frame_size > MAX_FRAME_SIZE {
             return Err(TransportError::InvalidConfiguration(
                 "invalid maximum TCP frame size",

@@ -23,6 +23,11 @@ pub struct BookSnapshot {
 
 impl BookSnapshot {
     /// Captures a deterministic snapshot of a live book.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RecoveryRequired` if the book is not live, or
+    /// `AllocationFailed` if storage cannot be reserved.
     pub fn capture(book: &OrderBook) -> BookResult<Self> {
         if book.state() != BookState::Live {
             return Err(BookError::RecoveryRequired);
@@ -52,6 +57,12 @@ impl BookSnapshot {
     ///
     /// The original live book is not modified if snapshot
     /// restoration fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns `OrderCapacityExceeded` if the snapshot holds more
+    /// orders than `config` allows, or `InvalidSnapshot` if it is
+    /// internally inconsistent.
     pub fn restore(&self, config: BookConfig) -> BookResult<OrderBook> {
         config.validate()?;
 
@@ -66,10 +77,10 @@ impl BookSnapshot {
         let mut book = OrderBook::new(self.instrument, self.feed, config)?;
 
         for order in &self.orders {
-            if let Some(watermark) = self.last_sequence {
-                if order.priority_sequence() > watermark {
-                    return Err(BookError::InvalidSnapshot);
-                }
+            if let Some(watermark) = self.last_sequence
+                && order.priority_sequence() > watermark
+            {
+                return Err(BookError::InvalidSnapshot);
             }
 
             book.add_order(*order)?;
@@ -85,6 +96,12 @@ impl BookSnapshot {
     ///
     /// The caller must coordinate this operation with the
     /// stream sequencer and recovery subsystem.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidSnapshot` if the snapshot is for another
+    /// instrument or feed, or is older than `book`. Otherwise
+    /// propagates the error from [`Self::restore`].
     pub fn install(&self, book: &mut OrderBook) -> BookResult<()> {
         if self.instrument != *book.instrument() || self.feed != book.feed() {
             return Err(BookError::InvalidSnapshot);

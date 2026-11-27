@@ -40,17 +40,17 @@ impl SequencerMetrics {
     }
 
     #[inline]
-    pub(crate) fn on_received(&mut self) {
+    pub(crate) const fn on_received(&mut self) {
         self.received = self.received.saturating_add(1);
     }
 
     #[inline]
-    pub(crate) fn on_delivered(&mut self) {
+    pub(crate) const fn on_delivered(&mut self) {
         self.delivered = self.delivered.saturating_add(1);
     }
 
     #[inline]
-    pub(crate) fn on_duplicate(&mut self) {
+    pub(crate) const fn on_duplicate(&mut self) {
         self.duplicates = self.duplicates.saturating_add(1);
     }
 
@@ -62,39 +62,39 @@ impl SequencerMetrics {
     }
 
     #[inline]
-    pub(crate) fn on_gap_detected(&mut self) {
+    pub(crate) const fn on_gap_detected(&mut self) {
         self.gaps_detected = self.gaps_detected.saturating_add(1);
     }
 
     #[inline]
-    pub(crate) fn on_gap_resolved(&mut self) {
+    pub(crate) const fn on_gap_resolved(&mut self) {
         self.gaps_resolved = self.gaps_resolved.saturating_add(1);
     }
 
     #[inline]
-    pub(crate) fn on_recovery_requested(&mut self) {
+    pub(crate) const fn on_recovery_requested(&mut self) {
         self.recovery_requests = self.recovery_requests.saturating_add(1);
     }
 
     #[inline]
-    pub(crate) fn on_recovery_completed(&mut self) {
+    pub(crate) const fn on_recovery_completed(&mut self) {
         self.recoveries_completed = self.recoveries_completed.saturating_add(1);
     }
 
     #[inline]
-    pub(crate) fn on_session_changed(&mut self) {
+    pub(crate) const fn on_session_changed(&mut self) {
         self.session_changes = self.session_changes.saturating_add(1);
     }
 
     #[inline]
-    pub(crate) fn on_rejected(&mut self) {
+    pub(crate) const fn on_rejected(&mut self) {
         self.rejected = self.rejected.saturating_add(1);
     }
 
     /// Resets diagnostic counters only.
     ///
     /// Does not affect sequencing state.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         *self = Self::new();
     }
 }

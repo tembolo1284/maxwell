@@ -17,7 +17,7 @@ impl SequenceGap {
     ///
     /// # Errors
     ///
-    /// Returns InvalidGap when start exceeds end.
+    /// Returns `InvalidGap` when start exceeds end.
     #[inline]
     pub const fn new(start: SequenceNumber, end: SequenceNumber) -> SequencerResult<Self> {
         if start.raw() > end.raw() {

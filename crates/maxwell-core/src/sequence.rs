@@ -342,7 +342,7 @@ impl SequenceRange {
 
     /// Returns whether two nonoverlapping ranges are adjacent.
     ///
-    /// Sequence space never wraps at u64::MAX.
+    /// Sequence space never wraps at `u64::MAX`.
     #[must_use]
     #[inline]
     pub const fn is_adjacent(self, other: Self) -> bool {
@@ -476,7 +476,7 @@ impl fmt::Display for SequenceRange {
 /// Allocation-free iterator over an inclusive sequence range.
 ///
 /// Iteration terminates correctly even when the final sequence
-/// is u64::MAX.
+/// is `u64::MAX`.
 #[derive(Debug, Clone)]
 pub struct SequenceRangeIter {
     remaining: Option<SequenceRange>,
@@ -497,13 +497,9 @@ impl Iterator for SequenceRangeIter {
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        match self.remaining {
-            None => (0, Some(0)),
-            Some(range) => match usize::try_from(range.count()) {
-                Ok(count) => (count, Some(count)),
-                Err(_) => (usize::MAX, None),
-            },
-        }
+        self.remaining.map_or((0, Some(0)), |range| {
+            usize::try_from(range.count()).map_or((usize::MAX, None), |count| (count, Some(count)))
+        })
     }
 }
 

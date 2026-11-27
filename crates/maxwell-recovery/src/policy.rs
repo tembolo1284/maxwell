@@ -19,6 +19,11 @@ pub struct RecoveryPolicy {
 }
 
 impl RecoveryPolicy {
+    /// Creates a policy from validated configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid.
     pub fn new(config: RecoveryConfig) -> RecoveryResult<Self> {
         config.validate()?;
 
@@ -32,6 +37,11 @@ impl RecoveryPolicy {
 
     /// Selects a bounded retransmission batch or
     /// escalates an excessively large gap.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidRequest` if the gap cannot be expressed as a
+    /// request.
     pub fn on_gap(self, missing: SequenceRange) -> RecoveryResult<RecoveryDecision> {
         if missing.count() > u128::from(self.config.max_recoverable_gap) {
             return Ok(RecoveryDecision::Snapshot(RecoveryReason::GapTooLarge));

@@ -34,7 +34,12 @@ pub struct RecoveryConfig {
 }
 
 impl RecoveryConfig {
-    pub fn validate(self) -> RecoveryResult<()> {
+    /// Validates the recovery limits and timeouts.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidConfiguration` if a field is out of range.
+    pub const fn validate(self) -> RecoveryResult<()> {
         if self.buffer_capacity == 0 {
             return Err(RecoveryError::InvalidConfiguration(
                 "buffer capacity must be positive",

@@ -9,7 +9,7 @@ use maxwell_book::{
 
 use maxwell_book::depth::DepthLevel;
 
-fn feed() -> FeedId {
+const fn feed() -> FeedId {
     FeedId::new(StreamId::new(1), SessionId::new(1))
 }
 
@@ -28,7 +28,7 @@ fn instrument(id: u32) -> Instrument {
     .unwrap()
 }
 
-fn config() -> BookConfig {
+const fn config() -> BookConfig {
     BookConfig::new(4_096, 1_024, 8)
 }
 
@@ -36,7 +36,7 @@ fn book() -> OrderBook {
     OrderBook::new(instrument(1), feed(), config()).unwrap()
 }
 
-fn update(sequence: u64, kind: BookUpdateKind) -> BookUpdate {
+const fn update(sequence: u64, kind: BookUpdateKind) -> BookUpdate {
     BookUpdate::new(
         feed(),
         InstrumentId::new(1),

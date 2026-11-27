@@ -31,7 +31,7 @@ fn receive(receiver: &mut UdpUnicast, buffer: &mut ReceiveBuffer) -> usize {
             return datagram.length;
         }
 
-        assert!(Instant::now() < deadline, "UDP receive timed out",);
+        assert!(Instant::now() < deadline, "UDP receive timed out");
 
         thread::yield_now();
     }
@@ -84,17 +84,17 @@ fn datagram_boundaries_preserved() {
 
     let mut buffer = receiver.create_receive_buffer().unwrap();
 
-    let mut received = Vec::new();
+    let mut datagrams = Vec::new();
 
     for _ in 0..2 {
         receive(&mut receiver, &mut buffer);
-        received.push(buffer.as_slice().to_vec());
+        datagrams.push(buffer.as_slice().to_vec());
     }
 
     // UDP does not guarantee delivery order.
-    received.sort_unstable();
+    datagrams.sort_unstable();
 
-    assert_eq!(received, vec![b"first".to_vec(), b"second".to_vec()],);
+    assert_eq!(datagrams, vec![b"first".to_vec(), b"second".to_vec()],);
 }
 
 #[test]
@@ -243,7 +243,7 @@ fn multicast_loopback() {
             break;
         }
 
-        assert!(Instant::now() < deadline, "multicast receive timed out",);
+        assert!(Instant::now() < deadline, "multicast receive timed out");
 
         thread::yield_now();
     }

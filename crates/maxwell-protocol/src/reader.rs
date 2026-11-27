@@ -45,6 +45,11 @@ impl<'a> ByteReader<'a> {
         &self.buffer[self.position..]
     }
 
+    /// Reads `count` bytes and advances the cursor.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnexpectedEnd` if fewer bytes remain than requested.
     #[inline]
     pub fn read_bytes(&mut self, count: usize) -> ProtocolResult<&'a [u8]> {
         let remaining = self.remaining();
@@ -64,6 +69,11 @@ impl<'a> ByteReader<'a> {
         Ok(&self.buffer[start..end])
     }
 
+    /// Reads a fixed-size byte array.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnexpectedEnd` if fewer bytes remain than requested.
     #[inline]
     pub fn read_array<const N: usize>(&mut self) -> ProtocolResult<[u8; N]> {
         let bytes = self.read_bytes(N)?;
@@ -74,39 +84,74 @@ impl<'a> ByteReader<'a> {
         Ok(result)
     }
 
+    /// Reads one byte.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnexpectedEnd` if fewer bytes remain than requested.
     #[inline]
     pub fn read_u8(&mut self) -> ProtocolResult<u8> {
         Ok(self.read_array::<1>()?[0])
     }
 
+    /// Reads a little-endian `u16`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnexpectedEnd` if fewer bytes remain than requested.
     #[inline]
     pub fn read_u16(&mut self) -> ProtocolResult<u16> {
         Ok(u16::from_le_bytes(self.read_array()?))
     }
 
+    /// Reads a little-endian `u32`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnexpectedEnd` if fewer bytes remain than requested.
     #[inline]
     pub fn read_u32(&mut self) -> ProtocolResult<u32> {
         Ok(u32::from_le_bytes(self.read_array()?))
     }
 
+    /// Reads a little-endian `u64`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnexpectedEnd` if fewer bytes remain than requested.
     #[inline]
     pub fn read_u64(&mut self) -> ProtocolResult<u64> {
         Ok(u64::from_le_bytes(self.read_array()?))
     }
 
+    /// Reads a little-endian `i64`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnexpectedEnd` if fewer bytes remain than requested.
     #[inline]
     pub fn read_i64(&mut self) -> ProtocolResult<i64> {
         Ok(i64::from_le_bytes(self.read_array()?))
     }
 
+    /// Advances the cursor by `count` bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnexpectedEnd` if fewer bytes remain than requested.
     #[inline]
     pub fn skip(&mut self, count: usize) -> ProtocolResult<()> {
         self.read_bytes(count)?;
         Ok(())
     }
 
+    /// Asserts that every byte has been consumed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TrailingBytes` if unread bytes remain.
     #[inline]
-    pub fn finish(self) -> ProtocolResult<()> {
+    pub const fn finish(self) -> ProtocolResult<()> {
         if self.is_empty() {
             Ok(())
         } else {

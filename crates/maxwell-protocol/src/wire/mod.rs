@@ -14,6 +14,12 @@ use crate::reader::ByteReader;
 use crate::version::ProtocolVersion;
 use crate::writer::ByteWriter;
 
+/// Decodes a payload using the layout for `version`.
+///
+/// # Errors
+///
+/// Returns `UnsupportedVersion` for an unknown version, or the
+/// error from the versioned decoder.
 #[inline]
 pub fn decode_payload(
     version: ProtocolVersion,
@@ -27,6 +33,12 @@ pub fn decode_payload(
     }
 }
 
+/// Encodes a payload using the layout for `version`.
+///
+/// # Errors
+///
+/// Returns `UnsupportedVersion` for an unknown version, or the
+/// error from the versioned encoder.
 #[inline]
 pub fn encode_payload(
     version: ProtocolVersion,

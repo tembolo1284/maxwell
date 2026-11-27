@@ -6,15 +6,15 @@ use maxwell_sequencer::{
     IngestOutcome, Sequencer, SequencerConfig, SequencerError, SequencerState, StreamSequencer,
 };
 
-fn seq(value: u64) -> SequenceNumber {
+const fn seq(value: u64) -> SequenceNumber {
     SequenceNumber::new(value)
 }
 
-fn feed(stream: u32, session: u64) -> FeedId {
+const fn feed(stream: u32, session: u64) -> FeedId {
     FeedId::new(StreamId::new(stream), SessionId::new(session))
 }
 
-fn event(stream: u32, session: u64, sequence: u64) -> EventEnvelope {
+const fn event(stream: u32, session: u64, sequence: u64) -> EventEnvelope {
     EventEnvelope::new(
         EventHeader::new(
             EventId::new(feed(stream, session), seq(sequence)),

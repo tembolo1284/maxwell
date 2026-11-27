@@ -4,7 +4,7 @@ use maxwell_core::*;
 
 use maxwell_protocol::{ByteWriter, Decoder, Encoder, ProtocolMessage};
 
-fn envelope(event: MarketEvent) -> EventEnvelope {
+const fn envelope(event: MarketEvent) -> EventEnvelope {
     EventEnvelope::new(
         EventHeader::new(
             EventId::new(
@@ -27,12 +27,12 @@ fn roundtrip(event: MarketEvent) {
 
     let written = encoder.encode_event(original, &mut buffer).unwrap();
 
-    let decoded = decoder.decode_event(&buffer[..written]).unwrap();
+    let roundtrip = decoder.decode_event(&buffer[..written]).unwrap();
 
-    assert_eq!(original, decoded);
+    assert_eq!(original, roundtrip);
 }
 
-fn order_added() -> MarketEvent {
+const fn order_added() -> MarketEvent {
     MarketEvent::OrderAdded(OrderAdded {
         order_id: OrderId::new(1_001),
         price: Price::new(10_000),
@@ -272,12 +272,12 @@ fn multiple_frames_roundtrip() {
 
     let decoder = Decoder::new();
 
-    let decoded: Vec<_> = decoder
+    let frames: Vec<_> = decoder
         .frames(writer.written())
         .collect::<Result<_, _>>()
         .unwrap();
 
-    assert_eq!(decoded, vec![first, second]);
+    assert_eq!(frames, vec![first, second]);
 }
 
 #[test]

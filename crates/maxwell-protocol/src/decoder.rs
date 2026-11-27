@@ -24,6 +24,11 @@ impl Decoder {
     /// Decodes exactly one complete protocol frame.
     ///
     /// Trailing bytes are rejected.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TrailingBytes` if bytes remain after the message,
+    /// or any error from [`Self::decode_prefix`].
     #[inline]
     pub fn decode(&self, buffer: &[u8]) -> ProtocolResult<ProtocolMessage> {
         let (message, consumed) = self.decode_prefix(buffer)?;
@@ -39,6 +44,11 @@ impl Decoder {
     ///
     /// Returns the decoded message and consumed byte count.
     /// Remaining bytes are left for subsequent decoding.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the header or payload is truncated,
+    /// malformed, or fails validation.
     #[inline]
     pub fn decode_prefix(&self, buffer: &[u8]) -> ProtocolResult<(ProtocolMessage, usize)> {
         let mut reader = ByteReader::new(buffer);
@@ -63,6 +73,10 @@ impl Decoder {
     }
 
     /// Decodes directly into the canonical domain event.
+    ///
+    /// # Errors
+    ///
+    /// Returns any error from [`Self::decode`].
     #[inline]
     pub fn decode_event(&self, buffer: &[u8]) -> ProtocolResult<EventEnvelope> {
         self.decode(buffer).map(|message| message.envelope)
@@ -72,6 +86,10 @@ impl Decoder {
     ///
     /// The complete payload does not need to be present.
     /// Useful for transport-layer framing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the header is truncated or invalid.
     #[inline]
     pub fn frame_length(&self, buffer: &[u8]) -> ProtocolResult<usize> {
         let mut reader = ByteReader::new(buffer);
@@ -88,7 +106,7 @@ impl Decoder {
     /// Iteration stops after the first decoding failure.
     #[must_use]
     #[inline]
-    pub fn frames<'a>(&self, buffer: &'a [u8]) -> FrameIter<'a> {
+    pub const fn frames<'a>(&self, buffer: &'a [u8]) -> FrameIter<'a> {
         FrameIter {
             decoder: *self,
             remaining: buffer,

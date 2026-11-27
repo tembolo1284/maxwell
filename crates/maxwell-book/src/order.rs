@@ -19,6 +19,11 @@ pub struct RestingOrder {
 }
 
 impl RestingOrder {
+    /// Creates a resting order.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ZeroQuantity` if `quantity` is zero.
     pub const fn new(
         order_id: OrderId,
         side: Side,
@@ -72,6 +77,12 @@ impl RestingOrder {
     /// Returns the remaining order after a partial reduction.
     ///
     /// Complete reductions must remove the order instead.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidReduction` if the reduction is zero or would
+    /// remove the whole order, or `QuantityUnderflow` if it exceeds
+    /// the remaining quantity.
     #[inline]
     pub fn reduced(self, quantity: Quantity) -> BookResult<Self> {
         if quantity.is_zero() || quantity >= self.quantity {

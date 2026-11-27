@@ -14,7 +14,7 @@ pub struct ByteWriter<'a> {
 impl<'a> ByteWriter<'a> {
     #[must_use]
     #[inline]
-    pub fn new(buffer: &'a mut [u8]) -> Self {
+    pub const fn new(buffer: &'a mut [u8]) -> Self {
         Self {
             buffer,
             position: 0,
@@ -39,8 +39,13 @@ impl<'a> ByteWriter<'a> {
         &self.buffer[..self.position]
     }
 
+    /// Checks that `count` more bytes fit.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferTooSmall` if the remaining capacity is insufficient.
     #[inline]
-    pub fn ensure_capacity(&self, count: usize) -> ProtocolResult<()> {
+    pub const fn ensure_capacity(&self, count: usize) -> ProtocolResult<()> {
         let remaining = self.remaining();
 
         if count > remaining {
@@ -53,6 +58,11 @@ impl<'a> ByteWriter<'a> {
         Ok(())
     }
 
+    /// Writes raw bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferTooSmall` if the remaining capacity is insufficient.
     #[inline]
     pub fn write_bytes(&mut self, bytes: &[u8]) -> ProtocolResult<()> {
         self.ensure_capacity(bytes.len())?;
@@ -66,31 +76,61 @@ impl<'a> ByteWriter<'a> {
         Ok(())
     }
 
+    /// Writes one byte.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferTooSmall` if the remaining capacity is insufficient.
     #[inline]
     pub fn write_u8(&mut self, value: u8) -> ProtocolResult<()> {
         self.write_bytes(&[value])
     }
 
+    /// Writes a little-endian `u16`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferTooSmall` if the remaining capacity is insufficient.
     #[inline]
     pub fn write_u16(&mut self, value: u16) -> ProtocolResult<()> {
         self.write_bytes(&value.to_le_bytes())
     }
 
+    /// Writes a little-endian `u32`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferTooSmall` if the remaining capacity is insufficient.
     #[inline]
     pub fn write_u32(&mut self, value: u32) -> ProtocolResult<()> {
         self.write_bytes(&value.to_le_bytes())
     }
 
+    /// Writes a little-endian `u64`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferTooSmall` if the remaining capacity is insufficient.
     #[inline]
     pub fn write_u64(&mut self, value: u64) -> ProtocolResult<()> {
         self.write_bytes(&value.to_le_bytes())
     }
 
+    /// Writes a little-endian `i64`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferTooSmall` if the remaining capacity is insufficient.
     #[inline]
     pub fn write_i64(&mut self, value: i64) -> ProtocolResult<()> {
         self.write_bytes(&value.to_le_bytes())
     }
 
+    /// Writes `count` zero bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferTooSmall` if the remaining capacity is insufficient.
     #[inline]
     pub fn write_zeroes(&mut self, count: usize) -> ProtocolResult<()> {
         self.ensure_capacity(count)?;

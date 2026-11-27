@@ -33,7 +33,7 @@ impl ProtocolVersion {
     ///
     /// # Errors
     ///
-    /// Returns UnsupportedVersion for unknown versions.
+    /// Returns `UnsupportedVersion` for unknown versions.
     #[inline]
     pub const fn validate(self) -> ProtocolResult<()> {
         if self.is_supported() {

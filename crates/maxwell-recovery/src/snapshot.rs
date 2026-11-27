@@ -25,12 +25,26 @@ impl SnapshotWatermark {
         }
     }
 
+    /// Returns the first sequence not covered by the snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SequenceExhausted` if the watermark is the last
+    /// representable sequence.
     pub fn next_expected(self) -> RecoveryResult<SequenceNumber> {
         self.last_sequence
             .next()
             .ok_or(RecoveryError::SequenceExhausted)
     }
 
+    /// Checks that a snapshot answers `request`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StaleResponse` for another request, `FeedMismatch`
+    /// for another feed, `SnapshotTooOld` if it does not cover the
+    /// required sequence, or `SequenceExhausted` if nothing can
+    /// follow it.
     pub fn validate(self, request: SnapshotRequest) -> RecoveryResult<()> {
         if self.request_id != request.id {
             return Err(RecoveryError::StaleResponse);

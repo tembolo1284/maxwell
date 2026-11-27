@@ -9,15 +9,15 @@ use maxwell_sequencer::{SequencerConfig, SequencerState, StreamSequencer};
 
 const EVENT_COUNT: u64 = 1_000_000;
 
-fn seq(value: u64) -> SequenceNumber {
+const fn seq(value: u64) -> SequenceNumber {
     SequenceNumber::new(value)
 }
 
-fn feed() -> FeedId {
+const fn feed() -> FeedId {
     FeedId::new(StreamId::new(1), SessionId::new(1))
 }
 
-fn event(sequence: u64) -> EventEnvelope {
+const fn event(sequence: u64) -> EventEnvelope {
     EventEnvelope::new(
         EventHeader::new(
             EventId::new(feed(), seq(sequence)),
@@ -52,7 +52,7 @@ impl XorShift64 {
         }
     }
 
-    fn next(&mut self) -> u64 {
+    const fn next(&mut self) -> u64 {
         let mut value = self.state;
 
         value ^= value << 13;
@@ -66,7 +66,7 @@ impl XorShift64 {
 
     fn shuffle<T>(&mut self, values: &mut [T]) {
         for index in (1..values.len()).rev() {
-            let selected = (self.next() % (index as u64 + 1)) as usize;
+            let selected = usize::try_from(self.next() % (index as u64 + 1)).unwrap();
 
             values.swap(index, selected);
         }
@@ -169,7 +169,7 @@ fn randomized_batches_with_duplicates() {
 
             // Introduce duplicates at deterministic
             // pseudorandom intervals.
-            if rng.next() % 5 == 0 {
+            if rng.next().is_multiple_of(5) {
                 sequencer
                     .ingest(event(sequence), |_| {
                         panic!("duplicate event delivered");

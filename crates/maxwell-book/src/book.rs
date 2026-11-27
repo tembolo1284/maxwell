@@ -32,6 +32,12 @@ pub struct OrderBook {
 }
 
 impl OrderBook {
+    /// Creates an empty book for one instrument and feed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid or the
+    /// preallocated storage cannot be created.
     pub fn new(instrument: Instrument, feed: FeedId, config: BookConfig) -> BookResult<Self> {
         config.validate()?;
 
@@ -159,7 +165,7 @@ impl OrderBook {
     }
 
     #[inline]
-    fn ladder_mut(&mut self, side: Side) -> &mut PriceLadder {
+    const fn ladder_mut(&mut self, side: Side) -> &mut PriceLadder {
         match side {
             Side::Buy => &mut self.bids,
             Side::Sell => &mut self.asks,
@@ -172,6 +178,12 @@ impl OrderBook {
     /// may carry updates for multiple instruments.
     ///
     /// A failed update marks the book as requiring recovery.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RecoveryRequired` if the book already requires
+    /// recovery, or the validation error for an update that cannot
+    /// be applied.
     pub fn apply(&mut self, update: BookUpdate) -> BookResult<()> {
         if self.state == BookState::RecoveryRequired {
             return Err(BookError::RecoveryRequired);
@@ -198,13 +210,13 @@ impl OrderBook {
             return Err(BookError::RecoveryRequired);
         }
 
-        if let Some(previous) = self.last_sequence {
-            if update.sequence <= previous {
-                return Err(BookError::NonIncreasingSequence {
-                    previous,
-                    received: update.sequence,
-                });
-            }
+        if let Some(previous) = self.last_sequence
+            && update.sequence <= previous
+        {
+            return Err(BookError::NonIncreasingSequence {
+                previous,
+                received: update.sequence,
+            });
         }
 
         match update.kind {
@@ -306,7 +318,7 @@ impl OrderBook {
         let index = self
             .ladder(side)
             .index_of(order.price())
-            .ok_or(BookError::InvalidPrice(order.price()))?;
+            .ok_or_else(|| BookError::InvalidPrice(order.price()))?;
 
         let mut level = self
             .ladder(side)
@@ -332,7 +344,7 @@ impl OrderBook {
         let index = self
             .ladder(side)
             .index_of(order.price())
-            .ok_or(BookError::InvalidPrice(order.price()))?;
+            .ok_or_else(|| BookError::InvalidPrice(order.price()))?;
 
         let mut level = self
             .ladder(side)
@@ -368,7 +380,7 @@ impl OrderBook {
         let old_index = self
             .ladder(side)
             .index_of(previous.price())
-            .ok_or(BookError::InvalidPrice(previous.price()))?;
+            .ok_or_else(|| BookError::InvalidPrice(previous.price()))?;
 
         let new_index = self
             .ladder(side)
@@ -409,7 +421,7 @@ impl OrderBook {
 
     /// Marks the book stale without destroying its last
     /// known consistent state.
-    pub fn require_recovery(&mut self) {
+    pub const fn require_recovery(&mut self) {
         self.state = BookState::RecoveryRequired;
     }
 
@@ -418,6 +430,11 @@ impl OrderBook {
     ///
     /// The caller must establish that the new session
     /// starts with an empty exchange book.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidSnapshot` if `feed` is the current feed
+    /// identity.
     pub fn reset_empty_session(&mut self, feed: FeedId) -> BookResult<()> {
         if feed == self.feed {
             return Err(BookError::InvalidSnapshot);
@@ -434,7 +451,7 @@ impl OrderBook {
         Ok(())
     }
 
-    pub(crate) fn set_snapshot_watermark(&mut self, sequence: Option<SequenceNumber>) {
+    pub(crate) const fn set_snapshot_watermark(&mut self, sequence: Option<SequenceNumber>) {
         self.last_sequence = sequence;
     }
 
@@ -442,6 +459,12 @@ impl OrderBook {
     ///
     /// This is intended for diagnostics, tests, and
     /// recovery, not the steady-state processing path.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InconsistentBook` if the registry and ladders
+    /// disagree, or `AllocationFailed` if scratch storage cannot be
+    /// reserved.
     pub fn validate_consistency(&self) -> BookResult<()> {
         let mut bid_levels = Vec::new();
         let mut ask_levels = Vec::new();

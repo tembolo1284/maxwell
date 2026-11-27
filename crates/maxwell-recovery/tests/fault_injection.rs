@@ -9,15 +9,15 @@ use maxwell_recovery::{
     RecoveryConfig, RecoveryError, RecoveryManager, RecoveryRequest, RecoveryState,
 };
 
-fn feed() -> FeedId {
+const fn feed() -> FeedId {
     FeedId::new(StreamId::new(1), SessionId::new(1))
 }
 
-fn time(value: u64) -> MonotonicTimestamp {
+const fn time(value: u64) -> MonotonicTimestamp {
     MonotonicTimestamp::new(value)
 }
 
-fn event(sequence: u64) -> EventEnvelope {
+const fn event(sequence: u64) -> EventEnvelope {
     EventEnvelope::new(
         EventHeader::new(
             EventId::new(feed(), SequenceNumber::new(sequence)),
@@ -60,7 +60,7 @@ fn retransmission_timeout_escalates_to_snapshot() {
                 assert_eq!(request.attempt, attempt);
             }
 
-            _ => panic!("expected retransmission"),
+            RecoveryRequest::Snapshot(_) => panic!("expected retransmission"),
         }
 
         manager.poll(time(u64::from(attempt) * 100)).unwrap();
@@ -166,7 +166,7 @@ fn retry_requests_only_uncommitted_suffix() {
             assert_eq!(request.attempt, 2);
         }
 
-        _ => panic!("expected retransmission"),
+        RecoveryRequest::Snapshot(_) => panic!("expected retransmission"),
     }
 }
 
@@ -177,7 +177,7 @@ fn retry_requests_only_uncommitted_suffix() {
 struct XorShift64(u64);
 
 impl XorShift64 {
-    fn next(&mut self) -> u64 {
+    const fn next(&mut self) -> u64 {
         let mut value = self.0;
 
         value ^= value << 13;
@@ -218,7 +218,7 @@ fn randomized_loss_duplication_and_reordering() {
 
         for sequence in window_start..=window_end {
             // Approximately 10% packet loss.
-            if rng.next() % 10 == 0 {
+            if rng.next().is_multiple_of(10) {
                 continue;
             }
 
@@ -226,14 +226,14 @@ fn randomized_loss_duplication_and_reordering() {
 
             // Approximately 10% duplication among
             // delivered events.
-            if rng.next() % 10 == 0 {
+            if rng.next().is_multiple_of(10) {
                 delivery.push(sequence);
             }
         }
 
         // Fisher-Yates shuffle.
         for index in (1..delivery.len()).rev() {
-            let other = (rng.next() % (index as u64 + 1)) as usize;
+            let other = usize::try_from(rng.next() % (index as u64 + 1)).unwrap();
 
             delivery.swap(index, other);
         }

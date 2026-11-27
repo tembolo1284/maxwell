@@ -15,6 +15,12 @@ pub struct RetransmissionAttempt {
 }
 
 impl RetransmissionAttempt {
+    /// Records an issued retransmission request and its deadline.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidRequest` if the attempt number is zero, or
+    /// an error if the deadline overflows.
     pub fn new(
         request: RetransmissionRequest,
         now: MonotonicTimestamp,
@@ -40,6 +46,11 @@ impl RetransmissionAttempt {
         self.deadline
     }
 
+    /// Reports whether the request deadline has passed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `now` precedes the request time.
     pub fn is_expired(self, now: MonotonicTimestamp) -> RecoveryResult<bool> {
         self.deadline.is_expired(now)
     }
@@ -52,6 +63,13 @@ impl RetransmissionAttempt {
         next_expected > self.request.range.end()
     }
 
+    /// Checks that an event answers this request.
+    ///
+    /// # Errors
+    ///
+    /// Returns `StaleResponse` for another request id,
+    /// `FeedMismatch` for another feed, or `InvalidRequest` if the
+    /// sequence is outside the requested range.
     pub fn validate_event(
         self,
         request_id: RequestId,

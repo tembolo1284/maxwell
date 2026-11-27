@@ -22,6 +22,13 @@ impl PriceLevel {
         order_count: 0,
     };
 
+    /// Creates a level from aggregate quantity and order count.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPriceLevel` if only one of the quantity and
+    /// the order count is zero, or the quantity is smaller than the
+    /// order count.
     pub const fn new(quantity: Quantity, order_count: u32) -> BookResult<Self> {
         if quantity.is_zero() != (order_count == 0) || quantity.raw() < order_count as u64 {
             return Err(BookError::InvalidPriceLevel);
@@ -54,6 +61,12 @@ impl PriceLevel {
     /// Adds one resting order.
     ///
     /// All arithmetic is validated before mutation.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ZeroQuantity` for a zero quantity, or
+    /// `QuantityOverflow` or `OrderCountOverflow` if an aggregate
+    /// would overflow.
     #[inline]
     pub fn add_order(&mut self, quantity: Quantity) -> BookResult<()> {
         if quantity.is_zero() {
@@ -79,6 +92,11 @@ impl PriceLevel {
     ///
     /// The caller must ensure that the individual order
     /// retains a positive remaining quantity.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ZeroQuantity` for a zero quantity, or
+    /// `QuantityUnderflow` if it exceeds the aggregate quantity.
     #[inline]
     pub fn reduce_quantity(&mut self, quantity: Quantity) -> BookResult<()> {
         if quantity.is_zero() {
@@ -96,6 +114,12 @@ impl PriceLevel {
     }
 
     /// Increases aggregate quantity without adding an order.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ZeroQuantity` for a zero quantity,
+    /// `InvalidPriceLevel` if the level is empty, or
+    /// `QuantityOverflow` if the aggregate would overflow.
     #[inline]
     pub fn increase_quantity(&mut self, quantity: Quantity) -> BookResult<()> {
         if quantity.is_zero() {
@@ -117,6 +141,12 @@ impl PriceLevel {
     }
 
     /// Removes one complete resting order.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ZeroQuantity` for a zero quantity, or
+    /// `QuantityUnderflow` or `OrderCountUnderflow` if an aggregate
+    /// would underflow.
     #[inline]
     pub fn remove_order(&mut self, quantity: Quantity) -> BookResult<()> {
         if quantity.is_zero() {
@@ -139,7 +169,7 @@ impl PriceLevel {
     }
 
     #[inline]
-    pub fn clear(&mut self) {
+    pub const fn clear(&mut self) {
         *self = Self::EMPTY;
     }
 }

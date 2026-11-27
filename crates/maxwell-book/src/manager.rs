@@ -20,6 +20,12 @@ pub struct BookManager {
 }
 
 impl BookManager {
+    /// Creates a manager with preallocated instrument slots.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid, or
+    /// `AllocationFailed` if storage cannot be reserved.
     pub fn new(config: BookConfig) -> BookResult<Self> {
         config.validate()?;
 
@@ -53,6 +59,12 @@ impl BookManager {
     /// Registers an instrument with an initially empty book.
     ///
     /// Registration belongs to the control path.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InstrumentAlreadyRegistered` for a duplicate,
+    /// `InstrumentCapacityExceeded` if no slot is free, or the
+    /// error from constructing the book.
     pub fn register(&mut self, instrument: Instrument, feed: FeedId) -> BookResult<()> {
         let id = instrument.id();
 
@@ -82,6 +94,11 @@ impl BookManager {
     }
 
     /// Routes a sequenced update to its instrument.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnknownInstrument` if the instrument is not registered.
+    /// Otherwise propagates the error from the book.
     #[inline]
     pub fn apply(&mut self, update: BookUpdate) -> BookResult<()> {
         let book = self
@@ -92,6 +109,11 @@ impl BookManager {
         book.apply(update)
     }
 
+    /// Marks one instrument's book as requiring recovery.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnknownInstrument` if the instrument is not registered.
     pub fn require_recovery(&mut self, id: InstrumentId) -> BookResult<()> {
         let book = self
             .books
@@ -115,6 +137,12 @@ impl BookManager {
         }
     }
 
+    /// Captures a snapshot of one instrument's book.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnknownInstrument` if the instrument is not registered.
+    /// Otherwise propagates the error from the capture.
     pub fn capture_snapshot(&self, id: InstrumentId) -> BookResult<BookSnapshot> {
         let book = self
             .books
@@ -124,6 +152,12 @@ impl BookManager {
         BookSnapshot::capture(book)
     }
 
+    /// Installs a snapshot into its registered book.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnknownInstrument` if the instrument is not registered.
+    /// Otherwise propagates the error from the installation.
     pub fn install_snapshot(&mut self, snapshot: &BookSnapshot) -> BookResult<()> {
         let id = snapshot.instrument.id();
 
@@ -139,6 +173,13 @@ impl BookManager {
     ///
     /// The caller must authenticate the new session and
     /// coordinate the transition with the sequencer.
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnknownInstrument` if the instrument is not registered.
+    /// Returns `InvalidSnapshot` if the instrument definition
+    /// differs or the feed identity is unchanged, or the error from
+    /// restoring the snapshot.
     pub fn install_new_session(&mut self, snapshot: &BookSnapshot) -> BookResult<()> {
         let id = snapshot.instrument.id();
 

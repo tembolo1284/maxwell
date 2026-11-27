@@ -97,7 +97,7 @@ impl FeedId {
 
 impl fmt::Display for FeedId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.stream_id, self.session_id,)
+        write!(f, "{}:{}", self.stream_id, self.session_id)
     }
 }
 
@@ -528,13 +528,12 @@ impl PriceLevelUpdated {
     /// the presence or absence of aggregate liquidity.
     #[inline]
     pub const fn validate(self) -> Result<(), EventError> {
-        if let Some(count) = self.order_count {
-            if self.quantity.is_zero() != (count == 0) {
-                return Err(EventError::InvalidLevelOrderCount);
+        match self.order_count {
+            Some(count) if self.quantity.is_zero() != (count == 0) => {
+                Err(EventError::InvalidLevelOrderCount)
             }
+            _ => Ok(()),
         }
-
-        Ok(())
     }
 }
 

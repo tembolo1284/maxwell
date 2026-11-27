@@ -4,7 +4,7 @@
 
 use maxwell_transport::{FrameDecoder, FrameEncoder, FramingConfig, TransportError};
 
-fn config() -> FramingConfig {
+const fn config() -> FramingConfig {
     FramingConfig {
         max_frame_size: 4096,
         allow_empty_frames: false,
@@ -197,7 +197,7 @@ struct XorShift64 {
 }
 
 impl XorShift64 {
-    fn next(&mut self) -> u64 {
+    const fn next(&mut self) -> u64 {
         let mut value = self.state;
 
         value ^= value << 13;
@@ -224,9 +224,9 @@ fn randomized_fragmentation() {
     let mut encoder = FrameEncoder::new(config()).unwrap();
 
     for _ in 0..MESSAGES {
-        let length = (rng.next() % 512 + 1) as usize;
+        let length = usize::try_from(rng.next() % 512 + 1).unwrap();
 
-        let payload: Vec<u8> = (0..length).map(|_| rng.next() as u8).collect();
+        let payload: Vec<u8> = (0..length).map(|_| rng.next().to_le_bytes()[0]).collect();
 
         encoder.prepare(&payload).unwrap();
 
@@ -243,7 +243,7 @@ fn randomized_fragmentation() {
     let mut offset = 0;
 
     while offset < stream.len() {
-        let chunk_size = (rng.next() % 2048 + 1) as usize;
+        let chunk_size = usize::try_from(rng.next() % 2048 + 1).unwrap();
 
         let end = (offset + chunk_size).min(stream.len());
 

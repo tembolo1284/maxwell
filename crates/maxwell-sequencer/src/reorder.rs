@@ -4,7 +4,7 @@
 //! Insertion and removal are O(1).
 //!
 //! Each slot retains the full sequence number through its
-//! EventEnvelope, preventing circular index aliasing.
+//! `EventEnvelope`, preventing circular index aliasing.
 
 use maxwell_core::{EventEnvelope, SequenceNumber};
 
@@ -76,7 +76,11 @@ impl ReorderBuffer {
     }
 
     #[inline]
-    fn index(&self, sequence: SequenceNumber) -> usize {
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the mask is derived from a usize capacity"
+    )]
+    const fn index(&self, sequence: SequenceNumber) -> usize {
         // The mask is derived from a bounded usize capacity.
         (sequence.raw() & self.mask) as usize
     }
@@ -102,6 +106,12 @@ impl ReorderBuffer {
     /// rather than addition to avoid integer overflow.
     ///
     /// The caller must validate feed identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SequenceOutsideWindow` if the event is beyond the
+    /// reorder window, `ConflictingDuplicate` if a different event
+    /// holds the sequence, or `BufferCollision` if its slot is taken.
     pub fn insert(
         &mut self,
         expected: SequenceNumber,

@@ -24,6 +24,13 @@ pub struct PriceLadder {
 }
 
 impl PriceLadder {
+    /// Creates an empty ladder covering the instrument's price band.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PriceLevelCapacityExceeded` if the band is empty or
+    /// needs more levels than `max_levels`, or `AllocationFailed` if storage
+    /// cannot be reserved.
     pub fn new(instrument: Instrument, side: Side, max_levels: usize) -> BookResult<Self> {
         let count = instrument
             .price_level_count()
@@ -138,7 +145,11 @@ impl PriceLadder {
     ///
     /// Restricted to the crate so callers cannot mutate
     /// aggregate depth independently of the order registry.
-
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPrice` if `price` is not a level of this
+    /// ladder.
     #[inline]
     pub fn set_level(&mut self, price: Price, level: PriceLevel) -> BookResult<()> {
         let index = self.index_of(price).ok_or(BookError::InvalidPrice(price))?;
@@ -192,7 +203,7 @@ impl PriceLadder {
     }
 
     #[inline]
-    fn update_best_on_insert(&mut self, index: usize) {
+    const fn update_best_on_insert(&mut self, index: usize) {
         let replace = match self.best_index {
             None => true,
 
@@ -268,7 +279,7 @@ impl PriceLadder {
 
     /// Iterates occupied levels in best-to-worst price order.
     #[must_use]
-    pub fn iter(&self) -> LadderIter<'_> {
+    pub const fn iter(&self) -> LadderIter<'_> {
         LadderIter {
             ladder: self,
             next_index: self.best_index,
@@ -287,6 +298,16 @@ impl PriceLadder {
 pub struct LadderIter<'a> {
     ladder: &'a PriceLadder,
     next_index: Option<usize>,
+}
+
+impl<'a> IntoIterator for &'a PriceLadder {
+    type Item = (Price, PriceLevel);
+    type IntoIter = LadderIter<'a>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
 }
 
 impl Iterator for LadderIter<'_> {

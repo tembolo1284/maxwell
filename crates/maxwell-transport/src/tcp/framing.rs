@@ -69,6 +69,12 @@ pub struct FrameDecoder {
 }
 
 impl FrameDecoder {
+    /// Creates a decoder with preallocated payload storage.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid or the
+    /// storage cannot be allocated.
     pub fn new(config: FramingConfig) -> TransportResult<Self> {
         config.validate()?;
 
@@ -131,6 +137,12 @@ impl FrameDecoder {
     ///
     /// A ready frame must be processed and released
     /// before decoding the next frame.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DecoderPoisoned` after an earlier framing failure,
+    /// `FrameTooLarge` if a frame exceeds the configured limit, or
+    /// `EmptyFrame` if empty frames are not allowed.
     pub fn push(&mut self, input: &[u8]) -> TransportResult<FrameStatus> {
         if self.poisoned {
             return Err(TransportError::DecoderPoisoned);
@@ -218,7 +230,7 @@ impl FrameDecoder {
     /// Releases a successfully processed frame.
     ///
     /// Returns false when no complete frame is available.
-    pub fn release(&mut self) -> bool {
+    pub const fn release(&mut self) -> bool {
         if !self.ready {
             return false;
         }
@@ -230,7 +242,12 @@ impl FrameDecoder {
 
     /// Checks whether TCP EOF occurred at a valid
     /// application frame boundary.
-    pub fn finish(&self) -> TransportResult<()> {
+    ///
+    /// # Errors
+    ///
+    /// Returns `DecoderPoisoned` after an earlier framing failure,
+    /// or `TruncatedFrame` if a frame is incomplete.
+    pub const fn finish(&self) -> TransportResult<()> {
         if self.poisoned {
             return Err(TransportError::DecoderPoisoned);
         }
@@ -247,7 +264,7 @@ impl FrameDecoder {
     /// A malformed frame poisons the current stream.
     /// Reset should normally accompany a new connection,
     /// not an attempt to guess the next frame boundary.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.header_length = 0;
         self.payload_length = 0;
         self.expected_length = None;
@@ -271,6 +288,12 @@ pub struct FrameEncoder {
 }
 
 impl FrameEncoder {
+    /// Creates an encoder with preallocated frame storage.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid or the
+    /// storage cannot be allocated.
     pub fn new(config: FramingConfig) -> TransportResult<Self> {
         config.validate()?;
 
@@ -308,6 +331,12 @@ impl FrameEncoder {
     ///
     /// An existing partially written frame cannot be
     /// overwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns `EncoderBusy` if a frame is still pending,
+    /// `FrameTooLarge` if the payload exceeds the configured limit,
+    /// or `EmptyFrame` if empty frames are not allowed.
     pub fn prepare(&mut self, payload: &[u8]) -> TransportResult<()> {
         if self.is_pending() {
             return Err(TransportError::EncoderBusy);
@@ -349,8 +378,13 @@ impl FrameEncoder {
     }
 
     /// Advances the write offset after a successful write.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidWriteProgress` if `written` exceeds the
+    /// pending byte count.
     #[inline]
-    pub fn advance(&mut self, written: usize) -> TransportResult<()> {
+    pub const fn advance(&mut self, written: usize) -> TransportResult<()> {
         if written > self.remaining() {
             return Err(TransportError::InvalidWriteProgress);
         }
@@ -362,7 +396,11 @@ impl FrameEncoder {
 
     /// Attempts one nonblocking socket write.
     ///
-    /// WouldBlock leaves the write offset unchanged.
+    /// `WouldBlock` leaves the write offset unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection write fails.
     pub fn flush_once(&mut self, connection: &mut TcpConnection) -> TransportResult<WriteOutcome> {
         if !self.is_pending() {
             return Ok(WriteOutcome::Written(0));
@@ -381,7 +419,7 @@ impl FrameEncoder {
     ///
     /// If any prefix was already transmitted, the caller
     /// must close the connection before resetting.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.length = 0;
         self.offset = 0;
     }

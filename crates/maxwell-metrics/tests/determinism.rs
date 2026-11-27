@@ -52,7 +52,7 @@ fn replay(seed: u64) -> ReplayResult {
 
         registry.increment(received).unwrap();
 
-        if random % 100 == 0 {
+        if random.is_multiple_of(100) {
             registry.increment(rejected).unwrap();
         } else {
             registry.increment(processed).unwrap();
@@ -62,7 +62,7 @@ fn replay(seed: u64) -> ReplayResult {
             assert!(registry.record(latency, observation).unwrap());
         }
 
-        if random % 1000 == 0 {
+        if random.is_multiple_of(1000) {
             registry.increment(gaps).unwrap();
         }
 

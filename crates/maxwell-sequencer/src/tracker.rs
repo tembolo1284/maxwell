@@ -50,10 +50,15 @@ impl SequenceTracker {
 
     /// Commits exactly the next expected sequence.
     ///
-    /// Sequence u64::MAX can be committed, after which
+    /// Sequence `u64::MAX` can be committed, after which
     /// the tracker enters an exhausted state.
     ///
     /// Sequence numbers never wrap silently.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SequenceMismatch` if `received` is not the expected
+    /// sequence, or `SequenceExhausted` if the tracker cannot advance.
     #[inline]
     pub fn commit(&mut self, received: SequenceNumber) -> SequencerResult<()> {
         let expected = self.expected.ok_or(SequencerError::SequenceExhausted)?;
@@ -73,8 +78,8 @@ impl SequenceTracker {
     /// checkpoint.
     ///
     /// Feed and recovery validation belong to the owning
-    /// StreamSequencer.
-    pub fn reset(&mut self, expected: SequenceNumber) {
+    /// `StreamSequencer`.
+    pub const fn reset(&mut self, expected: SequenceNumber) {
         *self = Self::new(expected);
     }
 }

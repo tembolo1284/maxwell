@@ -67,6 +67,10 @@ impl<'a> Level3<'a> {
     /// This is not a guarantee of actual exchange queue
     /// position unless the source feed supplies sufficient
     /// priority information.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AllocationFailed` if the output cannot be reserved.
     pub fn sorted_side(&self, side: Side) -> BookResult<Vec<RestingOrder>> {
         let mut orders = Vec::new();
 
@@ -91,6 +95,10 @@ impl<'a> Level3<'a> {
     }
 
     /// Produces a deterministic list of orders at a price.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AllocationFailed` if the output cannot be reserved.
     pub fn sorted_orders_at(&self, side: Side, price: Price) -> BookResult<Vec<RestingOrder>> {
         let count = self
             .book

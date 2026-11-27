@@ -30,6 +30,13 @@ pub struct TcpConnection {
 }
 
 impl TcpConnection {
+    /// Opens a TCP connection to `address`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid, the socket
+    /// cannot be created or configured, or the connection attempt
+    /// fails or times out.
     pub fn connect(address: SocketAddr, config: TcpConfig) -> TransportResult<Self> {
         config.validate()?;
 
@@ -45,6 +52,12 @@ impl TcpConnection {
         Self::from_stream(stream, config)
     }
 
+    /// Wraps an established stream and applies `config`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid or a socket
+    /// option cannot be applied.
     pub fn from_stream(stream: TcpStream, config: TcpConfig) -> TransportResult<Self> {
         config.validate()?;
 
@@ -106,18 +119,38 @@ impl TcpConnection {
         self.read_closed && self.write_closed
     }
 
+    /// Returns the local socket address.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operating system cannot report it.
     pub fn local_addr(&self) -> TransportResult<SocketAddr> {
         Ok(self.stream.local_addr()?)
     }
 
+    /// Returns the remote socket address.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operating system cannot report it.
     pub fn peer_addr(&self) -> TransportResult<SocketAddr> {
         Ok(self.stream.peer_addr()?)
     }
 
+    /// Returns the socket buffer sizes granted by the kernel.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the socket options cannot be read.
     pub fn buffer_sizes(&self) -> TransportResult<SocketBufferSizes> {
         socket::buffer_sizes(&SockRef::from(&self.stream))
     }
 
+    /// Switches the socket between blocking and nonblocking mode.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the socket mode cannot be changed.
     pub fn set_nonblocking(&mut self, enabled: bool) -> TransportResult<()> {
         self.stream.set_nonblocking(enabled)?;
         self.config.socket.nonblocking = enabled;
@@ -127,6 +160,11 @@ impl TcpConnection {
 
     /// Reads available bytes without assuming that a
     /// complete application message has arrived.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferTooSmall` if `buffer` is empty, or an I/O error
+    /// if the socket read fails.
     #[inline]
     pub fn read(&mut self, buffer: &mut [u8]) -> TransportResult<ReadOutcome> {
         if self.read_closed {
@@ -184,6 +222,12 @@ impl TcpConnection {
         }
     }
 
+    /// Reads available bytes into `buffer` and commits their length.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer has no capacity or the socket
+    /// read fails.
     #[inline]
     pub fn read_into(&mut self, buffer: &mut ReceiveBuffer) -> TransportResult<ReadOutcome> {
         let outcome = self.read(buffer.writable())?;
@@ -201,6 +245,11 @@ impl TcpConnection {
     /// the supplied buffer.
     ///
     /// The caller must retain and resume the remainder.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ConnectionClosed` if the write side is closed, or an
+    /// I/O error if the socket write fails.
     #[inline]
     pub fn write(&mut self, payload: &[u8]) -> TransportResult<WriteOutcome> {
         if self.write_closed {
@@ -264,6 +313,11 @@ impl TcpConnection {
         }
     }
 
+    /// Shuts down one or both directions of the connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the socket shutdown fails.
     pub fn shutdown(&mut self, direction: Shutdown) -> TransportResult<()> {
         self.stream.shutdown(direction)?;
 

@@ -10,15 +10,15 @@ use maxwell_recovery::{
     RetransmissionRequest,
 };
 
-fn feed() -> FeedId {
+const fn feed() -> FeedId {
     FeedId::new(StreamId::new(1), SessionId::new(1))
 }
 
-fn time(value: u64) -> MonotonicTimestamp {
+const fn time(value: u64) -> MonotonicTimestamp {
     MonotonicTimestamp::new(value)
 }
 
-fn event(sequence: u64) -> EventEnvelope {
+const fn event(sequence: u64) -> EventEnvelope {
     EventEnvelope::new(
         EventHeader::new(
             EventId::new(feed(), SequenceNumber::new(sequence)),
@@ -42,7 +42,7 @@ fn manager() -> RecoveryManager {
 fn request(manager: &RecoveryManager) -> RetransmissionRequest {
     match manager.pending_request().unwrap() {
         RecoveryRequest::Retransmission(request) => request,
-        _ => panic!("expected retransmission request"),
+        RecoveryRequest::Snapshot(_) => panic!("expected retransmission request"),
     }
 }
 

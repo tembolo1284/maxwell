@@ -3,7 +3,7 @@
 //! Order identifiers are scoped to the owning instrument
 //! book and its current feed session.
 //!
-//! The initial implementation uses the standard HashMap.
+//! The initial implementation uses the standard `HashMap`.
 //! Capacity is reserved during construction.
 
 use std::collections::HashMap;
@@ -21,6 +21,13 @@ pub struct OrderRegistry {
 }
 
 impl OrderRegistry {
+    /// Creates a registry with preallocated order storage.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidOrderCapacity` if `max_orders` is zero or
+    /// above the supported maximum, or
+    /// `AllocationFailed` if storage cannot be reserved.
     pub fn new(max_orders: usize) -> BookResult<Self> {
         if max_orders == 0 || max_orders > MAX_ORDERS {
             return Err(BookError::InvalidOrderCapacity(max_orders));
@@ -113,7 +120,7 @@ impl OrderRegistry {
         let current = self
             .orders
             .get_mut(&order.order_id())
-            .ok_or(BookError::UnknownOrder(order.order_id()))?;
+            .ok_or_else(|| BookError::UnknownOrder(order.order_id()))?;
 
         *current = order;
 

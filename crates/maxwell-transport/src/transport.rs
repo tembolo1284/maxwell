@@ -47,8 +47,18 @@ pub trait DatagramReceiver {
     ///
     /// Implementations must reject oversized datagrams
     /// rather than expose truncated data to the decoder.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the datagram does not fit in `buffer`
+    /// or the socket receive fails.
     fn receive(&mut self, buffer: &mut [u8]) -> TransportResult<Option<ReceivedDatagram>>;
 
+    /// Returns the local socket address.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operating system cannot report it.
     fn local_addr(&self) -> TransportResult<SocketAddr>;
 }
 
@@ -56,6 +66,11 @@ pub trait DatagramSender {
     /// Sends one complete datagram.
     ///
     /// Datagram writes must not be resumed from an offset.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the payload exceeds the datagram limit
+    /// or the socket send fails.
     fn send_to(&mut self, payload: &[u8], destination: SocketAddr)
     -> TransportResult<WriteOutcome>;
 }

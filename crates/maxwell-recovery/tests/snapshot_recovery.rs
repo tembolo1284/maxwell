@@ -10,15 +10,15 @@ use maxwell_recovery::{
     SnapshotRequest, SnapshotWatermark,
 };
 
-fn feed(session: u64) -> FeedId {
+const fn feed(session: u64) -> FeedId {
     FeedId::new(StreamId::new(1), SessionId::new(session))
 }
 
-fn time(value: u64) -> MonotonicTimestamp {
+const fn time(value: u64) -> MonotonicTimestamp {
     MonotonicTimestamp::new(value)
 }
 
-fn event(session: u64, sequence: u64) -> EventEnvelope {
+const fn event(session: u64, sequence: u64) -> EventEnvelope {
     EventEnvelope::new(
         EventHeader::new(
             EventId::new(feed(session), SequenceNumber::new(sequence)),
@@ -34,7 +34,7 @@ fn event(session: u64, sequence: u64) -> EventEnvelope {
 fn snapshot_request(manager: &RecoveryManager) -> SnapshotRequest {
     match manager.pending_request().unwrap() {
         RecoveryRequest::Snapshot(request) => request,
-        _ => panic!("expected snapshot request"),
+        RecoveryRequest::Retransmission(_) => panic!("expected snapshot request"),
     }
 }
 
@@ -122,7 +122,7 @@ fn snapshot_with_remaining_gap_requires_retransmission() {
             assert_eq!(request.range.end().raw(), 104);
         }
 
-        _ => panic!("expected retransmission"),
+        RecoveryRequest::Snapshot(_) => panic!("expected retransmission"),
     }
 
     assert!(!manager.is_publishable());
