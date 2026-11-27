@@ -1,0 +1,23 @@
+
+[package]
+name = "maxwell-transport"
+version = "0.1.0"
+edition = "2024"
+description = "Low-latency UDP and TCP networking primitives for Maxwell"
+publish = false
+
+[lib]
+name = "maxwell_transport"
+path = "src/lib.rs"
+
+[dependencies]
+socket2 = { version = "0.6", features = ["all"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+

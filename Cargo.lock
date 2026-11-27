@@ -3,6 +3,13 @@
 version = 4
 
 [[package]]
+name = "maxwell-book"
+version = "0.1.0"
+dependencies = [
+ "maxwell-core",
+]
+
+[[package]]
 name = "maxwell-core"
 version = "0.1.0"
 
