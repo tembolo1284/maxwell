@@ -1,0 +1,12 @@
+[package]
+name = "maxwell-gateway"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Deterministic client session management and market data delivery gateway for Maxwell"
+
+[dependencies]
+maxwell-publisher = { path = "../maxwell-publisher" }
+
+[lints]
+workspace = true

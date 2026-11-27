@@ -16,8 +16,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "maxwell-client"
+version = "0.1.0"
+dependencies = [
+ "maxwell-gateway",
+ "maxwell-publisher",
+]
+
+[[package]]
 name = "maxwell-core"
 version = "0.1.0"
+
+[[package]]
+name = "maxwell-gateway"
+version = "0.1.0"
+dependencies = [
+ "maxwell-publisher",
+]
 
 [[package]]
 name = "maxwell-protocol"

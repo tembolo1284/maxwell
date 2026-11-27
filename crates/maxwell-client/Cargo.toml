@@ -1,0 +1,13 @@
+[package]
+name = "maxwell-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Deterministic market data client with snapshot synchronization and recovery for Maxwell"
+
+[dependencies]
+maxwell-publisher = { path = "../maxwell-publisher" }
+maxwell-gateway = { path = "../maxwell-gateway" }
+
+[lints]
+workspace = true

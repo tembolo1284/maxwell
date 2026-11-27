@@ -138,8 +138,9 @@ impl PriceLadder {
     ///
     /// Restricted to the crate so callers cannot mutate
     /// aggregate depth independently of the order registry.
+
     #[inline]
-    pub(crate) fn set_level(&mut self, price: Price, level: PriceLevel) -> BookResult<()> {
+    pub fn set_level(&mut self, price: Price, level: PriceLevel) -> BookResult<()> {
         let index = self.index_of(price).ok_or(BookError::InvalidPrice(price))?;
 
         self.set_level_at(index, level);
