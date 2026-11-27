@@ -41,72 +41,52 @@ impl ReplayClock {
         self.virtual_elapsed_ns
     }
 
-    pub fn scaled_elapsed_ns(
-        &self,
-        elapsed_ns: u64,
-    ) -> ReplayResult<u64> {
-        let Some((numerator, denominator)) =
-            self.mode.speed_ratio()
-        else {
+    pub fn scaled_elapsed_ns(&self, elapsed_ns: u64) -> ReplayResult<u64> {
+        let Some((numerator, denominator)) = self.mode.speed_ratio() else {
             return Ok(elapsed_ns);
         };
 
-        let scaled = u128::from(elapsed_ns)
-            * u128::from(denominator)
-            / u128::from(numerator);
+        let scaled = u128::from(elapsed_ns) * u128::from(denominator) / u128::from(numerator);
 
-        u64::try_from(scaled)
-            .map_err(|_| ReplayError::ClockOverflow)
+        u64::try_from(scaled).map_err(|_| ReplayError::ClockOverflow)
     }
 
-    pub fn remaining_delay(
-        &mut self,
-        timestamp_ns: u64,
-        now: Instant,
-    ) -> ReplayResult<Duration> {
-        let origin = *self.origin_timestamp_ns
-            .get_or_insert(timestamp_ns);
+    pub fn remaining_delay(&mut self, timestamp_ns: u64, now: Instant) -> ReplayResult<Duration> {
+        let origin = *self.origin_timestamp_ns.get_or_insert(timestamp_ns);
 
         let wall_origin = *self.wall_origin.get_or_insert(now);
 
-        let elapsed = timestamp_ns.checked_sub(origin).ok_or(
-            ReplayError::TimestampRegression {
+        let elapsed = timestamp_ns
+            .checked_sub(origin)
+            .ok_or(ReplayError::TimestampRegression {
                 previous: origin,
                 actual: timestamp_ns,
-            },
-        )?;
+            })?;
 
         if !self.mode.uses_wall_clock() {
             return Ok(Duration::ZERO);
         }
 
-        let target = Duration::from_nanos(
-            self.scaled_elapsed_ns(elapsed)?,
-        );
+        let target = Duration::from_nanos(self.scaled_elapsed_ns(elapsed)?);
 
         let actual = now.saturating_duration_since(wall_origin);
 
         Ok(target.saturating_sub(actual))
     }
 
-    pub fn commit(
-        &mut self,
-        timestamp_ns: u64,
-    ) -> ReplayResult<()> {
-        let origin = self.origin_timestamp_ns.ok_or(
-            ReplayError::InvalidState {
-                operation: "clock commit",
-                state: "not initialized",
-            },
-        )?;
+    pub fn commit(&mut self, timestamp_ns: u64) -> ReplayResult<()> {
+        let origin = self.origin_timestamp_ns.ok_or(ReplayError::InvalidState {
+            operation: "clock commit",
+            state: "not initialized",
+        })?;
 
         self.virtual_elapsed_ns =
-            timestamp_ns.checked_sub(origin).ok_or(
-                ReplayError::TimestampRegression {
+            timestamp_ns
+                .checked_sub(origin)
+                .ok_or(ReplayError::TimestampRegression {
                     previous: origin,
                     actual: timestamp_ns,
-                },
-            )?;
+                })?;
 
         Ok(())
     }
@@ -118,20 +98,13 @@ mod tests {
 
     #[test]
     fn virtual_clock_never_waits() {
-        let mut clock =
-            ReplayClock::new(PlaybackMode::Virtual).unwrap();
+        let mut clock = ReplayClock::new(PlaybackMode::Virtual).unwrap();
 
         let now = Instant::now();
 
-        assert_eq!(
-            clock.remaining_delay(100, now).unwrap(),
-            Duration::ZERO
-        );
+        assert_eq!(clock.remaining_delay(100, now).unwrap(), Duration::ZERO);
 
-        assert_eq!(
-            clock.remaining_delay(200, now).unwrap(),
-            Duration::ZERO
-        );
+        assert_eq!(clock.remaining_delay(200, now).unwrap(), Duration::ZERO);
 
         clock.commit(200).unwrap();
 
@@ -140,8 +113,7 @@ mod tests {
 
     #[test]
     fn real_time_clock_preserves_intervals() {
-        let mut clock =
-            ReplayClock::new(PlaybackMode::RealTime).unwrap();
+        let mut clock = ReplayClock::new(PlaybackMode::RealTime).unwrap();
 
         let now = Instant::now();
 
@@ -161,10 +133,7 @@ mod tests {
         })
         .unwrap();
 
-        assert_eq!(
-            clock.scaled_elapsed_ns(1_000).unwrap(),
-            100
-        );
+        assert_eq!(clock.scaled_elapsed_ns(1_000).unwrap(), 100);
     }
 
     #[test]
@@ -175,10 +144,7 @@ mod tests {
         })
         .unwrap();
 
-        assert_eq!(
-            clock.scaled_elapsed_ns(1_000).unwrap(),
-            2_000
-        );
+        assert_eq!(clock.scaled_elapsed_ns(1_000).unwrap(), 2_000);
     }
 
     #[test]

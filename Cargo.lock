@@ -62,6 +62,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "maxwell-replay"
+version = "0.1.0"
+dependencies = [
+ "maxwell-book",
+ "maxwell-core",
+ "maxwell-protocol",
+ "maxwell-server",
+ "maxwell-simulator",
+]
+
+[[package]]
 name = "maxwell-sequencer"
 version = "0.1.0"
 dependencies = [

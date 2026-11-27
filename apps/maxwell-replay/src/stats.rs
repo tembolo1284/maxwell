@@ -15,27 +15,19 @@ pub struct RecordingStats {
 }
 
 impl RecordingStats {
-    pub(crate) fn record_written(
-        &mut self,
-        record: JournalRecord,
-        bytes: u64,
-    ) {
-        self.records_written =
-            self.records_written.saturating_add(1);
+    pub(crate) fn record_written(&mut self, record: JournalRecord, bytes: u64) {
+        self.records_written = self.records_written.saturating_add(1);
 
-        self.bytes_written =
-            self.bytes_written.saturating_add(bytes);
+        self.bytes_written = self.bytes_written.saturating_add(bytes);
 
-        self.first_sequence
-            .get_or_insert(record.sequence());
+        self.first_sequence.get_or_insert(record.sequence());
 
         self.first_timestamp_ns
             .get_or_insert(record.recording_timestamp_ns);
 
         self.last_sequence = Some(record.sequence());
 
-        self.last_timestamp_ns =
-            Some(record.recording_timestamp_ns);
+        self.last_timestamp_ns = Some(record.recording_timestamp_ns);
     }
 
     #[must_use]
@@ -59,13 +51,10 @@ pub struct ReplayStats {
 
 impl ReplayStats {
     pub(crate) fn delivered(&mut self, record: JournalRecord) {
-        self.records_delivered =
-            self.records_delivered.saturating_add(1);
+        self.records_delivered = self.records_delivered.saturating_add(1);
 
-        self.last_delivered_sequence =
-            Some(record.sequence());
+        self.last_delivered_sequence = Some(record.sequence());
 
-        self.last_delivered_timestamp_ns =
-            Some(record.recording_timestamp_ns);
+        self.last_delivered_timestamp_ns = Some(record.recording_timestamp_ns);
     }
 }

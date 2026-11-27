@@ -5,36 +5,13 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use maxwell_core::{
-    EventEnvelope,
-    EventHeader,
-    EventId,
-    FeedId,
-    InstrumentId,
-    MarketEvent,
-    OrderAdded,
-    OrderId,
-    Price,
-    Quantity,
-    SequenceNumber,
-    SessionId,
-    Side,
-    StreamId,
+    EventEnvelope, EventHeader, EventId, FeedId, InstrumentId, MarketEvent, OrderAdded, OrderId,
+    Price, Quantity, SequenceNumber, SessionId, Side, StreamId,
 };
 
 use maxwell_replay::{
-    IndexConfig,
-    JournalIndex,
-    JournalReader,
-    JournalRecord,
-    JournalWriter,
-    PlaybackMode,
-    ReaderConfig,
-    ReplayConfig,
-    ReplayEngine,
-    ReplayFilter,
-    ReplayStatus,
-    SinkStatus,
-    WriterConfig,
+    IndexConfig, JournalIndex, JournalReader, JournalRecord, JournalWriter, PlaybackMode,
+    ReaderConfig, ReplayConfig, ReplayEngine, ReplayFilter, ReplayStatus, SinkStatus, WriterConfig,
 };
 
 static NEXT_FILE: AtomicU64 = AtomicU64::new(0);
@@ -47,32 +24,17 @@ impl Fixture {
     fn new(count: u64) -> Self {
         let id = NEXT_FILE.fetch_add(1, Ordering::Relaxed);
 
-        let path = std::env::temp_dir().join(format!(
-            "maxwell-playback-{}-{id}.mxj",
-            std::process::id(),
-        ));
+        let path =
+            std::env::temp_dir().join(format!("maxwell-playback-{}-{id}.mxj", std::process::id(),));
 
-        let feed = FeedId::new(
-            StreamId::new(1),
-            SessionId::new(1),
-        );
+        let feed = FeedId::new(StreamId::new(1), SessionId::new(1));
 
-        let mut writer = JournalWriter::create(
-            &path,
-            WriterConfig::default(),
-            feed,
-            1,
-            0,
-        )
-        .unwrap();
+        let mut writer = JournalWriter::create(&path, WriterConfig::default(), feed, 1, 0).unwrap();
 
         for sequence in 1..=count {
             let event = EventEnvelope::new(
                 EventHeader::new(
-                    EventId::new(
-                        feed,
-                        SequenceNumber::new(sequence),
-                    ),
+                    EventId::new(feed, SequenceNumber::new(sequence)),
                     InstrumentId::new(42),
                     None,
                 ),
@@ -84,11 +46,9 @@ impl Fixture {
                 }),
             );
 
-            writer.append(JournalRecord::new(
-                sequence * 100,
-                event,
-            ))
-            .unwrap();
+            writer
+                .append(JournalRecord::new(sequence * 100, event))
+                .unwrap();
         }
 
         writer.finish(false).unwrap();
@@ -96,11 +56,7 @@ impl Fixture {
         Self { path }
     }
 
-    fn engine(
-        &self,
-        config: ReplayConfig,
-        filter: ReplayFilter,
-    ) -> ReplayEngine {
+    fn engine(&self, config: ReplayConfig, filter: ReplayFilter) -> ReplayEngine {
         ReplayEngine::open(&self.path, config, filter).unwrap()
     }
 }
@@ -121,8 +77,7 @@ fn complete_virtual_playback() {
         ..ReplayConfig::default()
     };
 
-    let mut engine =
-        fixture.engine(config, ReplayFilter::default());
+    let mut engine = fixture.engine(config, ReplayFilter::default());
 
     let mut delivered = Vec::new();
 
@@ -147,14 +102,9 @@ fn complete_virtual_playback() {
 fn backpressure_preserves_pending_record() {
     let fixture = Fixture::new(3);
 
-    let mut engine = fixture.engine(
-        ReplayConfig::default(),
-        ReplayFilter::default(),
-    );
+    let mut engine = fixture.engine(ReplayConfig::default(), ReplayFilter::default());
 
-    let mut blocked = |_record: &JournalRecord| {
-        Ok(SinkStatus::Backpressured)
-    };
+    let mut blocked = |_record: &JournalRecord| Ok(SinkStatus::Backpressured);
 
     for _ in 0..5 {
         assert_eq!(
@@ -174,10 +124,7 @@ fn backpressure_preserves_pending_record() {
         Ok(SinkStatus::Accepted)
     };
 
-    assert_eq!(
-        engine.step(&mut sink).unwrap(),
-        ReplayStatus::Finished
-    );
+    assert_eq!(engine.step(&mut sink).unwrap(), ReplayStatus::Finished);
 
     assert_eq!(delivered, vec![1, 2, 3]);
     assert_eq!(engine.stats().backpressure_attempts, 5);
@@ -192,12 +139,9 @@ fn backpressure_budget_can_be_reset() {
         ..ReplayConfig::default()
     };
 
-    let mut engine =
-        fixture.engine(config, ReplayFilter::default());
+    let mut engine = fixture.engine(config, ReplayFilter::default());
 
-    let mut blocked = |_record: &JournalRecord| {
-        Ok(SinkStatus::Backpressured)
-    };
+    let mut blocked = |_record: &JournalRecord| Ok(SinkStatus::Backpressured);
 
     assert_eq!(
         engine.step(&mut blocked).unwrap(),
@@ -213,14 +157,9 @@ fn backpressure_budget_can_be_reset() {
 
     engine.reset_backpressure_budget();
 
-    let mut accepted = |_record: &JournalRecord| {
-        Ok(SinkStatus::Accepted)
-    };
+    let mut accepted = |_record: &JournalRecord| Ok(SinkStatus::Accepted);
 
-    assert_eq!(
-        engine.step(&mut accepted).unwrap(),
-        ReplayStatus::Finished
-    );
+    assert_eq!(engine.step(&mut accepted).unwrap(), ReplayStatus::Finished);
 
     assert_eq!(engine.stats().records_delivered, 1);
 }
@@ -235,8 +174,7 @@ fn filtering_preserves_original_sequences() {
         ..ReplayFilter::default()
     };
 
-    let mut engine =
-        fixture.engine(ReplayConfig::default(), filter);
+    let mut engine = fixture.engine(ReplayConfig::default(), filter);
 
     assert!(!engine.preserves_authoritative_stream());
 
@@ -247,10 +185,7 @@ fn filtering_preserves_original_sequences() {
         Ok(SinkStatus::Accepted)
     };
 
-    assert_eq!(
-        engine.step(&mut sink).unwrap(),
-        ReplayStatus::Finished
-    );
+    assert_eq!(engine.step(&mut sink).unwrap(), ReplayStatus::Finished);
 
     assert_eq!(delivered, vec![4, 5, 6]);
     assert_eq!(engine.stats().records_filtered, 7);
@@ -260,11 +195,7 @@ fn filtering_preserves_original_sequences() {
 fn sparse_index_sequence_seek() {
     let fixture = Fixture::new(100);
 
-    let mut reader = JournalReader::open(
-        &fixture.path,
-        ReaderConfig::default(),
-    )
-    .unwrap();
+    let mut reader = JournalReader::open(&fixture.path, ReaderConfig::default()).unwrap();
 
     let config = IndexConfig {
         record_interval: 10,
@@ -272,11 +203,7 @@ fn sparse_index_sequence_seek() {
         ..IndexConfig::default()
     };
 
-    let index = JournalIndex::build(
-        &mut reader,
-        config,
-    )
-    .unwrap();
+    let index = JournalIndex::build(&mut reader, config).unwrap();
 
     assert_eq!(index.entries().len(), 3);
     assert_eq!(index.total_records(), 100);
@@ -290,23 +217,11 @@ fn sparse_index_sequence_seek() {
 fn sparse_index_timestamp_seek() {
     let fixture = Fixture::new(100);
 
-    let mut reader = JournalReader::open(
-        &fixture.path,
-        ReaderConfig::default(),
-    )
-    .unwrap();
+    let mut reader = JournalReader::open(&fixture.path, ReaderConfig::default()).unwrap();
 
-    let index = JournalIndex::build(
-        &mut reader,
-        IndexConfig::default(),
-    )
-    .unwrap();
+    let index = JournalIndex::build(&mut reader, IndexConfig::default()).unwrap();
 
-    let record = index.seek_timestamp(
-        &mut reader,
-        5_050,
-    )
-    .unwrap();
+    let record = index.seek_timestamp(&mut reader, 5_050).unwrap();
 
     assert_eq!(record.sequence(), 51);
 }
@@ -315,10 +230,7 @@ fn sparse_index_timestamp_seek() {
 fn seeked_record_is_delivered() {
     let fixture = Fixture::new(10);
 
-    let mut engine = fixture.engine(
-        ReplayConfig::default(),
-        ReplayFilter::default(),
-    );
+    let mut engine = fixture.engine(ReplayConfig::default(), ReplayFilter::default());
 
     engine.seek_sequence(8).unwrap();
 
@@ -331,10 +243,7 @@ fn seeked_record_is_delivered() {
         Ok(SinkStatus::Accepted)
     };
 
-    assert_eq!(
-        engine.step(&mut sink).unwrap(),
-        ReplayStatus::Finished
-    );
+    assert_eq!(engine.step(&mut sink).unwrap(), ReplayStatus::Finished);
 
     assert_eq!(delivered, vec![8, 9, 10]);
 }
@@ -343,10 +252,7 @@ fn seeked_record_is_delivered() {
 fn rewind_restores_original_stream() {
     let fixture = Fixture::new(10);
 
-    let mut engine = fixture.engine(
-        ReplayConfig::default(),
-        ReplayFilter::default(),
-    );
+    let mut engine = fixture.engine(ReplayConfig::default(), ReplayFilter::default());
 
     engine.seek_sequence(8).unwrap();
     engine.rewind().unwrap();
@@ -360,10 +266,7 @@ fn rewind_restores_original_stream() {
         Ok(SinkStatus::Accepted)
     };
 
-    assert_eq!(
-        engine.step(&mut sink).unwrap(),
-        ReplayStatus::Finished
-    );
+    assert_eq!(engine.step(&mut sink).unwrap(), ReplayStatus::Finished);
 
     assert_eq!(delivered, (1..=10).collect::<Vec<_>>());
 }

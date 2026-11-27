@@ -7,17 +7,8 @@ use std::process::ExitCode;
 use std::thread;
 
 use maxwell_replay::{
-    JournalReader,
-    JournalRecord,
-    PlaybackMode,
-    ReaderConfig,
-    ReplayConfig,
-    ReplayEngine,
-    ReplayError,
-    ReplayFilter,
-    ReplayResult,
-    ReplayStatus,
-    SinkStatus,
+    JournalReader, JournalRecord, PlaybackMode, ReaderConfig, ReplayConfig, ReplayEngine,
+    ReplayError, ReplayFilter, ReplayResult, ReplayStatus, SinkStatus,
 };
 
 fn usage() {
@@ -30,9 +21,7 @@ fn usage() {
     );
 }
 
-fn invalid_argument(
-    reason: &'static str,
-) -> ReplayError {
+fn invalid_argument(reason: &'static str) -> ReplayError {
     ReplayError::InvalidConfig {
         field: "command line",
         reason,
@@ -50,15 +39,13 @@ fn parse_mode(value: Option<&str>) -> ReplayResult<PlaybackMode> {
                 .split_once('/')
                 .ok_or(invalid_argument("invalid playback mode"))?;
 
-            let numerator = numerator.parse::<u32>()
-                .map_err(|_| {
-                    invalid_argument("invalid speed numerator")
-                })?;
+            let numerator = numerator
+                .parse::<u32>()
+                .map_err(|_| invalid_argument("invalid speed numerator"))?;
 
-            let denominator = denominator.parse::<u32>()
-                .map_err(|_| {
-                    invalid_argument("invalid speed denominator")
-                })?;
+            let denominator = denominator
+                .parse::<u32>()
+                .map_err(|_| invalid_argument("invalid speed denominator"))?;
 
             let mode = PlaybackMode::Scaled {
                 numerator,
@@ -73,8 +60,7 @@ fn parse_mode(value: Option<&str>) -> ReplayResult<PlaybackMode> {
 }
 
 fn inspect(path: &str) -> ReplayResult<()> {
-    let reader =
-        JournalReader::open(path, ReaderConfig::default())?;
+    let reader = JournalReader::open(path, ReaderConfig::default())?;
 
     let header = reader.header();
 
@@ -89,8 +75,7 @@ fn inspect(path: &str) -> ReplayResult<()> {
 }
 
 fn validate(path: &str) -> ReplayResult<()> {
-    let mut reader =
-        JournalReader::open(path, ReaderConfig::default())?;
+    let mut reader = JournalReader::open(path, ReaderConfig::default())?;
 
     let mut first_sequence = None;
     let mut last_sequence = None;
@@ -109,24 +94,15 @@ fn validate(path: &str) -> ReplayResult<()> {
     Ok(())
 }
 
-fn replay(
-    path: &str,
-    mode: PlaybackMode,
-) -> ReplayResult<()> {
+fn replay(path: &str, mode: PlaybackMode) -> ReplayResult<()> {
     let config = ReplayConfig {
         playback_mode: mode,
         ..ReplayConfig::default()
     };
 
-    let mut engine = ReplayEngine::open(
-        path,
-        config,
-        ReplayFilter::default(),
-    )?;
+    let mut engine = ReplayEngine::open(path, config, ReplayFilter::default())?;
 
-    let mut sink = |_record: &JournalRecord| {
-        Ok(SinkStatus::Accepted)
-    };
+    let mut sink = |_record: &JournalRecord| Ok(SinkStatus::Accepted);
 
     loop {
         match engine.step(&mut sink)? {
@@ -138,8 +114,7 @@ fn replay(
 
             ReplayStatus::Finished => break,
 
-            ReplayStatus::Backpressured
-            | ReplayStatus::BackpressureBudgetExhausted => {
+            ReplayStatus::Backpressured | ReplayStatus::BackpressureBudgetExhausted => {
                 return Err(ReplayError::InvalidState {
                     operation: "standalone playback",
                     state: "unexpected backpressure",
@@ -157,13 +132,13 @@ fn replay(
 fn run() -> ReplayResult<()> {
     let mut arguments = env::args().skip(1);
 
-    let command = arguments.next().ok_or(
-        invalid_argument("missing command"),
-    )?;
+    let command = arguments
+        .next()
+        .ok_or(invalid_argument("missing command"))?;
 
-    let path = arguments.next().ok_or(
-        invalid_argument("missing journal path"),
-    )?;
+    let path = arguments
+        .next()
+        .ok_or(invalid_argument("missing journal path"))?;
 
     let mode = arguments.next();
 
@@ -176,10 +151,7 @@ fn run() -> ReplayResult<()> {
 
         "validate" if mode.is_none() => validate(&path),
 
-        "replay" => replay(
-            &path,
-            parse_mode(mode.as_deref())?,
-        ),
+        "replay" => replay(&path, parse_mode(mode.as_deref())?),
 
         _ => Err(invalid_argument("unknown command")),
     }

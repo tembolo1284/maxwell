@@ -29,20 +29,14 @@ pub enum SinkStatus {
 ///
 /// Errors are terminal for the current replay engine.
 pub trait ReplaySink {
-    fn deliver(
-        &mut self,
-        record: &JournalRecord,
-    ) -> ReplayResult<SinkStatus>;
+    fn deliver(&mut self, record: &JournalRecord) -> ReplayResult<SinkStatus>;
 }
 
 impl<F> ReplaySink for F
 where
     F: FnMut(&JournalRecord) -> ReplayResult<SinkStatus>,
 {
-    fn deliver(
-        &mut self,
-        record: &JournalRecord,
-    ) -> ReplayResult<SinkStatus> {
+    fn deliver(&mut self, record: &JournalRecord) -> ReplayResult<SinkStatus> {
         self(record)
     }
 }
@@ -87,14 +81,10 @@ impl ReplayEngine {
         config.validate()?;
         filter.validate()?;
 
-        let mut reader =
-            JournalReader::open(path, config.reader)?;
+        let mut reader = JournalReader::open(path, config.reader)?;
 
         let index = if config.index.enabled {
-            Some(JournalIndex::build(
-                &mut reader,
-                config.index,
-            )?)
+            Some(JournalIndex::build(&mut reader, config.index)?)
         } else {
             None
         };
@@ -149,9 +139,7 @@ impl ReplayEngine {
             && !self.seeked
     }
 
-    pub fn require_authoritative_stream(
-        &self,
-    ) -> ReplayResult<()> {
+    pub fn require_authoritative_stream(&self) -> ReplayResult<()> {
         if !self.preserves_authoritative_stream() {
             return Err(ReplayError::NonAuthoritativeReplay {
                 reason: "raw, filtered, or seeked playback",
@@ -194,50 +182,31 @@ impl ReplayEngine {
         Ok(())
     }
 
-    pub fn seek_sequence(
-        &mut self,
-        sequence: u64,
-    ) -> ReplayResult<()> {
+    pub fn seek_sequence(&mut self, sequence: u64) -> ReplayResult<()> {
         self.ensure_seekable()?;
 
-        let index = self.index.as_ref().ok_or(
-            ReplayError::UnsupportedSeek {
-                reason: "indexing is disabled",
-            },
-        )?;
+        let index = self.index.as_ref().ok_or(ReplayError::UnsupportedSeek {
+            reason: "indexing is disabled",
+        })?;
 
-        let result = index.seek_sequence(
-            &mut self.reader,
-            sequence,
-        );
+        let result = index.seek_sequence(&mut self.reader, sequence);
 
         self.install_seek_result(result)
     }
 
-    pub fn seek_timestamp(
-        &mut self,
-        timestamp_ns: u64,
-    ) -> ReplayResult<()> {
+    pub fn seek_timestamp(&mut self, timestamp_ns: u64) -> ReplayResult<()> {
         self.ensure_seekable()?;
 
-        let index = self.index.as_ref().ok_or(
-            ReplayError::UnsupportedSeek {
-                reason: "indexing is disabled",
-            },
-        )?;
+        let index = self.index.as_ref().ok_or(ReplayError::UnsupportedSeek {
+            reason: "indexing is disabled",
+        })?;
 
-        let result = index.seek_timestamp(
-            &mut self.reader,
-            timestamp_ns,
-        );
+        let result = index.seek_timestamp(&mut self.reader, timestamp_ns);
 
         self.install_seek_result(result)
     }
 
-    fn install_seek_result(
-        &mut self,
-        result: ReplayResult<JournalRecord>,
-    ) -> ReplayResult<()> {
+    fn install_seek_result(&mut self, result: ReplayResult<JournalRecord>) -> ReplayResult<()> {
         match result {
             Ok(record) => {
                 self.reset_playback_state();
@@ -256,10 +225,7 @@ impl ReplayEngine {
         }
     }
 
-    pub fn step(
-        &mut self,
-        sink: &mut impl ReplaySink,
-    ) -> ReplayResult<ReplayStatus> {
+    pub fn step(&mut self, sink: &mut impl ReplaySink) -> ReplayResult<ReplayStatus> {
         if self.failed {
             return Err(ReplayError::InvalidState {
                 operation: "replay step",
@@ -280,10 +246,7 @@ impl ReplayEngine {
         result
     }
 
-    fn process_step(
-        &mut self,
-        sink: &mut impl ReplaySink,
-    ) -> ReplayResult<ReplayStatus> {
+    fn process_step(&mut self, sink: &mut impl ReplaySink) -> ReplayResult<ReplayStatus> {
         for _ in 0..self.config.max_records_per_step {
             if self.pending.is_none() {
                 let Some(record) = self.reader.next_record()? else {
@@ -291,47 +254,38 @@ impl ReplayEngine {
                     return Ok(ReplayStatus::Finished);
                 };
 
-                self.stats.records_read =
-                    self.stats.records_read.saturating_add(1);
+                self.stats.records_read = self.stats.records_read.saturating_add(1);
 
                 self.pending = Some(record);
             }
 
-            let record = self.pending.expect(
-                "pending record established before processing",
-            );
+            let record = self
+                .pending
+                .expect("pending record established before processing");
 
             if !self.filter.matches(record) {
-                self.stats.records_filtered =
-                    self.stats.records_filtered.saturating_add(1);
+                self.stats.records_filtered = self.stats.records_filtered.saturating_add(1);
 
                 self.pending = None;
 
                 continue;
             }
 
-            let delay = self.clock.remaining_delay(
-                record.recording_timestamp_ns,
-                Instant::now(),
-            )?;
+            let delay = self
+                .clock
+                .remaining_delay(record.recording_timestamp_ns, Instant::now())?;
 
             if !delay.is_zero() {
                 return Ok(ReplayStatus::Waiting(delay));
             }
 
-            if self.consecutive_backpressure
-                >= self.config.max_backpressure_attempts
-            {
-                return Ok(
-                    ReplayStatus::BackpressureBudgetExhausted,
-                );
+            if self.consecutive_backpressure >= self.config.max_backpressure_attempts {
+                return Ok(ReplayStatus::BackpressureBudgetExhausted);
             }
 
             match sink.deliver(&record)? {
                 SinkStatus::Accepted => {
-                    self.clock.commit(
-                        record.recording_timestamp_ns,
-                    )?;
+                    self.clock.commit(record.recording_timestamp_ns)?;
 
                     self.stats.delivered(record);
                     self.pending = None;
@@ -339,20 +293,13 @@ impl ReplayEngine {
                 }
 
                 SinkStatus::Backpressured => {
-                    self.consecutive_backpressure =
-                        self.consecutive_backpressure
-                            .saturating_add(1);
+                    self.consecutive_backpressure = self.consecutive_backpressure.saturating_add(1);
 
                     self.stats.backpressure_attempts =
-                        self.stats.backpressure_attempts
-                            .saturating_add(1);
+                        self.stats.backpressure_attempts.saturating_add(1);
 
-                    if self.consecutive_backpressure
-                        >= self.config.max_backpressure_attempts
-                    {
-                        return Ok(
-                            ReplayStatus::BackpressureBudgetExhausted,
-                        );
+                    if self.consecutive_backpressure >= self.config.max_backpressure_attempts {
+                        return Ok(ReplayStatus::BackpressureBudgetExhausted);
                     }
 
                     return Ok(ReplayStatus::Backpressured);

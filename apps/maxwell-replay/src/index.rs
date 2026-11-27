@@ -23,22 +23,19 @@ pub struct JournalIndex {
 }
 
 impl JournalIndex {
-    pub fn build(
-        reader: &mut JournalReader,
-        config: IndexConfig,
-    ) -> ReplayResult<Self> {
+    pub fn build(reader: &mut JournalReader, config: IndexConfig) -> ReplayResult<Self> {
         config.validate()?;
         reader.rewind()?;
 
         let mut entries = Vec::new();
 
         if config.enabled {
-            entries
-                .try_reserve_exact(config.max_entries)
-                .map_err(|_| ReplayError::AllocationFailed {
+            entries.try_reserve_exact(config.max_entries).map_err(|_| {
+                ReplayError::AllocationFailed {
                     resource: "journal index",
                     requested: config.max_entries,
-                })?;
+                }
+            })?;
         }
 
         let header = *reader.header();
@@ -52,7 +49,7 @@ impl JournalIndex {
             };
 
             if config.enabled
-                && ordinal % config.record_interval == 0
+                && ordinal.is_multiple_of(config.record_interval)
                 && entries.len() < config.max_entries
             {
                 entries.push(IndexEntry {
@@ -63,11 +60,11 @@ impl JournalIndex {
                 });
             }
 
-            ordinal = ordinal.checked_add(1).ok_or(
-                ReplayError::ArithmeticOverflow {
+            ordinal = ordinal
+                .checked_add(1)
+                .ok_or(ReplayError::ArithmeticOverflow {
                     operation: "index ordinal",
-                },
-            )?;
+                })?;
         }
 
         let complete = !reader.incomplete_tail();
@@ -97,10 +94,7 @@ impl JournalIndex {
         self.complete
     }
 
-    fn validate_reader(
-        &self,
-        reader: &JournalReader,
-    ) -> ReplayResult<()> {
+    fn validate_reader(&self, reader: &JournalReader) -> ReplayResult<()> {
         if self.header != *reader.header() {
             return Err(ReplayError::InvalidIndex {
                 reason: "index belongs to another journal",
@@ -118,9 +112,7 @@ impl JournalIndex {
         self.validate_reader(reader)?;
 
         match entry {
-            Some(entry) => {
-                reader.seek_indexed(entry.offset, entry.ordinal)
-            }
+            Some(entry) => reader.seek_indexed(entry.offset, entry.ordinal),
             None => reader.rewind(),
         }
     }
@@ -133,14 +125,13 @@ impl JournalIndex {
         reader: &mut JournalReader,
         target: u64,
     ) -> ReplayResult<JournalRecord> {
-        let entry = if self.header.mode
-            == JournalMode::Authoritative
-        {
-            let position = self.entries.partition_point(
-                |entry| entry.sequence <= target,
-            );
+        let entry = if self.header.mode == JournalMode::Authoritative {
+            let position = self
+                .entries
+                .partition_point(|entry| entry.sequence <= target);
 
-            position.checked_sub(1)
+            position
+                .checked_sub(1)
                 .and_then(|index| self.entries.get(index))
         } else {
             None
@@ -153,9 +144,7 @@ impl JournalIndex {
                 return Ok(record);
             }
 
-            if self.header.mode == JournalMode::Authoritative
-                && record.sequence() > target
-            {
+            if self.header.mode == JournalMode::Authoritative && record.sequence() > target {
                 break;
             }
         }
@@ -176,11 +165,12 @@ impl JournalIndex {
     ) -> ReplayResult<JournalRecord> {
         // Strict comparison is required because multiple
         // records may share the same recording timestamp.
-        let position = self.entries.partition_point(
-            |entry| entry.timestamp_ns < target,
-        );
+        let position = self
+            .entries
+            .partition_point(|entry| entry.timestamp_ns < target);
 
-        let entry = position.checked_sub(1)
+        let entry = position
+            .checked_sub(1)
             .and_then(|index| self.entries.get(index));
 
         self.position_reader(reader, entry)?;

@@ -31,16 +31,9 @@ impl Recorder {
             .map_err(|_| ReplayError::ClockOverflow)?
             .as_nanos();
 
-        let created_at_ns = u64::try_from(created_at_ns)
-            .map_err(|_| ReplayError::ClockOverflow)?;
+        let created_at_ns = u64::try_from(created_at_ns).map_err(|_| ReplayError::ClockOverflow)?;
 
-        let writer = JournalWriter::create(
-            path,
-            config,
-            feed,
-            recording_id,
-            created_at_ns,
-        )?;
+        let writer = JournalWriter::create(path, config, feed, recording_id, created_at_ns)?;
 
         Ok(Self { writer, origin })
     }
@@ -64,14 +57,10 @@ impl Recorder {
     }
 
     /// Records an event using the recorder's local monotonic clock.
-    pub fn record(
-        &mut self,
-        event: EventEnvelope,
-    ) -> ReplayResult<()> {
+    pub fn record(&mut self, event: EventEnvelope) -> ReplayResult<()> {
         let elapsed = self.origin.elapsed().as_nanos();
 
-        let timestamp_ns = u64::try_from(elapsed)
-            .map_err(|_| ReplayError::ClockOverflow)?;
+        let timestamp_ns = u64::try_from(elapsed).map_err(|_| ReplayError::ClockOverflow)?;
 
         self.record_at(event, timestamp_ns)
     }
@@ -79,14 +68,8 @@ impl Recorder {
     /// Records an event with an explicitly supplied timestamp.
     ///
     /// This method supports deterministic simulator recordings.
-    pub fn record_at(
-        &mut self,
-        event: EventEnvelope,
-        timestamp_ns: u64,
-    ) -> ReplayResult<()> {
-        self.writer.append(
-            JournalRecord::new(timestamp_ns, event),
-        )
+    pub fn record_at(&mut self, event: EventEnvelope, timestamp_ns: u64) -> ReplayResult<()> {
+        self.writer.append(JournalRecord::new(timestamp_ns, event))
     }
 
     pub fn flush(&mut self) -> ReplayResult<()> {
@@ -97,10 +80,7 @@ impl Recorder {
         self.writer.sync()
     }
 
-    pub fn finish(
-        self,
-        durable: bool,
-    ) -> ReplayResult<RecordingStats> {
+    pub fn finish(self, durable: bool) -> ReplayResult<RecordingStats> {
         self.writer.finish(durable)
     }
 }

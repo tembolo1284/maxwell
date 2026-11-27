@@ -1,62 +1,71 @@
-//! Persistent market data journaling and deterministic replay for Maxwell.
+#![forbid(unsafe_code)]
+
+//! Persistent market data journaling and deterministic replay.
 //!
-//! Maxwell Replay provides the infrastructure required to record, persist,
-//! validate, inspect, and replay historical market data.
+//! Maxwell Replay separates historical market data persistence
+//! from event production and consumption.
 //!
-//! # Architecture
+//! # Journal semantics
 //!
-//! The application separates journal persistence from market data production
-//! and consumption. Producers supply market events to a recorder, while
-//! consumers receive historical events through the replay engine.
+//! Authoritative journals contain contiguous events belonging
+//! to a single upstream feed.
 //!
-//! # Journal modes
+//! Raw capture journals preserve arrival order, including
+//! duplicates, gaps, and reordered events.
 //!
-//! Two journal modes are supported:
-//!
-//! - Authoritative journals preserve a contiguous upstream event sequence.
-//! - Raw capture journals preserve arrival order, including duplicates,
-//!   sequence gaps, and reordered events.
-//!
-//! Neither journal mode silently modifies upstream sequence numbers.
+//! Neither journal mode modifies upstream sequence numbers.
 //!
 //! # Reconstruction
 //!
-//! A journal does not necessarily contain a complete market state baseline.
-//! Consumers reconstructing an order book must establish a compatible
-//! initial state before applying historical events.
+//! Consumers must establish an appropriate market state
+//! baseline before reconstructing an order book.
+//!
+//! # Persistence
+//!
+//! Buffered writes, flushed writes, and synchronized writes
+//! represent distinct persistence guarantees.
 //!
 //! # Resource management
 //!
-//! Journal processing uses bounded record sizes, buffered sequential I/O,
-//! and bounded sparse indexing. Journals are not required to fit in memory.
-//!
-//! # Durability
-//!
-//! Buffered writes, flushed writes, and synchronized writes represent
-//! distinct persistence guarantees.
-//!
-//! # Safety
-//!
-//! This crate does not permit unsafe Rust.
+//! Journal processing uses bounded record sizes, buffered I/O,
+//! bounded sparse indexing, and bounded replay processing steps.
 
-#![forbid(unsafe_code)]
-
+pub mod clock;
 pub mod config;
 pub mod error;
+pub mod filter;
+pub mod format;
+pub mod index;
+pub mod reader;
+pub mod record;
+pub mod recorder;
+pub mod replay;
+pub mod stats;
+pub mod writer;
+
+pub use clock::ReplayClock;
 
 pub use config::{
-    DurabilityPolicy,
-    IndexConfig,
-    JournalConfig,
-    JournalMode,
-    PlaybackMode,
-    ReaderConfig,
-    ReplayConfig,
-    TailPolicy,
-    WriterConfig,
+    DurabilityPolicy, IndexConfig, JournalConfig, JournalMode, PlaybackMode, ReaderConfig,
+    ReplayConfig, TailPolicy, WriterConfig,
 };
 
-pub use error::{
-    ReplayError,
-    ReplayResult,
-};
+pub use error::{ReplayError, ReplayResult};
+
+pub use filter::ReplayFilter;
+
+pub use format::JournalHeader;
+
+pub use index::{IndexEntry, JournalIndex};
+
+pub use reader::JournalReader;
+
+pub use record::JournalRecord;
+
+pub use recorder::Recorder;
+
+pub use replay::{ReplayEngine, ReplaySink, ReplayStatus, SinkStatus};
+
+pub use stats::{RecordingStats, ReplayStats};
+
+pub use writer::JournalWriter;

@@ -7,13 +7,7 @@ use std::path::Path;
 use crate::config::{ReaderConfig, TailPolicy};
 use crate::error::{ReplayError, ReplayResult};
 use crate::format::{
-    Crc32c,
-    HEADER_SIZE,
-    JournalHeader,
-    MIN_RECORD_LENGTH,
-    RECORD_OVERHEAD,
-    read_u32,
-    read_u64,
+    Crc32c, HEADER_SIZE, JournalHeader, MIN_RECORD_LENGTH, RECORD_OVERHEAD, read_u32, read_u64,
 };
 use crate::record::{JournalRecord, StreamValidator};
 
@@ -31,23 +25,16 @@ pub struct JournalReader {
 }
 
 impl JournalReader {
-    pub fn open(
-        path: impl AsRef<Path>,
-        config: ReaderConfig,
-    ) -> ReplayResult<Self> {
+    pub fn open(path: impl AsRef<Path>, config: ReaderConfig) -> ReplayResult<Self> {
         config.validate()?;
 
         let file = File::open(path)?;
 
-        let mut input =
-            BufReader::with_capacity(config.buffer_bytes, file);
+        let mut input = BufReader::with_capacity(config.buffer_bytes, file);
 
         let mut header_bytes = [0_u8; HEADER_SIZE];
 
-        let actual = read_until_full(
-            &mut input,
-            &mut header_bytes,
-        )?;
+        let actual = read_until_full(&mut input, &mut header_bytes)?;
 
         if actual != HEADER_SIZE {
             return Err(ReplayError::TruncatedHeader {
@@ -58,20 +45,20 @@ impl JournalReader {
 
         let header = JournalHeader::decode(&header_bytes)?;
 
-        let maximum = config.max_payload_bytes.min(
-            header.max_payload_bytes as usize,
-        );
+        let maximum = config
+            .max_payload_bytes
+            .min(header.max_payload_bytes as usize);
 
         let capacity = maximum + RECORD_OVERHEAD;
 
         let mut buffer = Vec::new();
 
-        buffer.try_reserve_exact(capacity).map_err(|_| {
-            ReplayError::AllocationFailed {
+        buffer
+            .try_reserve_exact(capacity)
+            .map_err(|_| ReplayError::AllocationFailed {
                 resource: "journal decoding buffer",
                 requested: capacity,
-            }
-        })?;
+            })?;
 
         buffer.resize(capacity, 0);
 
@@ -122,11 +109,7 @@ impl JournalReader {
         Ok(())
     }
 
-    pub(crate) fn seek_indexed(
-        &mut self,
-        offset: u64,
-        ordinal: u64,
-    ) -> ReplayResult<()> {
+    pub(crate) fn seek_indexed(&mut self, offset: u64, ordinal: u64) -> ReplayResult<()> {
         if offset < HEADER_SIZE as u64 {
             return Err(ReplayError::InvalidIndex {
                 reason: "offset precedes journal records",
@@ -145,9 +128,7 @@ impl JournalReader {
         Ok(())
     }
 
-    pub fn next_record(
-        &mut self,
-    ) -> ReplayResult<Option<JournalRecord>> {
+    pub fn next_record(&mut self) -> ReplayResult<Option<JournalRecord>> {
         if self.failed {
             return Err(ReplayError::InvalidState {
                 operation: "next_record",
@@ -164,8 +145,7 @@ impl JournalReader {
 
             Err(error)
                 if error.is_incomplete_record()
-                    && self.config.tail_policy
-                        == TailPolicy::AllowIncompleteTail =>
+                    && self.config.tail_policy == TailPolicy::AllowIncompleteTail =>
             {
                 self.finished = true;
                 self.incomplete_tail = true;
@@ -180,15 +160,10 @@ impl JournalReader {
         }
     }
 
-    fn read_record(
-        &mut self,
-    ) -> ReplayResult<Option<JournalRecord>> {
+    fn read_record(&mut self) -> ReplayResult<Option<JournalRecord>> {
         let mut length_bytes = [0_u8; 4];
 
-        let actual = read_until_full(
-            &mut self.input,
-            &mut length_bytes,
-        )?;
+        let actual = read_until_full(&mut self.input, &mut length_bytes)?;
 
         if actual == 0 {
             self.finished = true;
@@ -266,17 +241,18 @@ impl JournalReader {
 
         self.validator.validate(&self.header, record)?;
 
-        let next_offset = self.offset
-            .checked_add(u64::from(length) + 4)
-            .ok_or(ReplayError::ArithmeticOverflow {
+        let next_offset = self.offset.checked_add(u64::from(length) + 4).ok_or(
+            ReplayError::ArithmeticOverflow {
                 operation: "journal file offset",
-            })?;
+            },
+        )?;
 
-        let next_count = self.records_read
-            .checked_add(1)
-            .ok_or(ReplayError::ArithmeticOverflow {
-                operation: "journal record count",
-            })?;
+        let next_count =
+            self.records_read
+                .checked_add(1)
+                .ok_or(ReplayError::ArithmeticOverflow {
+                    operation: "journal record count",
+                })?;
 
         self.validator.commit(record);
         self.offset = next_offset;
@@ -286,19 +262,14 @@ impl JournalReader {
     }
 }
 
-fn read_until_full(
-    input: &mut impl Read,
-    buffer: &mut [u8],
-) -> io::Result<usize> {
+fn read_until_full(input: &mut impl Read, buffer: &mut [u8]) -> io::Result<usize> {
     let mut total = 0;
 
     while total < buffer.len() {
         match input.read(&mut buffer[total..]) {
             Ok(0) => break,
             Ok(count) => total += count,
-            Err(error)
-                if error.kind() == io::ErrorKind::Interrupted =>
-            {
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {
                 continue;
             }
             Err(error) => return Err(error),

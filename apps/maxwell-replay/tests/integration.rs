@@ -5,33 +5,13 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use maxwell_core::{
-    EventEnvelope,
-    EventHeader,
-    EventId,
-    FeedId,
-    InstrumentId,
-    MarketEvent,
-    OrderAdded,
-    OrderId,
-    Price,
-    Quantity,
-    SequenceNumber,
-    SessionId,
-    Side,
-    StreamId,
+    EventEnvelope, EventHeader, EventId, FeedId, InstrumentId, MarketEvent, OrderAdded, OrderId,
+    Price, Quantity, SequenceNumber, SessionId, Side, StreamId,
 };
 
 use maxwell_replay::{
-    DurabilityPolicy,
-    JournalRecord,
-    PlaybackMode,
-    Recorder,
-    ReplayConfig,
-    ReplayEngine,
-    ReplayFilter,
-    ReplayStatus,
-    SinkStatus,
-    WriterConfig,
+    DurabilityPolicy, JournalRecord, PlaybackMode, Recorder, ReplayConfig, ReplayEngine,
+    ReplayFilter, ReplayStatus, SinkStatus, WriterConfig,
 };
 
 static NEXT_FILE: AtomicU64 = AtomicU64::new(0);
@@ -56,14 +36,11 @@ impl Drop for JournalFile {
 }
 
 fn feed() -> FeedId {
-    FeedId::new(
-        StreamId::new(1),
-        SessionId::new(100),
-    )
+    FeedId::new(StreamId::new(1), SessionId::new(100))
 }
 
 fn event(sequence: u64) -> EventEnvelope {
-    let side = if sequence % 2 == 0 {
+    let side = if sequence.is_multiple_of(2) {
         Side::Buy
     } else {
         Side::Sell
@@ -71,51 +48,29 @@ fn event(sequence: u64) -> EventEnvelope {
 
     EventEnvelope::new(
         EventHeader::new(
-            EventId::new(
-                feed(),
-                SequenceNumber::new(sequence),
-            ),
-            InstrumentId::new(
-                (sequence % 4) as u32 + 1,
-            ),
+            EventId::new(feed(), SequenceNumber::new(sequence)),
+            InstrumentId::new((sequence % 4) as u32 + 1),
             None,
         ),
         MarketEvent::OrderAdded(OrderAdded {
             order_id: OrderId::new(sequence),
-            price: Price::new(
-                10_000 + (sequence % 100) as i64,
-            ),
-            quantity: Quantity::new(
-                1 + sequence % 50,
-            ),
+            price: Price::new(10_000 + (sequence % 100) as i64),
+            quantity: Quantity::new(1 + sequence % 50),
             side,
         }),
     )
 }
 
-fn record_workload(
-    file: &JournalFile,
-    count: u64,
-) {
+fn record_workload(file: &JournalFile, count: u64) {
     let config = WriterConfig {
         durability: DurabilityPolicy::FlushEveryRecords(1_024),
         ..WriterConfig::default()
     };
 
-    let mut recorder = Recorder::create(
-        &file.0,
-        config,
-        feed(),
-        42,
-    )
-    .unwrap();
+    let mut recorder = Recorder::create(&file.0, config, feed(), 42).unwrap();
 
     for sequence in 1..=count {
-        recorder.record_at(
-            event(sequence),
-            sequence * 100,
-        )
-        .unwrap();
+        recorder.record_at(event(sequence), sequence * 100).unwrap();
     }
 
     let stats = recorder.finish(false).unwrap();
@@ -139,12 +94,7 @@ fn large_workload_survives_close_and_reopen() {
         ..ReplayConfig::default()
     };
 
-    let mut engine = ReplayEngine::open(
-        &file.0,
-        config,
-        ReplayFilter::default(),
-    )
-    .unwrap();
+    let mut engine = ReplayEngine::open(&file.0, config, ReplayFilter::default()).unwrap();
 
     let mut expected = 1_u64;
 
@@ -152,10 +102,7 @@ fn large_workload_survives_close_and_reopen() {
         assert_eq!(record.sequence(), expected);
         assert_eq!(record.event, event(expected));
 
-        assert_eq!(
-            record.recording_timestamp_ns,
-            expected * 100
-        );
+        assert_eq!(record.recording_timestamp_ns, expected * 100);
 
         expected += 1;
 
@@ -184,12 +131,8 @@ fn sustained_backpressure_does_not_duplicate_delivery() {
 
     record_workload(&file, COUNT);
 
-    let mut engine = ReplayEngine::open(
-        &file.0,
-        ReplayConfig::default(),
-        ReplayFilter::default(),
-    )
-    .unwrap();
+    let mut engine =
+        ReplayEngine::open(&file.0, ReplayConfig::default(), ReplayFilter::default()).unwrap();
 
     let mut expected = 1_u64;
     let mut previously_blocked = false;
@@ -214,8 +157,7 @@ fn sustained_backpressure_does_not_duplicate_delivery() {
 
     loop {
         match engine.step(&mut sink).unwrap() {
-            ReplayStatus::Progress
-            | ReplayStatus::Backpressured => {}
+            ReplayStatus::Progress | ReplayStatus::Backpressured => {}
 
             ReplayStatus::Finished => break,
 
@@ -237,12 +179,8 @@ fn repeated_playback_is_deterministic() {
 
     record_workload(&file, COUNT);
 
-    let mut engine = ReplayEngine::open(
-        &file.0,
-        ReplayConfig::default(),
-        ReplayFilter::default(),
-    )
-    .unwrap();
+    let mut engine =
+        ReplayEngine::open(&file.0, ReplayConfig::default(), ReplayFilter::default()).unwrap();
 
     for _ in 0..3 {
         let mut expected = 1_u64;

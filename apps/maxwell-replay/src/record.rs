@@ -19,10 +19,7 @@ pub struct JournalRecord {
 
 impl JournalRecord {
     #[must_use]
-    pub const fn new(
-        recording_timestamp_ns: u64,
-        event: EventEnvelope,
-    ) -> Self {
+    pub const fn new(recording_timestamp_ns: u64, event: EventEnvelope) -> Self {
         Self {
             recording_timestamp_ns,
             event,
@@ -34,10 +31,7 @@ impl JournalRecord {
         self.event.sequence().raw()
     }
 
-    pub fn encode_payload(
-        self,
-        buffer: &mut [u8],
-    ) -> ReplayResult<usize> {
+    pub fn encode_payload(self, buffer: &mut [u8]) -> ReplayResult<usize> {
         Encoder
             .encode_event(self.event, buffer)
             .map_err(|error| ReplayError::EncodingFailed {
@@ -107,11 +101,9 @@ impl StreamValidator {
         if header.mode == JournalMode::Authoritative
             && let Some(previous) = self.previous_sequence
         {
-            let expected = previous.checked_add(1).ok_or(
-                ReplayError::SequenceOverflow {
-                    sequence: previous,
-                },
-            )?;
+            let expected = previous
+                .checked_add(1)
+                .ok_or(ReplayError::SequenceOverflow { sequence: previous })?;
 
             if record.sequence() != expected {
                 return Err(ReplayError::SequenceMismatch {
@@ -126,7 +118,6 @@ impl StreamValidator {
 
     pub(crate) fn commit(&mut self, record: JournalRecord) {
         self.previous_sequence = Some(record.sequence());
-        self.previous_timestamp =
-            Some(record.recording_timestamp_ns);
+        self.previous_timestamp = Some(record.recording_timestamp_ns);
     }
 }

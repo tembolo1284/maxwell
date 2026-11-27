@@ -6,32 +6,13 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use maxwell_core::{
-    EventEnvelope,
-    EventHeader,
-    EventId,
-    FeedId,
-    InstrumentId,
-    MarketEvent,
-    OrderAdded,
-    OrderId,
-    Price,
-    Quantity,
-    SequenceNumber,
-    SessionId,
-    Side,
-    StreamId,
+    EventEnvelope, EventHeader, EventId, FeedId, InstrumentId, MarketEvent, OrderAdded, OrderId,
+    Price, Quantity, SequenceNumber, SessionId, Side, StreamId,
 };
 
 use maxwell_replay::{
-    JournalConfig,
-    JournalMode,
-    JournalReader,
-    JournalRecord,
-    JournalWriter,
-    ReaderConfig,
-    ReplayError,
-    TailPolicy,
-    WriterConfig,
+    JournalConfig, JournalMode, JournalReader, JournalRecord, JournalWriter, ReaderConfig,
+    ReplayError, TailPolicy, WriterConfig,
 };
 
 static NEXT_FILE: AtomicU64 = AtomicU64::new(0);
@@ -42,10 +23,7 @@ impl TestFile {
     fn new() -> Self {
         let id = NEXT_FILE.fetch_add(1, Ordering::Relaxed);
 
-        Self(std::env::temp_dir().join(format!(
-            "maxwell-journal-{}-{id}.mxj",
-            std::process::id(),
-        )))
+        Self(std::env::temp_dir().join(format!("maxwell-journal-{}-{id}.mxj", std::process::id(),)))
     }
 }
 
@@ -62,10 +40,7 @@ fn feed() -> FeedId {
 fn event(sequence: u64) -> EventEnvelope {
     EventEnvelope::new(
         EventHeader::new(
-            EventId::new(
-                feed(),
-                SequenceNumber::new(sequence),
-            ),
+            EventId::new(feed(), SequenceNumber::new(sequence)),
             InstrumentId::new(42),
             None,
         ),
@@ -79,25 +54,16 @@ fn event(sequence: u64) -> EventEnvelope {
 }
 
 fn writer(file: &TestFile) -> JournalWriter {
-    JournalWriter::create(
-        &file.0,
-        WriterConfig::default(),
-        feed(),
-        1,
-        0,
-    )
-    .unwrap()
+    JournalWriter::create(&file.0, WriterConfig::default(), feed(), 1, 0).unwrap()
 }
 
 fn write_records(file: &TestFile, count: u64) {
     let mut writer = writer(file);
 
     for sequence in 1..=count {
-        writer.append(JournalRecord::new(
-            sequence * 100,
-            event(sequence),
-        ))
-        .unwrap();
+        writer
+            .append(JournalRecord::new(sequence * 100, event(sequence)))
+            .unwrap();
     }
 
     writer.finish(false).unwrap();
@@ -109,9 +75,7 @@ fn empty_journal() {
 
     writer(&file).finish(false).unwrap();
 
-    let mut reader =
-        JournalReader::open(&file.0, ReaderConfig::default())
-            .unwrap();
+    let mut reader = JournalReader::open(&file.0, ReaderConfig::default()).unwrap();
 
     assert!(reader.next_record().unwrap().is_none());
     assert_eq!(reader.records_read(), 0);
@@ -123,18 +87,13 @@ fn journal_round_trip() {
 
     write_records(&file, 100);
 
-    let mut reader =
-        JournalReader::open(&file.0, ReaderConfig::default())
-            .unwrap();
+    let mut reader = JournalReader::open(&file.0, ReaderConfig::default()).unwrap();
 
     for sequence in 1..=100 {
         let record = reader.next_record().unwrap().unwrap();
 
         assert_eq!(record.event, event(sequence));
-        assert_eq!(
-            record.recording_timestamp_ns,
-            sequence * 100
-        );
+        assert_eq!(record.recording_timestamp_ns, sequence * 100);
     }
 
     assert!(reader.next_record().unwrap().is_none());
@@ -146,16 +105,14 @@ fn authoritative_gap_is_rejected() {
     let file = TestFile::new();
     let mut writer = writer(&file);
 
-    writer.append(JournalRecord::new(100, event(1)))
-        .unwrap();
+    writer.append(JournalRecord::new(100, event(1))).unwrap();
 
     assert!(matches!(
         writer.append(JournalRecord::new(200, event(3))),
         Err(ReplayError::SequenceMismatch { .. })
     ));
 
-    writer.append(JournalRecord::new(200, event(2)))
-        .unwrap();
+    writer.append(JournalRecord::new(200, event(2))).unwrap();
 
     assert_eq!(writer.stats().records_written, 2);
 
@@ -167,8 +124,7 @@ fn timestamp_regression_is_rejected() {
     let file = TestFile::new();
     let mut writer = writer(&file);
 
-    writer.append(JournalRecord::new(100, event(1)))
-        .unwrap();
+    writer.append(JournalRecord::new(100, event(1))).unwrap();
 
     assert!(matches!(
         writer.append(JournalRecord::new(99, event(2))),
@@ -188,36 +144,22 @@ fn raw_capture_preserves_arrival_order() {
         ..WriterConfig::default()
     };
 
-    let mut writer = JournalWriter::create(
-        &file.0,
-        config,
-        feed(),
-        1,
-        0,
-    )
-    .unwrap();
+    let mut writer = JournalWriter::create(&file.0, config, feed(), 1, 0).unwrap();
 
     let sequences = [1, 3, 2, 2, 7];
 
     for (index, sequence) in sequences.into_iter().enumerate() {
-        writer.append(JournalRecord::new(
-            index as u64,
-            event(sequence),
-        ))
-        .unwrap();
+        writer
+            .append(JournalRecord::new(index as u64, event(sequence)))
+            .unwrap();
     }
 
     writer.finish(false).unwrap();
 
-    let mut reader =
-        JournalReader::open(&file.0, ReaderConfig::default())
-            .unwrap();
+    let mut reader = JournalReader::open(&file.0, ReaderConfig::default()).unwrap();
 
     for sequence in sequences {
-        assert_eq!(
-            reader.next_record().unwrap().unwrap().sequence(),
-            sequence
-        );
+        assert_eq!(reader.next_record().unwrap().unwrap().sequence(), sequence);
     }
 
     assert!(reader.next_record().unwrap().is_none());
@@ -229,18 +171,13 @@ fn corrupted_record_is_rejected() {
 
     write_records(&file, 1);
 
-    let mut output = OpenOptions::new()
-        .write(true)
-        .open(&file.0)
-        .unwrap();
+    let mut output = OpenOptions::new().write(true).open(&file.0).unwrap();
 
     output.seek(SeekFrom::End(-1)).unwrap();
     output.write_all(&[0xFF]).unwrap();
     output.flush().unwrap();
 
-    let mut reader =
-        JournalReader::open(&file.0, ReaderConfig::default())
-            .unwrap();
+    let mut reader = JournalReader::open(&file.0, ReaderConfig::default()).unwrap();
 
     assert!(matches!(
         reader.next_record(),
@@ -254,18 +191,13 @@ fn strict_reader_rejects_incomplete_tail() {
 
     write_records(&file, 2);
 
-    let output = OpenOptions::new()
-        .write(true)
-        .open(&file.0)
-        .unwrap();
+    let output = OpenOptions::new().write(true).open(&file.0).unwrap();
 
     let length = output.metadata().unwrap().len();
 
     output.set_len(length - 1).unwrap();
 
-    let mut reader =
-        JournalReader::open(&file.0, ReaderConfig::default())
-            .unwrap();
+    let mut reader = JournalReader::open(&file.0, ReaderConfig::default()).unwrap();
 
     assert!(reader.next_record().unwrap().is_some());
 
@@ -281,10 +213,7 @@ fn tolerant_reader_stops_at_incomplete_tail() {
 
     write_records(&file, 2);
 
-    let output = OpenOptions::new()
-        .write(true)
-        .open(&file.0)
-        .unwrap();
+    let output = OpenOptions::new().write(true).open(&file.0).unwrap();
 
     let length = output.metadata().unwrap().len();
 
@@ -295,8 +224,7 @@ fn tolerant_reader_stops_at_incomplete_tail() {
         ..ReaderConfig::default()
     };
 
-    let mut reader =
-        JournalReader::open(&file.0, config).unwrap();
+    let mut reader = JournalReader::open(&file.0, config).unwrap();
 
     assert!(reader.next_record().unwrap().is_some());
     assert!(reader.next_record().unwrap().is_none());
@@ -310,14 +238,7 @@ fn existing_journal_is_not_overwritten() {
 
     write_records(&file, 1);
 
-    assert!(JournalWriter::create(
-        &file.0,
-        WriterConfig::default(),
-        feed(),
-        2,
-        0,
-    )
-    .is_err());
+    assert!(JournalWriter::create(&file.0, WriterConfig::default(), feed(), 2, 0,).is_err());
 }
 
 #[test]
@@ -326,19 +247,11 @@ fn reader_can_rewind() {
 
     write_records(&file, 2);
 
-    let mut reader =
-        JournalReader::open(&file.0, ReaderConfig::default())
-            .unwrap();
+    let mut reader = JournalReader::open(&file.0, ReaderConfig::default()).unwrap();
 
-    assert_eq!(
-        reader.next_record().unwrap().unwrap().sequence(),
-        1
-    );
+    assert_eq!(reader.next_record().unwrap().unwrap().sequence(), 1);
 
     reader.rewind().unwrap();
 
-    assert_eq!(
-        reader.next_record().unwrap().unwrap().sequence(),
-        1
-    );
+    assert_eq!(reader.next_record().unwrap().unwrap().sequence(), 1);
 }

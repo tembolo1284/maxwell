@@ -9,9 +9,7 @@ use maxwell_protocol::{Encoder, ProtocolMessage};
 
 use crate::config::{DurabilityPolicy, WriterConfig};
 use crate::error::{ReplayError, ReplayResult};
-use crate::format::{
-    Crc32c, HEADER_SIZE, JournalHeader, RECORD_OVERHEAD,
-};
+use crate::format::{Crc32c, HEADER_SIZE, JournalHeader, RECORD_OVERHEAD};
 use crate::record::{JournalRecord, StreamValidator};
 use crate::stats::RecordingStats;
 
@@ -38,8 +36,7 @@ impl JournalWriter {
         let header = JournalHeader {
             mode: config.journal.mode,
             created_at_ns,
-            max_payload_bytes:
-                config.journal.max_payload_bytes as u32,
+            max_payload_bytes: config.journal.max_payload_bytes as u32,
             feed,
             recording_id,
         };
@@ -57,13 +54,9 @@ impl JournalWriter {
 
         payload.resize(config.journal.max_payload_bytes, 0);
 
-        let file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(path)?;
+        let file = OpenOptions::new().write(true).create_new(true).open(path)?;
 
-        let mut output =
-            BufWriter::with_capacity(config.buffer_bytes, file);
+        let mut output = BufWriter::with_capacity(config.buffer_bytes, file);
 
         output.write_all(&encoded_header)?;
 
@@ -98,10 +91,7 @@ impl JournalWriter {
         self.poisoned
     }
 
-    fn ensure_healthy(
-        &self,
-        operation: &'static str,
-    ) -> ReplayResult<()> {
+    fn ensure_healthy(&self, operation: &'static str) -> ReplayResult<()> {
         if self.poisoned {
             return Err(ReplayError::InvalidState {
                 operation,
@@ -112,10 +102,7 @@ impl JournalWriter {
         Ok(())
     }
 
-    pub fn append(
-        &mut self,
-        record: JournalRecord,
-    ) -> ReplayResult<()> {
+    pub fn append(&mut self, record: JournalRecord) -> ReplayResult<()> {
         self.ensure_healthy("append")?;
         self.validator.validate(&self.header, record)?;
 
@@ -134,16 +121,16 @@ impl JournalWriter {
 
         let written = record.encode_payload(&mut self.payload)?;
 
-        let length = u32::try_from(written + RECORD_OVERHEAD)
-            .map_err(|_| ReplayError::ArithmeticOverflow {
+        let length = u32::try_from(written + RECORD_OVERHEAD).map_err(|_| {
+            ReplayError::ArithmeticOverflow {
                 operation: "record length",
-            })?;
+            }
+        })?;
 
         let length_bytes = length.to_le_bytes();
         let sequence_bytes = record.sequence().to_le_bytes();
 
-        let timestamp_bytes =
-            record.recording_timestamp_ns.to_le_bytes();
+        let timestamp_bytes = record.recording_timestamp_ns.to_le_bytes();
 
         let payload = &self.payload[..written];
 
@@ -173,10 +160,7 @@ impl JournalWriter {
 
         self.validator.commit(record);
 
-        self.stats.record_written(
-            record,
-            u64::from(length) + 4,
-        );
+        self.stats.record_written(record, u64::from(length) + 4);
 
         self.checkpoint()
     }
@@ -192,7 +176,7 @@ impl JournalWriter {
             DurabilityPolicy::SyncEveryRecord => self.sync(),
 
             DurabilityPolicy::FlushEveryRecords(interval) => {
-                if count % interval == 0 {
+                if count.is_multiple_of(interval) {
                     self.flush()?;
                 }
 
@@ -200,7 +184,7 @@ impl JournalWriter {
             }
 
             DurabilityPolicy::SyncEveryRecords(interval) => {
-                if count % interval == 0 {
+                if count.is_multiple_of(interval) {
                     self.sync()?;
                 }
 
@@ -217,8 +201,7 @@ impl JournalWriter {
             return Err(error.into());
         }
 
-        self.stats.flushes =
-            self.stats.flushes.saturating_add(1);
+        self.stats.flushes = self.stats.flushes.saturating_add(1);
 
         Ok(())
     }
@@ -231,8 +214,7 @@ impl JournalWriter {
             return Err(error.into());
         }
 
-        self.stats.synchronizations =
-            self.stats.synchronizations.saturating_add(1);
+        self.stats.synchronizations = self.stats.synchronizations.saturating_add(1);
 
         Ok(())
     }
@@ -241,10 +223,7 @@ impl JournalWriter {
     ///
     /// If durable is true, file data is synchronized.
     /// Directory-entry durability is not guaranteed.
-    pub fn finish(
-        mut self,
-        durable: bool,
-    ) -> ReplayResult<RecordingStats> {
+    pub fn finish(mut self, durable: bool) -> ReplayResult<RecordingStats> {
         if durable {
             self.sync()?;
         } else {

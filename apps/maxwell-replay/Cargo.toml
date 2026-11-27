@@ -1,13 +1,9 @@
 [package]
 name = "maxwell-replay"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 description = "Persistent market data journaling and deterministic replay for Maxwell"
-publish = false
-
-[lib]
-name = "maxwell_replay"
-path = "src/lib.rs"
 
 [dependencies]
 maxwell-core = { path = "../../crates/maxwell-core" }
@@ -16,3 +12,7 @@ maxwell-protocol = { path = "../../crates/maxwell-protocol" }
 [dev-dependencies]
 maxwell-server = { path = "../maxwell-server" }
 maxwell-simulator = { path = "../maxwell-simulator" }
+maxwell-book = { path = "../../crates/maxwell-book" }
+
+[lints]
+workspace = true

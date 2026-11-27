@@ -17,8 +17,7 @@ pub struct ReplayFilter {
 
 impl ReplayFilter {
     pub fn validate(&self) -> ReplayResult<()> {
-        if let (Some(first), Some(last)) =
-            (self.first_sequence, self.last_sequence)
+        if let (Some(first), Some(last)) = (self.first_sequence, self.last_sequence)
             && first > last
         {
             return Err(ReplayError::InvalidConfig {
@@ -27,8 +26,7 @@ impl ReplayFilter {
             });
         }
 
-        if let (Some(first), Some(last)) =
-            (self.first_timestamp_ns, self.last_timestamp_ns)
+        if let (Some(first), Some(last)) = (self.first_timestamp_ns, self.last_timestamp_ns)
             && first > last
         {
             return Err(ReplayError::InvalidConfig {

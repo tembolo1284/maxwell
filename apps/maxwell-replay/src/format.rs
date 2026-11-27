@@ -41,11 +41,9 @@ pub const RECORD_LENGTH_SIZE: usize = 4;
 pub const RECORD_METADATA_SIZE: usize = 16;
 pub const CHECKSUM_SIZE: usize = 4;
 
-pub const RECORD_OVERHEAD: usize =
-    RECORD_METADATA_SIZE + CHECKSUM_SIZE;
+pub const RECORD_OVERHEAD: usize = RECORD_METADATA_SIZE + CHECKSUM_SIZE;
 
-pub const MIN_RECORD_LENGTH: u32 =
-    (RECORD_OVERHEAD + 1) as u32;
+pub const MIN_RECORD_LENGTH: u32 = (RECORD_OVERHEAD + 1) as u32;
 
 // ============================================================
 // Journal header
@@ -79,43 +77,28 @@ impl JournalHeader {
         let mut bytes = [0_u8; HEADER_SIZE];
 
         bytes[0..8].copy_from_slice(&JOURNAL_MAGIC);
-        bytes[8..10].copy_from_slice(
-            &JOURNAL_VERSION.to_le_bytes(),
-        );
+        bytes[8..10].copy_from_slice(&JOURNAL_VERSION.to_le_bytes());
 
         bytes[10] = match self.mode {
             JournalMode::Authoritative => 0,
             JournalMode::RawCapture => 1,
         };
 
-        bytes[12..16].copy_from_slice(
-            &(HEADER_SIZE as u32).to_le_bytes(),
-        );
+        bytes[12..16].copy_from_slice(&(HEADER_SIZE as u32).to_le_bytes());
 
-        bytes[16..24].copy_from_slice(
-            &self.created_at_ns.to_le_bytes(),
-        );
+        bytes[16..24].copy_from_slice(&self.created_at_ns.to_le_bytes());
 
-        bytes[24..28].copy_from_slice(
-            &self.max_payload_bytes.to_le_bytes(),
-        );
+        bytes[24..28].copy_from_slice(&self.max_payload_bytes.to_le_bytes());
 
-        bytes[28..32].copy_from_slice(
-            &self.feed.stream_id.raw().to_le_bytes(),
-        );
+        bytes[28..32].copy_from_slice(&self.feed.stream_id.raw().to_le_bytes());
 
-        bytes[32..40].copy_from_slice(
-            &self.feed.session_id.raw().to_le_bytes(),
-        );
+        bytes[32..40].copy_from_slice(&self.feed.session_id.raw().to_le_bytes());
 
-        bytes[40..48].copy_from_slice(
-            &self.recording_id.to_le_bytes(),
-        );
+        bytes[40..48].copy_from_slice(&self.recording_id.to_le_bytes());
 
         let checksum = crc32c(&bytes[..HEADER_CHECKSUM_OFFSET]);
 
-        bytes[HEADER_CHECKSUM_OFFSET..]
-            .copy_from_slice(&checksum.to_le_bytes());
+        bytes[HEADER_CHECKSUM_OFFSET..].copy_from_slice(&checksum.to_le_bytes());
 
         Ok(bytes)
     }
@@ -151,9 +134,7 @@ impl JournalHeader {
             });
         }
 
-        if bytes[11] != 0
-            || bytes[48..60].iter().any(|&byte| byte != 0)
-        {
+        if bytes[11] != 0 || bytes[48..60].iter().any(|&byte| byte != 0) {
             return Err(ReplayError::InvalidHeader {
                 reason: "reserved bytes must be zero",
             });
@@ -163,9 +144,7 @@ impl JournalHeader {
             0 => JournalMode::Authoritative,
             1 => JournalMode::RawCapture,
             value => {
-                return Err(ReplayError::InvalidJournalMode {
-                    value,
-                });
+                return Err(ReplayError::InvalidJournalMode { value });
             }
         };
 
@@ -191,21 +170,15 @@ impl JournalHeader {
 // ============================================================
 
 pub(crate) fn read_u16(bytes: &[u8]) -> u16 {
-    u16::from_le_bytes(
-        bytes.try_into().expect("fixed-width u16 field"),
-    )
+    u16::from_le_bytes(bytes.try_into().expect("fixed-width u16 field"))
 }
 
 pub(crate) fn read_u32(bytes: &[u8]) -> u32 {
-    u32::from_le_bytes(
-        bytes.try_into().expect("fixed-width u32 field"),
-    )
+    u32::from_le_bytes(bytes.try_into().expect("fixed-width u32 field"))
 }
 
 pub(crate) fn read_u64(bytes: &[u8]) -> u64 {
-    u64::from_le_bytes(
-        bytes.try_into().expect("fixed-width u64 field"),
-    )
+    u64::from_le_bytes(bytes.try_into().expect("fixed-width u64 field"))
 }
 
 // ============================================================
@@ -260,11 +233,9 @@ impl Crc32c {
 
     pub fn update(&mut self, bytes: &[u8]) {
         for &byte in bytes {
-            let index = ((self.state ^ u32::from(byte)) & 0xFF)
-                as usize;
+            let index = ((self.state ^ u32::from(byte)) & 0xFF) as usize;
 
-            self.state =
-                CRC32C_TABLE[index] ^ (self.state >> 8);
+            self.state = CRC32C_TABLE[index] ^ (self.state >> 8);
         }
     }
 
@@ -294,10 +265,7 @@ mod tests {
             mode: JournalMode::Authoritative,
             created_at_ns: 1_000,
             max_payload_bytes: 65_575,
-            feed: FeedId::new(
-                StreamId::new(1),
-                SessionId::new(2),
-            ),
+            feed: FeedId::new(StreamId::new(1), SessionId::new(2)),
             recording_id: 42,
         }
     }
@@ -328,10 +296,7 @@ mod tests {
         let original = header();
         let bytes = original.encode().unwrap();
 
-        assert_eq!(
-            JournalHeader::decode(&bytes).unwrap(),
-            original
-        );
+        assert_eq!(JournalHeader::decode(&bytes).unwrap(), original);
     }
 
     #[test]
