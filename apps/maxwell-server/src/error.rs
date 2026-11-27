@@ -49,7 +49,6 @@ pub enum ServerError {
     // --------------------------------------------------------
     // Application errors
     // --------------------------------------------------------
-
     /// Invalid application-level configuration.
     InvalidConfig(&'static str),
 
@@ -64,10 +63,7 @@ pub enum ServerError {
     InvariantViolation(&'static str),
 
     /// A downstream snapshot exceeds its configured limit.
-    SnapshotCapacityExceeded {
-        limit: usize,
-        required: usize,
-    },
+    SnapshotCapacityExceeded { limit: usize, required: usize },
 
     /// The server cannot provide a consistent snapshot
     /// of its current market state.
@@ -83,7 +79,6 @@ pub enum ServerError {
     // --------------------------------------------------------
     // Component errors
     // --------------------------------------------------------
-
     /// Core domain or financial primitive error.
     Core(CoreError),
 
@@ -130,9 +125,7 @@ impl fmt::Display for ServerError {
                 write!(f, "invalid server state: {reason}")
             }
 
-            Self::AllocationFailed => {
-                f.write_str("server resource allocation failed")
-            }
+            Self::AllocationFailed => f.write_str("server resource allocation failed"),
 
             Self::InvariantViolation(reason) => {
                 write!(f, "server invariant violated: {reason}")
@@ -146,17 +139,11 @@ impl fmt::Display for ServerError {
                 )
             }
 
-            Self::SnapshotUnavailable => {
-                f.write_str("consistent snapshot is unavailable")
-            }
+            Self::SnapshotUnavailable => f.write_str("consistent snapshot is unavailable"),
 
-            Self::RecoveryUnavailable => {
-                f.write_str("required upstream recovery is unavailable")
-            }
+            Self::RecoveryUnavailable => f.write_str("required upstream recovery is unavailable"),
 
-            Self::ShutdownTimeout => {
-                f.write_str("server graceful shutdown timed out")
-            }
+            Self::ShutdownTimeout => f.write_str("server graceful shutdown timed out"),
 
             Self::Core(error) => {
                 write!(f, "core error: {error}")
@@ -275,9 +262,7 @@ mod tests {
 
     #[test]
     fn invalid_configuration_display() {
-        let error = ServerError::InvalidConfig(
-            "upstream budget must be greater than zero",
-        );
+        let error = ServerError::InvalidConfig("upstream budget must be greater than zero");
 
         assert_eq!(
             error.to_string(),
@@ -288,9 +273,7 @@ mod tests {
 
     #[test]
     fn invalid_state_display() {
-        let error = ServerError::InvalidState(
-            "server is not running",
-        );
+        let error = ServerError::InvalidState("server is not running");
 
         assert_eq!(
             error.to_string(),
@@ -300,9 +283,7 @@ mod tests {
 
     #[test]
     fn invariant_violation_display() {
-        let error = ServerError::InvariantViolation(
-            "pending publication was overwritten",
-        );
+        let error = ServerError::InvariantViolation("pending publication was overwritten");
 
         assert_eq!(
             error.to_string(),
@@ -315,10 +296,7 @@ mod tests {
     fn allocation_failure_display() {
         let error = ServerError::AllocationFailed;
 
-        assert_eq!(
-            error.to_string(),
-            "server resource allocation failed",
-        );
+        assert_eq!(error.to_string(), "server resource allocation failed",);
     }
 
     #[test]
@@ -339,10 +317,7 @@ mod tests {
     fn snapshot_unavailable_display() {
         let error = ServerError::SnapshotUnavailable;
 
-        assert_eq!(
-            error.to_string(),
-            "consistent snapshot is unavailable",
-        );
+        assert_eq!(error.to_string(), "consistent snapshot is unavailable",);
     }
 
     #[test]
@@ -359,10 +334,7 @@ mod tests {
     fn shutdown_timeout_display() {
         let error = ServerError::ShutdownTimeout;
 
-        assert_eq!(
-            error.to_string(),
-            "server graceful shutdown timed out",
-        );
+        assert_eq!(error.to_string(), "server graceful shutdown timed out",);
     }
 
     #[test]
@@ -392,9 +364,7 @@ mod tests {
 
     #[test]
     fn converts_protocol_error() {
-        let error = ServerError::from(
-            ProtocolError::InvalidMagic,
-        );
+        let error = ServerError::from(ProtocolError::InvalidMagic);
 
         assert!(matches!(
             error,
@@ -404,114 +374,81 @@ mod tests {
 
     #[test]
     fn converts_sequencer_error() {
-        let error = ServerError::from(
-            SequencerError::SequenceExhausted,
-        );
+        let error = ServerError::from(SequencerError::SequenceExhausted);
 
         assert!(matches!(
             error,
-            ServerError::Sequencer(
-                SequencerError::SequenceExhausted,
-            ),
+            ServerError::Sequencer(SequencerError::SequenceExhausted,),
         ));
     }
 
     #[test]
     fn converts_book_error() {
-        let error = ServerError::from(
-            BookError::OrderCapacityExceeded,
-        );
+        let error = ServerError::from(BookError::OrderCapacityExceeded);
 
         assert!(matches!(
             error,
-            ServerError::Book(
-                BookError::OrderCapacityExceeded,
-            ),
+            ServerError::Book(BookError::OrderCapacityExceeded,),
         ));
     }
 
     #[test]
     fn converts_transport_error() {
-        let error = ServerError::from(
-            TransportError::ConnectionClosed,
-        );
+        let error = ServerError::from(TransportError::ConnectionClosed);
 
         assert!(matches!(
             error,
-            ServerError::Transport(
-                TransportError::ConnectionClosed,
-            ),
+            ServerError::Transport(TransportError::ConnectionClosed,),
         ));
     }
 
     #[test]
     fn converts_recovery_error() {
-        let error = ServerError::from(
-            RecoveryError::SnapshotTooOld,
-        );
+        let error = ServerError::from(RecoveryError::SnapshotTooOld);
 
         assert!(matches!(
             error,
-            ServerError::Recovery(
-                RecoveryError::SnapshotTooOld,
-            ),
+            ServerError::Recovery(RecoveryError::SnapshotTooOld,),
         ));
     }
 
     #[test]
     fn converts_publisher_error() {
-        let error = ServerError::from(
-            PublisherError::SequenceExhausted,
-        );
+        let error = ServerError::from(PublisherError::SequenceExhausted);
 
         assert!(matches!(
             error,
-            ServerError::Publisher(
-                PublisherError::SequenceExhausted,
-            ),
+            ServerError::Publisher(PublisherError::SequenceExhausted,),
         ));
     }
 
     #[test]
     fn converts_gateway_error() {
-        let error = ServerError::from(
-            GatewayError::AllocationFailed,
-        );
+        let error = ServerError::from(GatewayError::AllocationFailed);
 
         assert!(matches!(
             error,
-            ServerError::Gateway(
-                GatewayError::AllocationFailed,
-            ),
+            ServerError::Gateway(GatewayError::AllocationFailed,),
         ));
     }
 
     #[test]
     fn converts_metrics_error() {
-        let error = ServerError::from(
-            MetricsError::RegistryFull,
-        );
+        let error = ServerError::from(MetricsError::RegistryFull);
 
         assert!(matches!(
             error,
-            ServerError::Metrics(
-                MetricsError::RegistryFull,
-            ),
+            ServerError::Metrics(MetricsError::RegistryFull,),
         ));
     }
 
     #[test]
     fn converts_io_error() {
-        let error = ServerError::from(
-            io::Error::from(io::ErrorKind::PermissionDenied),
-        );
+        let error = ServerError::from(io::Error::from(io::ErrorKind::PermissionDenied));
 
         match error {
             ServerError::Io(source) => {
-                assert_eq!(
-                    source.kind(),
-                    io::ErrorKind::PermissionDenied,
-                );
+                assert_eq!(source.kind(), io::ErrorKind::PermissionDenied,);
             }
 
             other => {
@@ -538,9 +475,7 @@ mod tests {
 
         assert!(matches!(
             server_operation(),
-            Err(ServerError::Book(
-                BookError::InconsistentBook,
-            )),
+            Err(ServerError::Book(BookError::InconsistentBook,)),
         ));
     }
 
@@ -558,10 +493,7 @@ mod tests {
 
         match server_operation() {
             Err(ServerError::Io(error)) => {
-                assert_eq!(
-                    error.kind(),
-                    io::ErrorKind::NotFound,
-                );
+                assert_eq!(error.kind(), io::ErrorKind::NotFound,);
             }
 
             other => {
@@ -576,13 +508,9 @@ mod tests {
 
     #[test]
     fn preserves_protocol_error_source() {
-        let error = ServerError::from(
-            ProtocolError::InvalidMagic,
-        );
+        let error = ServerError::from(ProtocolError::InvalidMagic);
 
-        let source = error
-            .source()
-            .expect("protocol error source must exist");
+        let source = error.source().expect("protocol error source must exist");
 
         assert_eq!(
             source.downcast_ref::<ProtocolError>(),
@@ -592,13 +520,9 @@ mod tests {
 
     #[test]
     fn preserves_book_error_source() {
-        let error = ServerError::from(
-            BookError::RecoveryRequired,
-        );
+        let error = ServerError::from(BookError::RecoveryRequired);
 
-        let source = error
-            .source()
-            .expect("book error source must exist");
+        let source = error.source().expect("book error source must exist");
 
         assert_eq!(
             source.downcast_ref::<BookError>(),
@@ -608,23 +532,15 @@ mod tests {
 
     #[test]
     fn preserves_nested_gateway_publisher_error() {
-        let publisher_error =
-            PublisherError::SequenceExhausted;
+        let publisher_error = PublisherError::SequenceExhausted;
 
-        let gateway_error =
-            GatewayError::from(publisher_error);
+        let gateway_error = GatewayError::from(publisher_error);
 
         let error = ServerError::from(gateway_error);
 
-        let gateway_source = error
-            .source()
-            .expect("gateway error source must exist");
+        let gateway_source = error.source().expect("gateway error source must exist");
 
-        assert!(
-            gateway_source
-                .downcast_ref::<GatewayError>()
-                .is_some()
-        );
+        assert!(gateway_source.downcast_ref::<GatewayError>().is_some());
 
         let publisher_source = gateway_source
             .source()
@@ -638,23 +554,15 @@ mod tests {
 
     #[test]
     fn preserves_nested_transport_io_error() {
-        let io_error =
-            io::Error::from(io::ErrorKind::ConnectionReset);
+        let io_error = io::Error::from(io::ErrorKind::ConnectionReset);
 
-        let transport_error =
-            TransportError::from(io_error);
+        let transport_error = TransportError::from(io_error);
 
         let error = ServerError::from(transport_error);
 
-        let transport_source = error
-            .source()
-            .expect("transport error source must exist");
+        let transport_source = error.source().expect("transport error source must exist");
 
-        assert!(
-            transport_source
-                .downcast_ref::<TransportError>()
-                .is_some()
-        );
+        assert!(transport_source.downcast_ref::<TransportError>().is_some());
 
         let io_source = transport_source
             .source()
@@ -664,10 +572,7 @@ mod tests {
             .downcast_ref::<io::Error>()
             .expect("source must be an I/O error");
 
-        assert_eq!(
-            original.kind(),
-            io::ErrorKind::ConnectionReset,
-        );
+        assert_eq!(original.kind(), io::ErrorKind::ConnectionReset,);
     }
 
     #[test]

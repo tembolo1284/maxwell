@@ -24,12 +24,12 @@
 #![forbid(unsafe_code)]
 
 pub mod config;
-pub mod error;
-pub mod state;
-pub mod server;
-pub mod pipeline;
-pub mod upstream;
 pub mod downstream;
-pub mod recovery;
-pub mod snapshot;
+pub mod error;
 pub mod metrics;
+pub mod pipeline;
+pub mod recovery;
+pub mod server;
+pub mod snapshot;
+pub mod state;
+pub mod upstream;

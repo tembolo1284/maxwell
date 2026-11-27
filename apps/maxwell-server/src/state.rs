@@ -184,9 +184,7 @@ impl ServerReadiness {
     /// publication watermark represents the entire book.
     #[must_use]
     pub const fn is_synchronized(self) -> bool {
-        self.sequencer.is_live()
-            && self.recovery.is_publishable()
-            && self.book_valid
+        self.sequencer.is_live() && self.recovery.is_publishable() && self.book_valid
     }
 
     /// Returns whether the server may advertise its
@@ -197,9 +195,7 @@ impl ServerReadiness {
     /// a consistent current state.
     #[must_use]
     pub const fn can_advertise_current(self) -> bool {
-        self.lifecycle.accepts_upstream()
-            && self.is_synchronized()
-            && !self.publication_pending
+        self.lifecycle.accepts_upstream() && self.is_synchronized() && !self.publication_pending
     }
 
     /// Returns whether a consistent downstream snapshot
@@ -229,9 +225,7 @@ impl ServerReadiness {
     /// publish an event from an invalidated stream.
     #[must_use]
     pub const fn can_retry_publication(self) -> bool {
-        self.lifecycle.services_downstream()
-            && self.is_synchronized()
-            && self.publication_pending
+        self.lifecycle.services_downstream() && self.is_synchronized() && self.publication_pending
     }
 }
 
@@ -267,10 +261,7 @@ mod tests {
 
     #[test]
     fn default_state_is_initialized() {
-        assert_eq!(
-            ServerState::default(),
-            ServerState::Initialized,
-        );
+        assert_eq!(ServerState::default(), ServerState::Initialized,);
     }
 
     #[test]
@@ -307,10 +298,7 @@ mod tests {
 
     #[test]
     fn terminal_states_cannot_transition() {
-        for terminal in [
-            ServerState::Stopped,
-            ServerState::Failed,
-        ] {
+        for terminal in [ServerState::Stopped, ServerState::Failed] {
             for next in STATES {
                 assert!(!terminal.can_transition_to(next));
             }
@@ -334,9 +322,7 @@ mod tests {
     fn running_server_cannot_skip_draining() {
         let mut state = ServerState::Running;
 
-        assert!(
-            state.transition_to(ServerState::Stopped).is_err()
-        );
+        assert!(state.transition_to(ServerState::Stopped).is_err());
 
         assert_eq!(state, ServerState::Running);
     }
@@ -354,10 +340,7 @@ mod tests {
     #[test]
     fn only_running_accepts_upstream() {
         for state in STATES {
-            assert_eq!(
-                state.accepts_upstream(),
-                state == ServerState::Running,
-            );
+            assert_eq!(state.accepts_upstream(), state == ServerState::Running,);
         }
     }
 
@@ -366,20 +349,14 @@ mod tests {
         for state in STATES {
             assert_eq!(
                 state.services_downstream(),
-                matches!(
-                    state,
-                    ServerState::Running | ServerState::Draining
-                ),
+                matches!(state, ServerState::Running | ServerState::Draining),
             );
         }
     }
 
     #[test]
     fn lifecycle_display() {
-        assert_eq!(
-            ServerState::Initialized.to_string(),
-            "INITIALIZED",
-        );
+        assert_eq!(ServerState::Initialized.to_string(), "INITIALIZED",);
 
         assert_eq!(ServerState::Running.to_string(), "RUNNING");
         assert_eq!(ServerState::Draining.to_string(), "DRAINING");

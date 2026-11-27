@@ -69,6 +69,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "maxwell-server"
+version = "0.1.0"
+dependencies = [
+ "maxwell-book",
+ "maxwell-client",
+ "maxwell-core",
+ "maxwell-gateway",
+ "maxwell-metrics",
+ "maxwell-protocol",
+ "maxwell-publisher",
+ "maxwell-recovery",
+ "maxwell-sequencer",
+ "maxwell-transport",
+]
+
+[[package]]
 name = "maxwell-transport"
 version = "0.1.0"
 dependencies = [

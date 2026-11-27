@@ -9,13 +9,11 @@
 
 use std::time::Duration;
 
-use maxwell_book::{BookConfig, BookError};
-use maxwell_gateway::{GatewayConfig, GatewayError};
-use maxwell_recovery::{RecoveryConfig, RecoveryError};
-use maxwell_sequencer::{SequencerConfig, SequencerError};
-use maxwell_transport::{
-    FramingConfig, TcpConfig, TransportError, UdpConfig,
-};
+use maxwell_book::BookConfig;
+use maxwell_gateway::GatewayConfig;
+use maxwell_recovery::RecoveryConfig;
+use maxwell_sequencer::SequencerConfig;
+use maxwell_transport::{FramingConfig, TcpConfig, UdpConfig};
 
 use crate::error::{ServerError, ServerResult};
 
@@ -36,8 +34,7 @@ pub const DEFAULT_RECOVERY_BUDGET: usize = 256;
 pub const DEFAULT_MAX_SNAPSHOT_ENTRIES: usize = 65_536;
 
 /// Maximum time allowed for graceful shutdown.
-pub const DEFAULT_SHUTDOWN_TIMEOUT: Duration =
-    Duration::from_secs(5);
+pub const DEFAULT_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
 // ============================================================
 // Processing configuration
@@ -306,21 +303,13 @@ impl ServerConfig {
     /// Returns the first component or application configuration
     /// error encountered.
     pub fn validate(&self) -> ServerResult<()> {
-        self.sequencer
-            .validate()
-            .map_err(ServerError::Sequencer)?;
+        self.sequencer.validate().map_err(ServerError::Sequencer)?;
 
-        self.book
-            .validate()
-            .map_err(ServerError::Book)?;
+        self.book.validate().map_err(ServerError::Book)?;
 
-        self.recovery
-            .validate()
-            .map_err(ServerError::Recovery)?;
+        self.recovery.validate().map_err(ServerError::Recovery)?;
 
-        self.gateway
-            .validate()
-            .map_err(ServerError::Gateway)?;
+        self.gateway.validate().map_err(ServerError::Gateway)?;
 
         self.network.validate()?;
         self.processing.validate()?;
@@ -366,8 +355,7 @@ mod tests {
     fn reject_publication_policy_is_supported() {
         let mut config = ServerConfig::default();
 
-        config.gateway.publisher.backpressure_policy =
-            BackpressurePolicy::RejectPublication;
+        config.gateway.publisher.backpressure_policy = BackpressurePolicy::RejectPublication;
 
         assert!(config.validate().is_ok());
     }
@@ -426,18 +414,14 @@ mod tests {
 
     #[test]
     fn rejects_zero_snapshot_capacity() {
-        let config = SnapshotConfig {
-            max_entries: 0,
-        };
+        let config = SnapshotConfig { max_entries: 0 };
 
         assert!(config.validate().is_err());
     }
 
     #[test]
     fn minimum_snapshot_capacity_is_valid() {
-        let config = SnapshotConfig {
-            max_entries: 1,
-        };
+        let config = SnapshotConfig { max_entries: 1 };
 
         assert!(config.validate().is_ok());
     }
@@ -497,10 +481,7 @@ mod tests {
 
         config.upstream_framing.max_frame_size = 0;
 
-        assert!(matches!(
-            config.validate(),
-            Err(ServerError::Transport(_)),
-        ));
+        assert!(matches!(config.validate(), Err(ServerError::Transport(_)),));
     }
 
     #[test]
@@ -522,10 +503,7 @@ mod tests {
 
         config.sequencer.reorder_capacity = 3;
 
-        assert!(matches!(
-            config.validate(),
-            Err(ServerError::Sequencer(_)),
-        ));
+        assert!(matches!(config.validate(), Err(ServerError::Sequencer(_)),));
     }
 
     #[test]
@@ -534,10 +512,7 @@ mod tests {
 
         config.book.max_orders = 0;
 
-        assert!(matches!(
-            config.validate(),
-            Err(ServerError::Book(_)),
-        ));
+        assert!(matches!(config.validate(), Err(ServerError::Book(_)),));
     }
 
     #[test]
@@ -546,10 +521,7 @@ mod tests {
 
         config.recovery.buffer_capacity = 0;
 
-        assert!(matches!(
-            config.validate(),
-            Err(ServerError::Recovery(_)),
-        ));
+        assert!(matches!(config.validate(), Err(ServerError::Recovery(_)),));
     }
 
     #[test]
@@ -558,10 +530,7 @@ mod tests {
 
         config.gateway.heartbeat_interval_ns = 0;
 
-        assert!(matches!(
-            config.validate(),
-            Err(ServerError::Gateway(_)),
-        ));
+        assert!(matches!(config.validate(), Err(ServerError::Gateway(_)),));
     }
 
     #[test]
@@ -570,10 +539,7 @@ mod tests {
 
         config.gateway.publisher.queue_capacity = 0;
 
-        assert!(matches!(
-            config.validate(),
-            Err(ServerError::Gateway(_)),
-        ));
+        assert!(matches!(config.validate(), Err(ServerError::Gateway(_)),));
     }
 
     #[test]
