@@ -1,0 +1,22 @@
+
+[package]
+name = "maxwell-core"
+version = "0.1.0"
+edition = "2024"
+description = "Foundational types and domain primitives for Maxwell"
+publish = false
+
+[lib]
+name = "maxwell_core"
+path = "src/lib.rs"
+
+[dependencies]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+

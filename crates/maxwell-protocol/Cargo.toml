@@ -1,0 +1,45 @@
+
+[package]
+name = "maxwell-protocol"
+version = "0.1.0"
+edition = "2024"
+description = "High-performance binary market data protocol encoding, decoding, and validation for Maxwell"
+publish = false
+
+# ============================================================
+# Library configuration
+# ============================================================
+
+[lib]
+name = "maxwell_protocol"
+path = "src/lib.rs"
+
+# ============================================================
+# Dependencies
+# ============================================================
+
+[dependencies]
+maxwell-core = { path = "../maxwell-core", version = "0.1.0" }
+
+# ============================================================
+# Development dependencies
+# ============================================================
+
+[dev-dependencies]
+
+# ============================================================
+# Rust compiler lints
+# ============================================================
+
+[lints.rust]
+unsafe_code = "forbid"
+
+# ============================================================
+# Clippy lints
+# ============================================================
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+
