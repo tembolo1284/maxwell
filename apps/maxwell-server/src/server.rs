@@ -574,12 +574,12 @@ impl<D: UpstreamDecoder> Server<D> {
 
         self.metrics.record_service_iteration()?;
 
-        if self.state == ServerState::Running {
-            if let Err(error) = self.recovery.poll(now, &mut self.pipeline) {
-                self.fail();
+        if self.state == ServerState::Running
+            && let Err(error) = self.recovery.poll(now, &mut self.pipeline)
+        {
+            self.fail();
 
-                return Err(error);
-            }
+            return Err(error);
         }
 
         self.pipeline.gateway_mut().expire_sessions(now.raw())?;
