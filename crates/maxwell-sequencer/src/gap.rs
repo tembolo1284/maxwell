@@ -1,4 +1,3 @@
-
 //! Missing sequence range representation.
 //!
 //! Gaps use inclusive boundaries.
@@ -85,6 +84,7 @@ impl SequenceGap {
     }
 
     #[must_use]
+    #[inline]
     pub const fn overlaps(self, other: Self) -> bool {
         self.start.raw() <= other.end.raw()
             && other.start.raw() <= self.end.raw()
@@ -94,11 +94,17 @@ impl SequenceGap {
     ///
     /// Disjoint gaps are not merged because doing so could
     /// incorrectly identify received events as missing.
+    ///
+    /// Explicit boundary checks prevent integer overflow
+    /// and preserve compatibility with stable const functions.
     #[must_use]
+    #[inline]
     pub const fn merge(self, other: Self) -> Option<Self> {
         let adjacent =
-            self.end.raw().checked_add(1) == Some(other.start.raw())
-            || other.end.raw().checked_add(1) == Some(self.start.raw());
+            (self.end.raw() != u64::MAX
+                && self.end.raw() + 1 == other.start.raw())
+            || (other.end.raw() != u64::MAX
+                && other.end.raw() + 1 == self.start.raw());
 
         if !self.overlaps(other) && !adjacent {
             return None;
@@ -188,5 +194,51 @@ mod tests {
 
         assert!(first.merge(second).is_none());
     }
-}
 
+    #[test]
+    fn adjacent_gaps_merge_at_max() {
+        let first = SequenceGap::new(
+            seq(u64::MAX - 5),
+            seq(u64::MAX - 1),
+        )
+        .unwrap();
+
+        let second = SequenceGap::new(
+            seq(u64::MAX),
+            seq(u64::MAX),
+        )
+        .unwrap();
+
+        let merged = first.merge(second).unwrap();
+
+        assert_eq!(merged.missing_count(), 6);
+        assert_eq!(merged.start(), seq(u64::MAX - 5));
+        assert_eq!(merged.end(), seq(u64::MAX));
+    }
+
+    #[test]
+    fn gaps_do_not_wrap_around() {
+        let first = SequenceGap::new(
+            seq(u64::MAX - 5),
+            seq(u64::MAX),
+        )
+        .unwrap();
+
+        let second = SequenceGap::new(seq(0), seq(5)).unwrap();
+
+        assert!(first.merge(second).is_none());
+        assert!(second.merge(first).is_none());
+    }
+
+    #[test]
+    fn overlapping_gaps_merge() {
+        let first = SequenceGap::new(seq(1), seq(10)).unwrap();
+        let second = SequenceGap::new(seq(5), seq(15)).unwrap();
+
+        let merged = first.merge(second).unwrap();
+
+        assert_eq!(merged.start(), seq(1));
+        assert_eq!(merged.end(), seq(15));
+        assert_eq!(merged.missing_count(), 15);
+    }
+}
