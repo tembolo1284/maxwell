@@ -92,8 +92,7 @@ impl Default for MarketConfig {
     fn default() -> Self {
         Self {
             instrument_count: DEFAULT_INSTRUMENT_COUNT,
-            max_orders_per_instrument:
-                DEFAULT_MAX_ORDERS_PER_INSTRUMENT,
+            max_orders_per_instrument: DEFAULT_MAX_ORDERS_PER_INSTRUMENT,
             reference_price: 1_000_000,
             tick_size: 100,
             lot_size: 1,
@@ -106,9 +105,7 @@ impl Default for MarketConfig {
 impl MarketConfig {
     /// Validates market generation parameters.
     pub fn validate(&self) -> SimulatorResult<()> {
-        if self.instrument_count == 0
-            || self.instrument_count > MAX_INSTRUMENT_COUNT
-        {
+        if self.instrument_count == 0 || self.instrument_count > MAX_INSTRUMENT_COUNT {
             return Err(SimulatorError::InvalidConfig(
                 "instrument count is outside the supported range",
             ));
@@ -127,15 +124,11 @@ impl MarketConfig {
         }
 
         if self.tick_size <= 0 {
-            return Err(SimulatorError::InvalidConfig(
-                "tick size must be positive",
-            ));
+            return Err(SimulatorError::InvalidConfig("tick size must be positive"));
         }
 
         if self.lot_size == 0 {
-            return Err(SimulatorError::InvalidConfig(
-                "lot size must be positive",
-            ));
+            return Err(SimulatorError::InvalidConfig("lot size must be positive"));
         }
 
         if self.reference_price % self.tick_size != 0 {
@@ -163,12 +156,12 @@ impl MarketConfig {
                 "configured price distance overflows",
             ))?;
 
-        let minimum_price = self
-            .reference_price
-            .checked_sub(distance)
-            .ok_or(SimulatorError::InvalidConfig(
-                "minimum generated price overflows",
-            ))?;
+        let minimum_price =
+            self.reference_price
+                .checked_sub(distance)
+                .ok_or(SimulatorError::InvalidConfig(
+                    "minimum generated price overflows",
+                ))?;
 
         if minimum_price <= 0 {
             return Err(SimulatorError::InvalidConfig(
@@ -308,17 +301,13 @@ impl FaultConfig {
     /// Returns whether any delivery fault is enabled.
     #[must_use]
     pub const fn is_enabled(&self) -> bool {
-        self.drop_bps != 0
-            || self.duplicate_bps != 0
-            || self.reorder_bps != 0
+        self.drop_bps != 0 || self.duplicate_bps != 0 || self.reorder_bps != 0
     }
 
     /// Returns the combined primary fault probability.
     #[must_use]
     pub const fn total_bps(&self) -> u64 {
-        self.drop_bps as u64
-            + self.duplicate_bps as u64
-            + self.reorder_bps as u64
+        self.drop_bps as u64 + self.duplicate_bps as u64 + self.reorder_bps as u64
     }
 
     /// Returns the effective reordering window.
@@ -446,9 +435,7 @@ impl PacingConfig {
             ));
         }
 
-        if self.events_per_second == 0
-            || self.events_per_second > NANOS_PER_SECOND
-        {
+        if self.events_per_second == 0 || self.events_per_second > NANOS_PER_SECOND {
             return Err(SimulatorError::InvalidConfig(
                 "event rate is outside the supported range",
             ));
@@ -542,9 +529,7 @@ impl SimulatorConfig {
                 "maximum snapshot entry count overflows",
             ))?;
 
-        if maximum_snapshot_entries
-            > self.resources.snapshot_capacity
-        {
+        if maximum_snapshot_entries > self.resources.snapshot_capacity {
             return Err(SimulatorError::InvalidConfig(
                 "snapshot capacity cannot hold the maximum market state",
             ));
@@ -555,20 +540,12 @@ impl SimulatorConfig {
         let minimum_delivery_capacity = self
             .faults
             .effective_reorder_window()
-            .checked_add(
-                if self.faults.duplicate_bps != 0 {
-                    2
-                } else {
-                    1
-                },
-            )
+            .checked_add(if self.faults.duplicate_bps != 0 { 2 } else { 1 })
             .ok_or(SimulatorError::InvalidConfig(
                 "minimum delivery capacity overflows",
             ))?;
 
-        if self.resources.delivery_capacity
-            < minimum_delivery_capacity
-        {
+        if self.resources.delivery_capacity < minimum_delivery_capacity {
             return Err(SimulatorError::InvalidConfig(
                 "delivery capacity is insufficient for configured faults",
             ));
@@ -643,14 +620,12 @@ mod tests {
 
         assert_eq!(
             config.market.max_total_orders().unwrap(),
-            DEFAULT_INSTRUMENT_COUNT
-                * DEFAULT_MAX_ORDERS_PER_INSTRUMENT,
+            DEFAULT_INSTRUMENT_COUNT * DEFAULT_MAX_ORDERS_PER_INSTRUMENT,
         );
 
         assert_eq!(
             config.max_snapshot_entries().unwrap(),
-            DEFAULT_INSTRUMENT_COUNT
-                * (DEFAULT_MAX_ORDERS_PER_INSTRUMENT + 1),
+            DEFAULT_INSTRUMENT_COUNT * (DEFAULT_MAX_ORDERS_PER_INSTRUMENT + 1),
         );
     }
 
@@ -667,8 +642,7 @@ mod tests {
     fn excessive_instrument_count_is_rejected() {
         let mut config = SimulatorConfig::default();
 
-        config.market.instrument_count =
-            MAX_INSTRUMENT_COUNT + 1;
+        config.market.instrument_count = MAX_INSTRUMENT_COUNT + 1;
 
         assert!(config.validate().is_err());
     }
@@ -800,10 +774,7 @@ mod tests {
             ..FaultConfig::default()
         };
 
-        assert_eq!(
-            config.effective_reorder_window(),
-            DEFAULT_REORDER_WINDOW,
-        );
+        assert_eq!(config.effective_reorder_window(), DEFAULT_REORDER_WINDOW,);
     }
 
     #[test]
@@ -830,8 +801,7 @@ mod tests {
     fn insufficient_snapshot_capacity_is_rejected() {
         let mut config = SimulatorConfig::default();
 
-        config.resources.snapshot_capacity =
-            config.max_snapshot_entries().unwrap() - 1;
+        config.resources.snapshot_capacity = config.max_snapshot_entries().unwrap() - 1;
 
         assert!(config.validate().is_err());
     }
@@ -840,8 +810,7 @@ mod tests {
     fn exact_snapshot_capacity_is_permitted() {
         let mut config = SimulatorConfig::default();
 
-        config.resources.snapshot_capacity =
-            config.max_snapshot_entries().unwrap();
+        config.resources.snapshot_capacity = config.max_snapshot_entries().unwrap();
 
         assert!(config.validate().is_ok());
     }
@@ -893,8 +862,7 @@ mod tests {
     fn excessive_event_rate_is_rejected() {
         let mut config = SimulatorConfig::default();
 
-        config.pacing.events_per_second =
-            NANOS_PER_SECOND + 1;
+        config.pacing.events_per_second = NANOS_PER_SECOND + 1;
 
         assert!(config.validate().is_err());
     }
@@ -938,13 +906,14 @@ mod tests {
 
     #[test]
     fn mixed_fault_configuration_is_valid() {
-        let mut config = SimulatorConfig::default();
-
-        config.faults = FaultConfig {
-            drop_bps: 100,
-            duplicate_bps: 200,
-            reorder_bps: 300,
-            reorder_window: 16,
+        let config = SimulatorConfig {
+            faults: FaultConfig {
+                drop_bps: 100,
+                duplicate_bps: 200,
+                reorder_bps: 300,
+                reorder_window: 16,
+            },
+            ..SimulatorConfig::default()
         };
 
         assert!(config.validate().is_ok());

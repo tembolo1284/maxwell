@@ -7,9 +7,8 @@
 use std::collections::HashMap;
 
 use maxwell_core::{
-    EventEnvelope, FeedId, Instrument, InstrumentConfig,
-    InstrumentId, MarketEvent, OrderId, Price, Quantity,
-    SequenceNumber, Side,
+    EventEnvelope, FeedId, Instrument, InstrumentConfig, InstrumentId, MarketEvent, OrderId, Price,
+    Quantity, SequenceNumber, Side,
 };
 
 use crate::config::MarketConfig;
@@ -46,10 +45,7 @@ pub struct InstrumentMarket {
 }
 
 impl InstrumentMarket {
-    pub fn new(
-        instrument: Instrument,
-        capacity: usize,
-    ) -> SimulatorResult<Self> {
+    pub fn new(instrument: Instrument, capacity: usize) -> SimulatorResult<Self> {
         if capacity == 0 {
             return Err(SimulatorError::InvalidConfig(
                 "instrument order capacity must be positive",
@@ -107,9 +103,7 @@ impl InstrumentMarket {
     }
 
     #[must_use]
-    pub const fn last_sequence(
-        &self,
-    ) -> Option<SequenceNumber> {
+    pub const fn last_sequence(&self) -> Option<SequenceNumber> {
         self.last_sequence
     }
 
@@ -119,19 +113,13 @@ impl InstrumentMarket {
     }
 
     #[must_use]
-    pub fn order(
-        &self,
-        order_id: OrderId,
-    ) -> Option<&SimulatedOrder> {
+    pub fn order(&self, order_id: OrderId) -> Option<&SimulatedOrder> {
         self.index
             .get(&order_id)
             .and_then(|index| self.orders.get(*index))
     }
 
-    fn position(
-        &self,
-        order_id: OrderId,
-    ) -> SimulatorResult<usize> {
+    fn position(&self, order_id: OrderId) -> SimulatorResult<usize> {
         self.index
             .get(&order_id)
             .copied()
@@ -145,10 +133,7 @@ impl InstrumentMarket {
     // Order insertion
     // --------------------------------------------------------
 
-    fn add(
-        &mut self,
-        order: SimulatedOrder,
-    ) -> SimulatorResult<()> {
+    fn add(&mut self, order: SimulatedOrder) -> SimulatorResult<()> {
         if self.index.contains_key(&order.order_id) {
             return Err(SimulatorError::DuplicateOrder {
                 instrument_id: self.id(),
@@ -164,10 +149,8 @@ impl InstrumentMarket {
             });
         }
 
-        self.instrument.validate_limit_order(
-            order.price,
-            order.quantity,
-        )?;
+        self.instrument
+            .validate_limit_order(order.price, order.quantity)?;
 
         let position = self.orders.len();
 
@@ -189,10 +172,7 @@ impl InstrumentMarket {
     ) -> SimulatorResult<()> {
         let position = self.position(order_id)?;
 
-        self.instrument.validate_limit_order(
-            price,
-            quantity,
-        )?;
+        self.instrument.validate_limit_order(price, quantity)?;
 
         let order = &mut self.orders[position];
 
@@ -206,10 +186,7 @@ impl InstrumentMarket {
     // Order removal
     // --------------------------------------------------------
 
-    fn remove_at(
-        &mut self,
-        position: usize,
-    ) -> SimulatedOrder {
+    fn remove_at(&mut self, position: usize) -> SimulatedOrder {
         let removed = self.orders.swap_remove(position);
 
         self.index.remove(&removed.order_id);
@@ -228,10 +205,7 @@ impl InstrumentMarket {
         removed
     }
 
-    fn delete(
-        &mut self,
-        order_id: OrderId,
-    ) -> SimulatorResult<()> {
+    fn delete(&mut self, order_id: OrderId) -> SimulatorResult<()> {
         let position = self.position(order_id)?;
 
         self.remove_at(position);
@@ -243,40 +217,30 @@ impl InstrumentMarket {
     // Quantity reduction
     // --------------------------------------------------------
 
-    fn reduce(
-        &mut self,
-        order_id: OrderId,
-        quantity: Quantity,
-    ) -> SimulatorResult<()> {
+    fn reduce(&mut self, order_id: OrderId, quantity: Quantity) -> SimulatorResult<()> {
         let position = self.position(order_id)?;
 
-        if quantity.is_zero()
-            || !self.instrument.is_quantity_lot_aligned(quantity)
-        {
-            return Err(
-                SimulatorError::InvalidMarketOperation(
-                    "invalid order reduction quantity",
-                ),
-            );
+        if quantity.is_zero() || !self.instrument.is_quantity_lot_aligned(quantity) {
+            return Err(SimulatorError::InvalidMarketOperation(
+                "invalid order reduction quantity",
+            ));
         }
 
         let current = self.orders[position].quantity.raw();
 
-        let remaining = current
-            .checked_sub(quantity.raw())
-            .ok_or(
-                SimulatorError::InvalidMarketOperation(
+        let remaining =
+            current
+                .checked_sub(quantity.raw())
+                .ok_or(SimulatorError::InvalidMarketOperation(
                     "reduction exceeds resting order quantity",
-                ),
-            )?;
+                ))?;
 
         if remaining == 0 {
             self.remove_at(position);
         } else {
             let remaining = Quantity::new(remaining);
 
-            self.instrument
-                .validate_order_quantity(remaining)?;
+            self.instrument.validate_order_quantity(remaining)?;
 
             self.orders[position].quantity = remaining;
         }
@@ -288,22 +252,15 @@ impl InstrumentMarket {
     // Event application
     // --------------------------------------------------------
 
-    fn apply(
-        &mut self,
-        envelope: EventEnvelope,
-    ) -> SimulatorResult<()> {
+    fn apply(&mut self, envelope: EventEnvelope) -> SimulatorResult<()> {
         if envelope.instrument_id() != self.id() {
-            return Err(
-                SimulatorError::InvalidMarketOperation(
-                    "event instrument does not match market",
-                ),
-            );
+            return Err(SimulatorError::InvalidMarketOperation(
+                "event instrument does not match market",
+            ));
         }
 
         envelope.event.validate().map_err(|_| {
-            SimulatorError::InvalidMarketOperation(
-                "event failed stateless validation",
-            )
+            SimulatorError::InvalidMarketOperation("event failed stateless validation")
         })?;
 
         match envelope.event {
@@ -317,18 +274,11 @@ impl InstrumentMarket {
             }
 
             MarketEvent::OrderModified(event) => {
-                self.modify(
-                    event.order_id,
-                    event.new_price,
-                    event.new_quantity,
-                )?;
+                self.modify(event.order_id, event.new_price, event.new_quantity)?;
             }
 
             MarketEvent::OrderCancelled(event) => {
-                self.reduce(
-                    event.order_id,
-                    event.cancelled_quantity,
-                )?;
+                self.reduce(event.order_id, event.cancelled_quantity)?;
             }
 
             MarketEvent::OrderDeleted(event) => {
@@ -336,21 +286,15 @@ impl InstrumentMarket {
             }
 
             MarketEvent::OrderExecuted(event) => {
-                self.instrument
-                    .validate_price(event.execution_price)?;
+                self.instrument.validate_price(event.execution_price)?;
 
-                self.reduce(
-                    event.order_id,
-                    event.executed_quantity,
-                )?;
+                self.reduce(event.order_id, event.executed_quantity)?;
             }
 
             _ => {
-                return Err(
-                    SimulatorError::InvalidMarketOperation(
-                        "unsupported simulated market event",
-                    ),
-                );
+                return Err(SimulatorError::InvalidMarketOperation(
+                    "unsupported simulated market event",
+                ));
             }
         }
 
@@ -380,20 +324,14 @@ impl InstrumentMarket {
         }
 
         for (position, order) in self.orders.iter().enumerate() {
-            if self.index.get(&order.order_id)
-                != Some(&position)
-            {
-                return Err(
-                    SimulatorError::InvariantViolation(
-                        "order index position is incorrect",
-                    ),
-                );
+            if self.index.get(&order.order_id) != Some(&position) {
+                return Err(SimulatorError::InvariantViolation(
+                    "order index position is incorrect",
+                ));
             }
 
-            self.instrument.validate_limit_order(
-                order.price,
-                order.quantity,
-            )?;
+            self.instrument
+                .validate_limit_order(order.price, order.quantity)?;
         }
 
         Ok(())
@@ -418,10 +356,7 @@ pub struct Market {
 }
 
 impl Market {
-    pub fn new(
-        config: MarketConfig,
-        feed: FeedId,
-    ) -> SimulatorResult<Self> {
+    pub fn new(config: MarketConfig, feed: FeedId) -> SimulatorResult<Self> {
         config.validate()?;
 
         let mut instruments = Vec::new();
@@ -430,39 +365,29 @@ impl Market {
             .try_reserve_exact(config.instrument_count)
             .map_err(|_| SimulatorError::AllocationFailed)?;
 
-        let distance = config.tick_size
-            * i64::from(config.max_price_distance_ticks);
+        let distance = config.tick_size * i64::from(config.max_price_distance_ticks);
 
-        let minimum_price =
-            config.reference_price - distance;
+        let minimum_price = config.reference_price - distance;
 
-        let maximum_price =
-            config.reference_price + distance;
+        let maximum_price = config.reference_price + distance;
 
-        let maximum_quantity = config.lot_size
-            * u64::from(config.max_order_quantity_lots);
+        let maximum_quantity = config.lot_size * u64::from(config.max_order_quantity_lots);
 
         for index in 0..config.instrument_count {
             let id = u32::try_from(index + 1)
-                .map_err(|_| {
-                    SimulatorError::ArithmeticOverflow(
-                        "instrument identifier",
-                    )
-                })?;
+                .map_err(|_| SimulatorError::ArithmeticOverflow("instrument identifier"))?;
 
-            let instrument = Instrument::new(
-                InstrumentConfig {
-                    id: InstrumentId::new(id),
-                    price_scale: 4,
-                    quantity_scale: 0,
-                    tick_size: Price::new(config.tick_size),
-                    lot_size: Quantity::new(config.lot_size),
-                    min_price: Price::new(minimum_price),
-                    max_price: Price::new(maximum_price),
-                    min_quantity: Quantity::new(config.lot_size),
-                    max_quantity: Quantity::new(maximum_quantity),
-                },
-            )?;
+            let instrument = Instrument::new(InstrumentConfig {
+                id: InstrumentId::new(id),
+                price_scale: 4,
+                quantity_scale: 0,
+                tick_size: Price::new(config.tick_size),
+                lot_size: Quantity::new(config.lot_size),
+                min_price: Price::new(minimum_price),
+                max_price: Price::new(maximum_price),
+                min_quantity: Quantity::new(config.lot_size),
+                max_quantity: Quantity::new(maximum_quantity),
+            })?;
 
             instruments.push(InstrumentMarket::new(
                 instrument,
@@ -495,9 +420,7 @@ impl Market {
     }
 
     #[must_use]
-    pub const fn last_sequence(
-        &self,
-    ) -> Option<SequenceNumber> {
+    pub const fn last_sequence(&self) -> Option<SequenceNumber> {
         self.last_sequence
     }
 
@@ -513,17 +436,11 @@ impl Market {
 
     #[must_use]
     pub fn total_orders(&self) -> usize {
-        self.instruments
-            .iter()
-            .map(InstrumentMarket::len)
-            .sum()
+        self.instruments.iter().map(InstrumentMarket::len).sum()
     }
 
     #[must_use]
-    pub fn instrument(
-        &self,
-        id: InstrumentId,
-    ) -> Option<&InstrumentMarket> {
+    pub fn instrument(&self, id: InstrumentId) -> Option<&InstrumentMarket> {
         let index = id.raw().checked_sub(1)?;
 
         self.instruments.get(index as usize)
@@ -533,16 +450,11 @@ impl Market {
     ///
     /// The sequence cursor advances only after successful
     /// market mutation.
-    pub fn apply(
-        &mut self,
-        envelope: EventEnvelope,
-    ) -> SimulatorResult<()> {
+    pub fn apply(&mut self, envelope: EventEnvelope) -> SimulatorResult<()> {
         if envelope.header.feed() != self.feed {
-            return Err(
-                SimulatorError::InvalidMarketOperation(
-                    "event feed does not match authoritative market",
-                ),
-            );
+            return Err(SimulatorError::InvalidMarketOperation(
+                "event feed does not match authoritative market",
+            ));
         }
 
         let sequence = envelope.sequence();
@@ -599,31 +511,22 @@ mod tests {
     use super::*;
 
     use maxwell_core::{
-        EventHeader, EventId, OrderAdded, OrderCancelled,
-        OrderDeleted, OrderModified, SessionId, StreamId,
+        EventHeader, EventId, OrderAdded, OrderCancelled, OrderDeleted, OrderModified, SessionId,
+        StreamId,
     };
 
     fn feed() -> FeedId {
-        FeedId::new(
-            StreamId::new(1),
-            SessionId::new(1),
-        )
+        FeedId::new(StreamId::new(1), SessionId::new(1))
     }
 
     fn market() -> Market {
         Market::new(MarketConfig::default(), feed()).unwrap()
     }
 
-    fn envelope(
-        sequence: u64,
-        event: MarketEvent,
-    ) -> EventEnvelope {
+    fn envelope(sequence: u64, event: MarketEvent) -> EventEnvelope {
         EventEnvelope::new(
             EventHeader::new(
-                EventId::new(
-                    feed(),
-                    SequenceNumber::new(sequence),
-                ),
+                EventId::new(feed(), SequenceNumber::new(sequence)),
                 InstrumentId::new(1),
                 None,
             ),
@@ -650,10 +553,7 @@ mod tests {
         assert_eq!(market.instrument_count(), 10);
         assert_eq!(market.total_orders(), 0);
         assert_eq!(market.last_sequence(), None);
-        assert_eq!(
-            market.next_expected(),
-            SequenceNumber::ONE,
-        );
+        assert_eq!(market.next_expected(), SequenceNumber::ONE,);
     }
 
     #[test]
@@ -664,10 +564,7 @@ mod tests {
 
         assert_eq!(market.total_orders(), 1);
 
-        assert_eq!(
-            market.next_expected(),
-            SequenceNumber::new(2),
-        );
+        assert_eq!(market.next_expected(), SequenceNumber::new(2),);
 
         market.validate_consistency().unwrap();
     }
@@ -682,10 +579,7 @@ mod tests {
         ));
 
         assert_eq!(market.total_orders(), 0);
-        assert_eq!(
-            market.next_expected(),
-            SequenceNumber::ONE,
-        );
+        assert_eq!(market.next_expected(), SequenceNumber::ONE,);
     }
 
     #[test]
@@ -701,10 +595,7 @@ mod tests {
 
         assert_eq!(market.total_orders(), 1);
 
-        assert_eq!(
-            market.next_expected(),
-            SequenceNumber::new(2),
-        );
+        assert_eq!(market.next_expected(), SequenceNumber::new(2),);
     }
 
     #[test]
@@ -713,15 +604,16 @@ mod tests {
 
         market.apply(add(1, 100)).unwrap();
 
-        market.apply(envelope(
-            2,
-            MarketEvent::OrderModified(OrderModified {
-                order_id: OrderId::new(100),
-                new_price: Price::new(999_900),
-                new_quantity: Quantity::new(50),
-            }),
-        ))
-        .unwrap();
+        market
+            .apply(envelope(
+                2,
+                MarketEvent::OrderModified(OrderModified {
+                    order_id: OrderId::new(100),
+                    new_price: Price::new(999_900),
+                    new_quantity: Quantity::new(50),
+                }),
+            ))
+            .unwrap();
 
         let order = market
             .instrument(InstrumentId::new(1))
@@ -739,14 +631,15 @@ mod tests {
 
         market.apply(add(1, 100)).unwrap();
 
-        market.apply(envelope(
-            2,
-            MarketEvent::OrderCancelled(OrderCancelled {
-                order_id: OrderId::new(100),
-                cancelled_quantity: Quantity::new(40),
-            }),
-        ))
-        .unwrap();
+        market
+            .apply(envelope(
+                2,
+                MarketEvent::OrderCancelled(OrderCancelled {
+                    order_id: OrderId::new(100),
+                    cancelled_quantity: Quantity::new(40),
+                }),
+            ))
+            .unwrap();
 
         let order = market
             .instrument(InstrumentId::new(1))
@@ -763,14 +656,15 @@ mod tests {
 
         market.apply(add(1, 100)).unwrap();
 
-        market.apply(envelope(
-            2,
-            MarketEvent::OrderCancelled(OrderCancelled {
-                order_id: OrderId::new(100),
-                cancelled_quantity: Quantity::new(100),
-            }),
-        ))
-        .unwrap();
+        market
+            .apply(envelope(
+                2,
+                MarketEvent::OrderCancelled(OrderCancelled {
+                    order_id: OrderId::new(100),
+                    cancelled_quantity: Quantity::new(100),
+                }),
+            ))
+            .unwrap();
 
         assert_eq!(market.total_orders(), 0);
         market.validate_consistency().unwrap();
@@ -782,21 +676,21 @@ mod tests {
 
         market.apply(add(1, 100)).unwrap();
 
-        assert!(market.apply(envelope(
-            2,
-            MarketEvent::OrderCancelled(OrderCancelled {
-                order_id: OrderId::new(100),
-                cancelled_quantity: Quantity::new(101),
-            }),
-        ))
-        .is_err());
+        assert!(
+            market
+                .apply(envelope(
+                    2,
+                    MarketEvent::OrderCancelled(OrderCancelled {
+                        order_id: OrderId::new(100),
+                        cancelled_quantity: Quantity::new(101),
+                    }),
+                ))
+                .is_err()
+        );
 
         assert_eq!(market.total_orders(), 1);
 
-        assert_eq!(
-            market.next_expected(),
-            SequenceNumber::new(2),
-        );
+        assert_eq!(market.next_expected(), SequenceNumber::new(2),);
     }
 
     #[test]
@@ -807,17 +701,16 @@ mod tests {
             market.apply(add(sequence, sequence)).unwrap();
         }
 
-        market.apply(envelope(
-            4,
-            MarketEvent::OrderDeleted(OrderDeleted {
-                order_id: OrderId::new(1),
-            }),
-        ))
-        .unwrap();
-
-        let instrument = market
-            .instrument(InstrumentId::new(1))
+        market
+            .apply(envelope(
+                4,
+                MarketEvent::OrderDeleted(OrderDeleted {
+                    order_id: OrderId::new(1),
+                }),
+            ))
             .unwrap();
+
+        let instrument = market.instrument(InstrumentId::new(1)).unwrap();
 
         assert!(instrument.order(OrderId::new(1)).is_none());
         assert!(instrument.order(OrderId::new(2)).is_some());

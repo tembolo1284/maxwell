@@ -5,9 +5,7 @@ use std::time::{Duration, Instant};
 
 use maxwell_core::{ExchangeTimestamp, MonotonicTimestamp};
 
-use crate::config::{
-    NANOS_PER_SECOND, PacingConfig, PacingMode,
-};
+use crate::config::{NANOS_PER_SECOND, PacingConfig, PacingMode};
 use crate::error::{SimulatorError, SimulatorResult};
 
 // ============================================================
@@ -23,10 +21,7 @@ pub struct VirtualClock {
 }
 
 impl VirtualClock {
-    pub fn new(
-        start_ns: u64,
-        interval_ns: u64,
-    ) -> SimulatorResult<Self> {
+    pub fn new(start_ns: u64, interval_ns: u64) -> SimulatorResult<Self> {
         if interval_ns == 0 {
             return Err(SimulatorError::InvalidConfig(
                 "virtual clock interval must be positive",
@@ -56,16 +51,12 @@ impl VirtualClock {
     }
 
     #[must_use]
-    pub const fn monotonic_timestamp(
-        &self,
-    ) -> MonotonicTimestamp {
+    pub const fn monotonic_timestamp(&self) -> MonotonicTimestamp {
         MonotonicTimestamp::new(self.current_ns)
     }
 
     #[must_use]
-    pub const fn exchange_timestamp(
-        &self,
-    ) -> ExchangeTimestamp {
+    pub const fn exchange_timestamp(&self) -> ExchangeTimestamp {
         ExchangeTimestamp::new(self.current_ns)
     }
 
@@ -77,10 +68,7 @@ impl VirtualClock {
     /// Advances by multiple intervals atomically.
     ///
     /// On arithmetic failure, the clock remains unchanged.
-    pub fn advance_by(
-        &mut self,
-        count: u64,
-    ) -> SimulatorResult<u64> {
+    pub fn advance_by(&mut self, count: u64) -> SimulatorResult<u64> {
         let elapsed = self
             .interval_ns
             .checked_mul(count)
@@ -120,9 +108,7 @@ pub struct Pacer {
 }
 
 impl Pacer {
-    pub fn new(
-        config: PacingConfig,
-    ) -> SimulatorResult<Self> {
+    pub fn new(config: PacingConfig) -> SimulatorResult<Self> {
         config.validate()?;
 
         Ok(Self {
@@ -149,22 +135,15 @@ impl Pacer {
     /// Returns the target elapsed duration for an event index.
     ///
     /// Event index zero is scheduled immediately.
-    pub fn target_elapsed(
-        &self,
-        event_index: u64,
-    ) -> SimulatorResult<Duration> {
-        let nanos = u128::from(event_index)
-            * u128::from(NANOS_PER_SECOND)
+    pub fn target_elapsed(&self, event_index: u64) -> SimulatorResult<Duration> {
+        let nanos = u128::from(event_index) * u128::from(NANOS_PER_SECOND)
             / u128::from(self.config.events_per_second);
 
-        let seconds =
-            nanos / u128::from(NANOS_PER_SECOND);
+        let seconds = nanos / u128::from(NANOS_PER_SECOND);
 
-        let subsecond =
-            nanos % u128::from(NANOS_PER_SECOND);
+        let subsecond = nanos % u128::from(NANOS_PER_SECOND);
 
-        let seconds = u64::try_from(seconds)
-            .map_err(|_| SimulatorError::TimestampOverflow)?;
+        let seconds = u64::try_from(seconds).map_err(|_| SimulatorError::TimestampOverflow)?;
 
         Ok(Duration::new(seconds, subsecond as u32))
     }
@@ -175,10 +154,7 @@ impl Pacer {
     ///
     /// Real-time mode does not guarantee hard real-time
     /// scheduling or precise operating system wakeups.
-    pub fn wait_for(
-        &self,
-        event_index: u64,
-    ) -> SimulatorResult<()> {
+    pub fn wait_for(&self, event_index: u64) -> SimulatorResult<()> {
         if self.config.mode != PacingMode::RealTime {
             return Ok(());
         }
@@ -188,9 +164,7 @@ impl Pacer {
         loop {
             let elapsed = self.started_at.elapsed();
 
-            let Some(remaining) =
-                target.checked_sub(elapsed)
-            else {
+            let Some(remaining) = target.checked_sub(elapsed) else {
                 break;
             };
 
@@ -205,10 +179,7 @@ impl Pacer {
     }
 
     /// Returns how far execution is behind the target.
-    pub fn lateness(
-        &self,
-        event_index: u64,
-    ) -> SimulatorResult<Duration> {
+    pub fn lateness(&self, event_index: u64) -> SimulatorResult<Duration> {
         let target = self.target_elapsed(event_index)?;
 
         Ok(self.elapsed().saturating_sub(target))
@@ -234,8 +205,7 @@ mod tests {
 
     #[test]
     fn virtual_clock_advances_deterministically() {
-        let mut clock =
-            VirtualClock::new(100, 20).unwrap();
+        let mut clock = VirtualClock::new(100, 20).unwrap();
 
         assert_eq!(clock.advance().unwrap(), 120);
         assert_eq!(clock.advance().unwrap(), 140);
@@ -245,8 +215,7 @@ mod tests {
 
     #[test]
     fn zero_advance_preserves_clock() {
-        let mut clock =
-            VirtualClock::new(100, 20).unwrap();
+        let mut clock = VirtualClock::new(100, 20).unwrap();
 
         let before = clock;
 
@@ -257,8 +226,7 @@ mod tests {
 
     #[test]
     fn timestamp_overflow_is_atomic() {
-        let mut clock =
-            VirtualClock::new(u64::MAX - 1, 2).unwrap();
+        let mut clock = VirtualClock::new(u64::MAX - 1, 2).unwrap();
 
         let before = clock;
 
@@ -272,8 +240,7 @@ mod tests {
 
     #[test]
     fn interval_multiplication_overflow_is_atomic() {
-        let mut clock =
-            VirtualClock::new(0, u64::MAX).unwrap();
+        let mut clock = VirtualClock::new(0, u64::MAX).unwrap();
 
         let before = clock;
 
@@ -290,15 +257,9 @@ mod tests {
     fn timestamp_wrappers_preserve_raw_values() {
         let clock = VirtualClock::new(123, 1).unwrap();
 
-        assert_eq!(
-            clock.monotonic_timestamp().raw(),
-            123,
-        );
+        assert_eq!(clock.monotonic_timestamp().raw(), 123,);
 
-        assert_eq!(
-            clock.exchange_timestamp().raw(),
-            123,
-        );
+        assert_eq!(clock.exchange_timestamp().raw(), 123,);
     }
 
     #[test]
@@ -315,21 +276,14 @@ mod tests {
             Duration::from_nanos(333_333_333),
         );
 
-        assert_eq!(
-            pacer.target_elapsed(3).unwrap(),
-            Duration::from_secs(1),
-        );
+        assert_eq!(pacer.target_elapsed(3).unwrap(), Duration::from_secs(1),);
     }
 
     #[test]
     fn default_rate_has_twenty_microsecond_interval() {
-        let pacer =
-            Pacer::new(PacingConfig::default()).unwrap();
+        let pacer = Pacer::new(PacingConfig::default()).unwrap();
 
-        assert_eq!(
-            pacer.target_elapsed(1).unwrap(),
-            Duration::from_micros(20),
-        );
+        assert_eq!(pacer.target_elapsed(1).unwrap(), Duration::from_micros(20),);
 
         assert_eq!(
             pacer.target_elapsed(50_000).unwrap(),
@@ -339,8 +293,7 @@ mod tests {
 
     #[test]
     fn virtual_pacing_does_not_wait() {
-        let pacer =
-            Pacer::new(PacingConfig::default()).unwrap();
+        let pacer = Pacer::new(PacingConfig::default()).unwrap();
 
         pacer.wait_for(u64::MAX).unwrap();
     }

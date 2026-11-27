@@ -1,15 +1,12 @@
 //! Deterministic authoritative market event generation.
 
 use maxwell_core::{
-    EventEnvelope, EventHeader, EventId, FeedId, MarketEvent,
-    OrderAdded, OrderCancelled, OrderDeleted, OrderExecuted,
-    OrderId, OrderModified, Price, Quantity, Side, TradeId,
+    EventEnvelope, EventHeader, EventId, FeedId, MarketEvent, OrderAdded, OrderCancelled,
+    OrderDeleted, OrderExecuted, OrderId, OrderModified, Price, Quantity, Side, TradeId,
 };
 
 use crate::clock::VirtualClock;
-use crate::config::{
-    EventDistribution, MarketConfig, SimulatorConfig,
-};
+use crate::config::{EventDistribution, MarketConfig, SimulatorConfig};
 use crate::error::{SimulatorError, SimulatorResult};
 use crate::market::{InstrumentMarket, Market};
 use crate::rng::{MARKET_STREAM, SplitMix64};
@@ -30,10 +27,7 @@ pub enum Operation {
 
 impl Operation {
     /// Selects an operation using a validated distribution.
-    fn sample(
-        distribution: EventDistribution,
-        rng: &mut SplitMix64,
-    ) -> Self {
+    fn sample(distribution: EventDistribution, rng: &mut SplitMix64) -> Self {
         let mut value = rng.basis_points();
 
         if value < distribution.add {
@@ -81,18 +75,12 @@ pub struct EventGenerator {
 }
 
 impl EventGenerator {
-    pub fn new(
-        config: SimulatorConfig,
-        feed: FeedId,
-    ) -> SimulatorResult<Self> {
+    pub fn new(config: SimulatorConfig, feed: FeedId) -> SimulatorResult<Self> {
         config.validate()?;
 
         let market = Market::new(config.market, feed)?;
 
-        let rng = SplitMix64::for_stream(
-            config.run.seed,
-            MARKET_STREAM,
-        );
+        let rng = SplitMix64::for_stream(config.run.seed, MARKET_STREAM);
 
         let clock = VirtualClock::new(
             config.run.start_timestamp_ns,
@@ -148,10 +136,7 @@ impl EventGenerator {
         side: Side,
         rng: &mut SplitMix64,
     ) -> SimulatorResult<Price> {
-        let ticks = rng.inclusive(
-            1,
-            u64::from(config.max_price_distance_ticks),
-        )?;
+        let ticks = rng.inclusive(1, u64::from(config.max_price_distance_ticks))?;
 
         let distance = config.tick_size * ticks as i64;
 
@@ -163,14 +148,8 @@ impl EventGenerator {
         Ok(Price::new(price))
     }
 
-    fn random_quantity(
-        config: MarketConfig,
-        rng: &mut SplitMix64,
-    ) -> SimulatorResult<Quantity> {
-        let lots = rng.inclusive(
-            1,
-            u64::from(config.max_order_quantity_lots),
-        )?;
+    fn random_quantity(config: MarketConfig, rng: &mut SplitMix64) -> SimulatorResult<Quantity> {
+        let lots = rng.inclusive(1, u64::from(config.max_order_quantity_lots))?;
 
         Ok(Quantity::new(config.lot_size * lots))
     }
@@ -180,8 +159,7 @@ impl EventGenerator {
         resting: Quantity,
         rng: &mut SplitMix64,
     ) -> SimulatorResult<Quantity> {
-        let resting_lots =
-            resting.raw() / config.lot_size;
+        let resting_lots = resting.raw() / config.lot_size;
 
         if resting_lots == 0 {
             return Err(SimulatorError::InvariantViolation(
@@ -198,17 +176,12 @@ impl EventGenerator {
     // Operation eligibility
     // --------------------------------------------------------
 
-    fn eligible_operation(
-        instrument: &InstrumentMarket,
-        preferred: Operation,
-    ) -> Operation {
+    fn eligible_operation(instrument: &InstrumentMarket, preferred: Operation) -> Operation {
         if instrument.is_empty() {
             return Operation::Add;
         }
 
-        if instrument.is_full()
-            && preferred == Operation::Add
-        {
+        if instrument.is_full() && preferred == Operation::Add {
             // Free capacity rather than attempting an
             // invalid addition.
             return Operation::Delete;
@@ -239,15 +212,8 @@ impl EventGenerator {
             return Ok(MarketEvent::OrderAdded(OrderAdded {
                 order_id: OrderId::new(next_order_id),
                 side,
-                price: Self::random_price(
-                    config,
-                    side,
-                    rng,
-                )?,
-                quantity: Self::random_quantity(
-                    config,
-                    rng,
-                )?,
+                price: Self::random_price(config, side, rng)?,
+                quantity: Self::random_quantity(config, rng)?,
             }));
         }
 
@@ -257,45 +223,25 @@ impl EventGenerator {
 
         let event = match operation {
             Operation::Add => {
-                return Err(
-                    SimulatorError::InvariantViolation(
-                        "addition reached existing-order path",
-                    ),
-                );
+                return Err(SimulatorError::InvariantViolation(
+                    "addition reached existing-order path",
+                ));
             }
 
-            Operation::Modify => {
-                MarketEvent::OrderModified(OrderModified {
-                    order_id: order.order_id,
-                    new_price: Self::random_price(
-                        config,
-                        order.side,
-                        rng,
-                    )?,
-                    new_quantity: Self::random_quantity(
-                        config,
-                        rng,
-                    )?,
-                })
-            }
+            Operation::Modify => MarketEvent::OrderModified(OrderModified {
+                order_id: order.order_id,
+                new_price: Self::random_price(config, order.side, rng)?,
+                new_quantity: Self::random_quantity(config, rng)?,
+            }),
 
-            Operation::Cancel => {
-                MarketEvent::OrderCancelled(OrderCancelled {
-                    order_id: order.order_id,
-                    cancelled_quantity:
-                        Self::reduction_quantity(
-                            config,
-                            order.quantity,
-                            rng,
-                        )?,
-                })
-            }
+            Operation::Cancel => MarketEvent::OrderCancelled(OrderCancelled {
+                order_id: order.order_id,
+                cancelled_quantity: Self::reduction_quantity(config, order.quantity, rng)?,
+            }),
 
-            Operation::Delete => {
-                MarketEvent::OrderDeleted(OrderDeleted {
-                    order_id: order.order_id,
-                })
-            }
+            Operation::Delete => MarketEvent::OrderDeleted(OrderDeleted {
+                order_id: order.order_id,
+            }),
 
             Operation::Execute => {
                 MarketEvent::OrderExecuted(OrderExecuted {
@@ -307,12 +253,7 @@ impl EventGenerator {
 
                     execution_price: order.price,
 
-                    executed_quantity:
-                        Self::reduction_quantity(
-                            config,
-                            order.quantity,
-                            rng,
-                        )?,
+                    executed_quantity: Self::reduction_quantity(config, order.quantity, rng)?,
                 })
             }
         };
@@ -331,9 +272,7 @@ impl EventGenerator {
     ///
     /// The generator's cursors and random stream are
     /// committed only after successful market mutation.
-    pub fn generate(
-        &mut self,
-    ) -> SimulatorResult<Option<EventEnvelope>> {
+    pub fn generate(&mut self) -> SimulatorResult<Option<EventEnvelope>> {
         if self.is_finished() {
             return Ok(None);
         }
@@ -343,23 +282,15 @@ impl EventGenerator {
         let mut rng = self.rng;
         let mut clock = self.clock;
 
-        let instrument_index =
-            rng.index(self.market.instrument_count())?;
+        let instrument_index = rng.index(self.market.instrument_count())?;
 
-        let instrument =
-            &self.market.instruments()[instrument_index];
+        let instrument = &self.market.instruments()[instrument_index];
 
         let instrument_id = instrument.id();
 
-        let preferred = Operation::sample(
-            self.config.distribution,
-            &mut rng,
-        );
+        let preferred = Operation::sample(self.config.distribution, &mut rng);
 
-        let operation = Self::eligible_operation(
-            instrument,
-            preferred,
-        );
+        let operation = Self::eligible_operation(instrument, preferred);
 
         let sequence = self.market.next_expected();
 
@@ -372,29 +303,22 @@ impl EventGenerator {
             &mut rng,
         )?;
 
-        let next_order_id =
-            if operation == Operation::Add {
-                self.next_order_id
-                    .checked_add(1)
-                    .ok_or(
-                        SimulatorError::OrderIdExhausted,
-                    )?
-            } else {
-                self.next_order_id
-            };
+        let next_order_id = if operation == Operation::Add {
+            self.next_order_id
+                .checked_add(1)
+                .ok_or(SimulatorError::OrderIdExhausted)?
+        } else {
+            self.next_order_id
+        };
 
-        let generated = self.generated
+        let generated = self
+            .generated
             .checked_add(1)
-            .ok_or(SimulatorError::ArithmeticOverflow(
-                "generated event count",
-            ))?;
+            .ok_or(SimulatorError::ArithmeticOverflow("generated event count"))?;
 
         let envelope = EventEnvelope::new(
             EventHeader::new(
-                EventId::new(
-                    self.market.feed(),
-                    sequence,
-                ),
+                EventId::new(self.market.feed(), sequence),
                 instrument_id,
                 Some(clock.exchange_timestamp()),
             ),
@@ -424,15 +348,10 @@ impl EventGenerator {
 mod tests {
     use super::*;
 
-    use maxwell_core::{
-        EventKind, SequenceNumber, SessionId, StreamId,
-    };
+    use maxwell_core::{EventKind, SequenceNumber, SessionId, StreamId};
 
     fn feed() -> FeedId {
-        FeedId::new(
-            StreamId::new(1),
-            SessionId::new(1),
-        )
+        FeedId::new(StreamId::new(1), SessionId::new(1))
     }
 
     fn config(event_count: u64) -> SimulatorConfig {
@@ -445,8 +364,7 @@ mod tests {
 
     #[test]
     fn generator_starts_with_empty_market() {
-        let generator =
-            EventGenerator::new(config(100), feed()).unwrap();
+        let generator = EventGenerator::new(config(100), feed()).unwrap();
 
         assert_eq!(generator.generated(), 0);
         assert_eq!(generator.remaining(), 100);
@@ -456,8 +374,7 @@ mod tests {
 
     #[test]
     fn first_event_is_an_addition() {
-        let mut generator =
-            EventGenerator::new(config(100), feed()).unwrap();
+        let mut generator = EventGenerator::new(config(100), feed()).unwrap();
 
         let event = generator.generate().unwrap().unwrap();
 
@@ -468,8 +385,7 @@ mod tests {
 
     #[test]
     fn generation_stops_at_configured_event_count() {
-        let mut generator =
-            EventGenerator::new(config(10), feed()).unwrap();
+        let mut generator = EventGenerator::new(config(10), feed()).unwrap();
 
         for _ in 0..10 {
             assert!(generator.generate().unwrap().is_some());
@@ -485,17 +401,12 @@ mod tests {
 
     #[test]
     fn identical_seeds_generate_identical_events() {
-        let mut first =
-            EventGenerator::new(config(1_000), feed()).unwrap();
+        let mut first = EventGenerator::new(config(1_000), feed()).unwrap();
 
-        let mut second =
-            EventGenerator::new(config(1_000), feed()).unwrap();
+        let mut second = EventGenerator::new(config(1_000), feed()).unwrap();
 
         for _ in 0..1_000 {
-            assert_eq!(
-                first.generate().unwrap(),
-                second.generate().unwrap(),
-            );
+            assert_eq!(first.generate().unwrap(), second.generate().unwrap(),);
         }
     }
 
@@ -508,33 +419,23 @@ mod tests {
         second_config.faults.duplicate_bps = 200;
         second_config.faults.reorder_bps = 300;
 
-        let mut first =
-            EventGenerator::new(first_config, feed()).unwrap();
+        let mut first = EventGenerator::new(first_config, feed()).unwrap();
 
-        let mut second =
-            EventGenerator::new(second_config, feed()).unwrap();
+        let mut second = EventGenerator::new(second_config, feed()).unwrap();
 
         for _ in 0..1_000 {
-            assert_eq!(
-                first.generate().unwrap(),
-                second.generate().unwrap(),
-            );
+            assert_eq!(first.generate().unwrap(), second.generate().unwrap(),);
         }
     }
 
     #[test]
     fn generated_sequences_are_contiguous() {
-        let mut generator =
-            EventGenerator::new(config(1_000), feed()).unwrap();
+        let mut generator = EventGenerator::new(config(1_000), feed()).unwrap();
 
         for expected in 1..=1_000 {
-            let event =
-                generator.generate().unwrap().unwrap();
+            let event = generator.generate().unwrap().unwrap();
 
-            assert_eq!(
-                event.sequence(),
-                SequenceNumber::new(expected),
-            );
+            assert_eq!(event.sequence(), SequenceNumber::new(expected),);
         }
 
         assert_eq!(
@@ -550,17 +451,12 @@ mod tests {
         config.run.start_timestamp_ns = 100;
         config.pacing.event_interval_ns = 20;
 
-        let mut generator =
-            EventGenerator::new(config, feed()).unwrap();
+        let mut generator = EventGenerator::new(config, feed()).unwrap();
 
         for expected in [100, 120, 140] {
-            let event =
-                generator.generate().unwrap().unwrap();
+            let event = generator.generate().unwrap().unwrap();
 
-            assert_eq!(
-                event.header.exchange_timestamp.unwrap().raw(),
-                expected,
-            );
+            assert_eq!(event.header.exchange_timestamp.unwrap().raw(), expected,);
         }
 
         assert_eq!(generator.clock().current_ns(), 160);
@@ -568,16 +464,12 @@ mod tests {
 
     #[test]
     fn generated_market_remains_consistent() {
-        let mut generator =
-            EventGenerator::new(config(10_000), feed()).unwrap();
+        let mut generator = EventGenerator::new(config(10_000), feed()).unwrap();
 
         while generator.generate().unwrap().is_some() {
             assert!(
                 generator.market().total_orders()
-                    <= generator.config()
-                        .market
-                        .max_total_orders()
-                        .unwrap()
+                    <= generator.config().market.max_total_orders().unwrap()
             );
         }
 
@@ -591,8 +483,7 @@ mod tests {
         config.market.instrument_count = 1;
         config.market.max_orders_per_instrument = 1;
 
-        let mut generator =
-            EventGenerator::new(config, feed()).unwrap();
+        let mut generator = EventGenerator::new(config, feed()).unwrap();
 
         while generator.generate().unwrap().is_some() {
             assert!(generator.market().total_orders() <= 1);
@@ -603,8 +494,7 @@ mod tests {
 
     #[test]
     fn generated_order_identifiers_are_unique() {
-        let mut generator =
-            EventGenerator::new(config(10_000), feed()).unwrap();
+        let mut generator = EventGenerator::new(config(10_000), feed()).unwrap();
 
         let mut previous = 0;
 
@@ -621,8 +511,7 @@ mod tests {
     fn generated_resting_prices_do_not_cross_reference() {
         let config = config(10_000);
 
-        let mut generator =
-            EventGenerator::new(config, feed()).unwrap();
+        let mut generator = EventGenerator::new(config, feed()).unwrap();
 
         while generator.generate().unwrap().is_some() {}
 
@@ -630,17 +519,11 @@ mod tests {
             for order in instrument.orders() {
                 match order.side {
                     Side::Buy => {
-                        assert!(
-                            order.price.raw()
-                                < config.market.reference_price
-                        );
+                        assert!(order.price.raw() < config.market.reference_price);
                     }
 
                     Side::Sell => {
-                        assert!(
-                            order.price.raw()
-                                > config.market.reference_price
-                        );
+                        assert!(order.price.raw() > config.market.reference_price);
                     }
                 }
             }

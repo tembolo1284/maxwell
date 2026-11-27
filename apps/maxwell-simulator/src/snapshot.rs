@@ -6,9 +6,7 @@
 //! Snapshot capture is a control-path operation and
 //! may allocate bounded temporary storage.
 
-use maxwell_core::{
-    FeedId, Instrument, InstrumentId, SequenceNumber,
-};
+use maxwell_core::{FeedId, Instrument, InstrumentId, SequenceNumber};
 
 use crate::error::{SimulatorError, SimulatorResult};
 use crate::market::{Market, SimulatedOrder};
@@ -37,9 +35,7 @@ impl InstrumentSnapshot {
     }
 
     #[must_use]
-    pub const fn last_sequence(
-        &self,
-    ) -> Option<SequenceNumber> {
+    pub const fn last_sequence(&self) -> Option<SequenceNumber> {
         self.last_sequence
     }
 
@@ -85,10 +81,7 @@ impl MarketSnapshot {
     /// snapshot entry.
     ///
     /// Capacity is checked before allocating storage.
-    pub fn capture(
-        market: &Market,
-        max_entries: usize,
-    ) -> SimulatorResult<Self> {
+    pub fn capture(market: &Market, max_entries: usize) -> SimulatorResult<Self> {
         if max_entries == 0 {
             return Err(SimulatorError::InvalidArgument(
                 "snapshot capacity must be positive",
@@ -100,22 +93,16 @@ impl MarketSnapshot {
         let required = market
             .instrument_count()
             .checked_add(order_count)
-            .ok_or(SimulatorError::ArithmeticOverflow(
-                "snapshot entry count",
-            ))?;
+            .ok_or(SimulatorError::ArithmeticOverflow("snapshot entry count"))?;
 
         if required > max_entries {
-            return Err(
-                SimulatorError::SnapshotCapacityExceeded {
-                    limit: max_entries,
-                    required,
-                },
-            );
+            return Err(SimulatorError::SnapshotCapacityExceeded {
+                limit: max_entries,
+                required,
+            });
         }
 
-        let watermark = market
-            .last_sequence()
-            .unwrap_or(SequenceNumber::new(0));
+        let watermark = market.last_sequence().unwrap_or(SequenceNumber::new(0));
 
         let mut instruments = Vec::new();
 
@@ -128,15 +115,11 @@ impl MarketSnapshot {
 
             orders
                 .try_reserve_exact(source.len())
-                .map_err(|_| {
-                    SimulatorError::AllocationFailed
-                })?;
+                .map_err(|_| SimulatorError::AllocationFailed)?;
 
             orders.extend_from_slice(source.orders());
 
-            orders.sort_unstable_by_key(|order| {
-                order.order_id.raw()
-            });
+            orders.sort_unstable_by_key(|order| order.order_id.raw());
 
             instruments.push(InstrumentSnapshot {
                 instrument: *source.instrument(),
@@ -145,9 +128,7 @@ impl MarketSnapshot {
             });
         }
 
-        instruments.sort_unstable_by_key(|instrument| {
-            instrument.instrument_id().raw()
-        });
+        instruments.sort_unstable_by_key(|instrument| instrument.instrument_id().raw());
 
         Ok(Self {
             feed: market.feed(),
@@ -172,9 +153,7 @@ impl MarketSnapshot {
     }
 
     /// Returns the first event not covered by the snapshot.
-    pub fn next_expected(
-        &self,
-    ) -> SimulatorResult<SequenceNumber> {
+    pub fn next_expected(&self) -> SimulatorResult<SequenceNumber> {
         self.watermark
             .raw()
             .checked_add(1)
@@ -217,17 +196,12 @@ impl MarketSnapshot {
     }
 
     #[must_use]
-    pub fn instrument(
-        &self,
-        instrument_id: InstrumentId,
-    ) -> Option<&InstrumentSnapshot> {
-        let position = self.instruments
-            .binary_search_by_key(
-                &instrument_id.raw(),
-                |instrument| {
-                    instrument.instrument_id().raw()
-                },
-            )
+    pub fn instrument(&self, instrument_id: InstrumentId) -> Option<&InstrumentSnapshot> {
+        let position = self
+            .instruments
+            .binary_search_by_key(&instrument_id.raw(), |instrument| {
+                instrument.instrument_id().raw()
+            })
             .ok()?;
 
         self.instruments.get(position)
@@ -245,19 +219,15 @@ impl MarketSnapshot {
         minimum_watermark: SequenceNumber,
     ) -> SimulatorResult<()> {
         if self.feed != feed {
-            return Err(
-                SimulatorError::InvalidMarketOperation(
-                    "snapshot feed does not match request",
-                ),
-            );
+            return Err(SimulatorError::InvalidMarketOperation(
+                "snapshot feed does not match request",
+            ));
         }
 
         if self.watermark < minimum_watermark {
-            return Err(
-                SimulatorError::InvalidMarketOperation(
-                    "snapshot watermark is too old",
-                ),
-            );
+            return Err(SimulatorError::InvalidMarketOperation(
+                "snapshot watermark is too old",
+            ));
         }
 
         self.next_expected()?;
@@ -280,38 +250,27 @@ impl MarketSnapshot {
         for snapshot in &self.instruments {
             let id = snapshot.instrument_id().raw();
 
-            if previous_instrument
-                .is_some_and(|previous| previous >= id)
-            {
-                return Err(
-                    SimulatorError::InvariantViolation(
-                        "snapshot instruments are not unique and ordered",
-                    ),
-                );
+            if previous_instrument.is_some_and(|previous| previous >= id) {
+                return Err(SimulatorError::InvariantViolation(
+                    "snapshot instruments are not unique and ordered",
+                ));
             }
 
             previous_instrument = Some(id);
 
-            if snapshot.last_sequence
-                .is_some_and(|sequence| {
-                    sequence > self.watermark
-                })
+            if snapshot
+                .last_sequence
+                .is_some_and(|sequence| sequence > self.watermark)
             {
-                return Err(
-                    SimulatorError::InvariantViolation(
-                        "instrument sequence exceeds snapshot watermark",
-                    ),
-                );
+                return Err(SimulatorError::InvariantViolation(
+                    "instrument sequence exceeds snapshot watermark",
+                ));
             }
 
-            if snapshot.last_sequence.is_none()
-                && !snapshot.orders.is_empty()
-            {
-                return Err(
-                    SimulatorError::InvariantViolation(
-                        "uninitialized instrument contains orders",
-                    ),
-                );
+            if snapshot.last_sequence.is_none() && !snapshot.orders.is_empty() {
+                return Err(SimulatorError::InvariantViolation(
+                    "uninitialized instrument contains orders",
+                ));
             }
 
             let mut previous_order = None;
@@ -319,39 +278,28 @@ impl MarketSnapshot {
             for order in &snapshot.orders {
                 let id = order.order_id.raw();
 
-                if previous_order
-                    .is_some_and(|previous| previous >= id)
-                {
-                    return Err(
-                        SimulatorError::InvariantViolation(
-                            "snapshot orders are not unique and ordered",
-                        ),
-                    );
+                if previous_order.is_some_and(|previous| previous >= id) {
+                    return Err(SimulatorError::InvariantViolation(
+                        "snapshot orders are not unique and ordered",
+                    ));
                 }
 
                 previous_order = Some(id);
 
-                snapshot.instrument.validate_limit_order(
-                    order.price,
-                    order.quantity,
-                )?;
+                snapshot
+                    .instrument
+                    .validate_limit_order(order.price, order.quantity)?;
 
                 counted_orders = counted_orders
                     .checked_add(1)
-                    .ok_or(
-                        SimulatorError::ArithmeticOverflow(
-                            "snapshot order count",
-                        ),
-                    )?;
+                    .ok_or(SimulatorError::ArithmeticOverflow("snapshot order count"))?;
             }
         }
 
         if counted_orders != self.order_count {
-            return Err(
-                SimulatorError::InvariantViolation(
-                    "snapshot order count is inconsistent",
-                ),
-            );
+            return Err(SimulatorError::InvariantViolation(
+                "snapshot order count is inconsistent",
+            ));
         }
 
         Ok(())
@@ -372,29 +320,18 @@ mod tests {
     use crate::generator::EventGenerator;
 
     fn feed() -> FeedId {
-        FeedId::new(
-            StreamId::new(1),
-            SessionId::new(1),
-        )
+        FeedId::new(StreamId::new(1), SessionId::new(1))
     }
 
     fn generator() -> EventGenerator {
-        EventGenerator::new(
-            SimulatorConfig::default(),
-            feed(),
-        )
-        .unwrap()
+        EventGenerator::new(SimulatorConfig::default(), feed()).unwrap()
     }
 
     #[test]
     fn empty_snapshot_preserves_registered_instruments() {
         let generator = generator();
 
-        let snapshot = MarketSnapshot::capture(
-            generator.market(),
-            100,
-        )
-        .unwrap();
+        let snapshot = MarketSnapshot::capture(generator.market(), 100).unwrap();
 
         assert_eq!(snapshot.feed(), feed());
         assert_eq!(snapshot.watermark().raw(), 0);
@@ -414,22 +351,12 @@ mod tests {
             generator.generate().unwrap().unwrap();
         }
 
-        let snapshot = MarketSnapshot::capture(
-            generator.market(),
-            65_536,
-        )
-        .unwrap();
+        let snapshot = MarketSnapshot::capture(generator.market(), 65_536).unwrap();
 
         assert_eq!(snapshot.watermark().raw(), 100);
-        assert_eq!(
-            snapshot.next_expected().unwrap().raw(),
-            101,
-        );
+        assert_eq!(snapshot.next_expected().unwrap().raw(), 101,);
 
-        assert_eq!(
-            snapshot.order_count(),
-            generator.market().total_orders(),
-        );
+        assert_eq!(snapshot.order_count(), generator.market().total_orders(),);
 
         snapshot.validate_consistency().unwrap();
     }
@@ -440,11 +367,7 @@ mod tests {
 
         generator.generate().unwrap().unwrap();
 
-        let snapshot = MarketSnapshot::capture(
-            generator.market(),
-            65_536,
-        )
-        .unwrap();
+        let snapshot = MarketSnapshot::capture(generator.market(), 65_536).unwrap();
 
         for _ in 0..100 {
             generator.generate().unwrap().unwrap();
@@ -462,17 +385,9 @@ mod tests {
             generator.generate().unwrap().unwrap();
         }
 
-        let first = MarketSnapshot::capture(
-            generator.market(),
-            65_536,
-        )
-        .unwrap();
+        let first = MarketSnapshot::capture(generator.market(), 65_536).unwrap();
 
-        let second = MarketSnapshot::capture(
-            generator.market(),
-            65_536,
-        )
-        .unwrap();
+        let second = MarketSnapshot::capture(generator.market(), 65_536).unwrap();
 
         assert_eq!(first, second);
     }
@@ -483,12 +398,10 @@ mod tests {
 
         assert!(matches!(
             MarketSnapshot::capture(generator.market(), 9),
-            Err(
-                SimulatorError::SnapshotCapacityExceeded {
-                    limit: 9,
-                    required: 10,
-                }
-            ),
+            Err(SimulatorError::SnapshotCapacityExceeded {
+                limit: 9,
+                required: 10,
+            }),
         ));
     }
 
@@ -496,11 +409,7 @@ mod tests {
     fn snapshot_supports_exact_capacity() {
         let generator = generator();
 
-        let snapshot = MarketSnapshot::capture(
-            generator.market(),
-            10,
-        )
-        .unwrap();
+        let snapshot = MarketSnapshot::capture(generator.market(), 10).unwrap();
 
         assert_eq!(snapshot.entry_count(), 10);
     }
@@ -509,42 +418,25 @@ mod tests {
     fn instrument_lookup_is_supported() {
         let generator = generator();
 
-        let snapshot = MarketSnapshot::capture(
-            generator.market(),
-            100,
-        )
-        .unwrap();
+        let snapshot = MarketSnapshot::capture(generator.market(), 100).unwrap();
 
-        assert!(
-            snapshot.instrument(InstrumentId::new(1)).is_some()
-        );
+        assert!(snapshot.instrument(InstrumentId::new(1)).is_some());
 
-        assert!(
-            snapshot.instrument(InstrumentId::new(99)).is_none()
-        );
+        assert!(snapshot.instrument(InstrumentId::new(99)).is_none());
     }
 
     #[test]
     fn snapshot_rejects_foreign_feed() {
         let generator = generator();
 
-        let snapshot = MarketSnapshot::capture(
-            generator.market(),
-            100,
-        )
-        .unwrap();
+        let snapshot = MarketSnapshot::capture(generator.market(), 100).unwrap();
 
-        let foreign = FeedId::new(
-            StreamId::new(2),
-            SessionId::new(1),
-        );
+        let foreign = FeedId::new(StreamId::new(2), SessionId::new(1));
 
         assert!(
-            snapshot.validate_for(
-                foreign,
-                SequenceNumber::new(0),
-            )
-            .is_err()
+            snapshot
+                .validate_for(foreign, SequenceNumber::new(0),)
+                .is_err()
         );
     }
 
@@ -552,18 +444,12 @@ mod tests {
     fn snapshot_rejects_insufficient_watermark() {
         let generator = generator();
 
-        let snapshot = MarketSnapshot::capture(
-            generator.market(),
-            100,
-        )
-        .unwrap();
+        let snapshot = MarketSnapshot::capture(generator.market(), 100).unwrap();
 
         assert!(
-            snapshot.validate_for(
-                feed(),
-                SequenceNumber::new(1),
-            )
-            .is_err()
+            snapshot
+                .validate_for(feed(), SequenceNumber::new(1),)
+                .is_err()
         );
     }
 
@@ -571,16 +457,10 @@ mod tests {
     fn snapshot_accepts_exact_watermark() {
         let generator = generator();
 
-        let snapshot = MarketSnapshot::capture(
-            generator.market(),
-            100,
-        )
-        .unwrap();
+        let snapshot = MarketSnapshot::capture(generator.market(), 100).unwrap();
 
-        snapshot.validate_for(
-            feed(),
-            SequenceNumber::new(0),
-        )
-        .unwrap();
+        snapshot
+            .validate_for(feed(), SequenceNumber::new(0))
+            .unwrap();
     }
 }

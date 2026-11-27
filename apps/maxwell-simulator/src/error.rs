@@ -7,10 +7,7 @@
 use std::fmt;
 use std::io;
 
-use maxwell_core::{
-    CoreError, InstrumentError, InstrumentId, OrderId,
-    SequenceNumber,
-};
+use maxwell_core::{CoreError, InstrumentError, InstrumentId, OrderId, SequenceNumber};
 use maxwell_protocol::ProtocolError;
 use maxwell_transport::TransportError;
 
@@ -31,7 +28,6 @@ pub enum SimulatorError {
     // --------------------------------------------------------
     // Configuration and lifecycle
     // --------------------------------------------------------
-
     /// Invalid simulator configuration.
     InvalidConfig(&'static str),
 
@@ -47,7 +43,6 @@ pub enum SimulatorError {
     // --------------------------------------------------------
     // Resource management
     // --------------------------------------------------------
-
     /// Memory reservation failed.
     AllocationFailed,
 
@@ -62,15 +57,11 @@ pub enum SimulatorError {
     ///
     /// The caller must retain any unconsumed input and retry
     /// after sufficient capacity becomes available.
-    DeliveryBackpressure {
-        required: usize,
-        available: usize,
-    },
+    DeliveryBackpressure { required: usize, available: usize },
 
     // --------------------------------------------------------
     // Market state
     // --------------------------------------------------------
-
     /// Instrument is not registered in the simulated market.
     UnknownInstrument(InstrumentId),
 
@@ -98,7 +89,6 @@ pub enum SimulatorError {
     // --------------------------------------------------------
     // Sequencing and arithmetic
     // --------------------------------------------------------
-
     /// No additional upstream sequence numbers are available.
     SequenceExhausted,
 
@@ -120,7 +110,6 @@ pub enum SimulatorError {
     // --------------------------------------------------------
     // Recovery history
     // --------------------------------------------------------
-
     /// Requested recovery range is invalid.
     InvalidHistoryRange {
         start: SequenceNumber,
@@ -134,15 +123,11 @@ pub enum SimulatorError {
     },
 
     /// Snapshot exceeds the configured entry capacity.
-    SnapshotCapacityExceeded {
-        limit: usize,
-        required: usize,
-    },
+    SnapshotCapacityExceeded { limit: usize, required: usize },
 
     // --------------------------------------------------------
     // Internal invariants
     // --------------------------------------------------------
-
     /// An internal simulator invariant was violated.
     ///
     /// This represents a programming or state consistency
@@ -152,7 +137,6 @@ pub enum SimulatorError {
     // --------------------------------------------------------
     // Component errors
     // --------------------------------------------------------
-
     /// Maxwell core domain error.
     Core(CoreError),
 
@@ -174,44 +158,25 @@ pub enum SimulatorError {
 // ============================================================
 
 impl fmt::Display for SimulatorError {
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidConfig(message) => {
-                write!(
-                    f,
-                    "invalid simulator configuration: {message}"
-                )
+                write!(f, "invalid simulator configuration: {message}")
             }
 
             Self::InvalidState(message) => {
-                write!(
-                    f,
-                    "invalid simulator state: {message}"
-                )
+                write!(f, "invalid simulator state: {message}")
             }
 
             Self::InvalidArgument(message) => {
-                write!(
-                    f,
-                    "invalid simulator argument: {message}"
-                )
+                write!(f, "invalid simulator argument: {message}")
             }
 
             Self::UnknownScenario(name) => {
-                write!(
-                    f,
-                    "unknown simulation scenario: {name}"
-                )
+                write!(f, "unknown simulation scenario: {name}")
             }
 
-            Self::AllocationFailed => {
-                f.write_str(
-                    "simulator memory allocation failed"
-                )
-            }
+            Self::AllocationFailed => f.write_str("simulator memory allocation failed"),
 
             Self::CapacityExceeded {
                 resource,
@@ -237,17 +202,11 @@ impl fmt::Display for SimulatorError {
             }
 
             Self::UnknownInstrument(instrument_id) => {
-                write!(
-                    f,
-                    "unknown instrument: {instrument_id:?}"
-                )
+                write!(f, "unknown instrument: {instrument_id:?}")
             }
 
             Self::DuplicateInstrument(instrument_id) => {
-                write!(
-                    f,
-                    "duplicate instrument: {instrument_id:?}"
-                )
+                write!(f, "duplicate instrument: {instrument_id:?}")
             }
 
             Self::UnknownOrder {
@@ -275,28 +234,14 @@ impl fmt::Display for SimulatorError {
             }
 
             Self::InvalidMarketOperation(message) => {
-                write!(
-                    f,
-                    "invalid market operation: {message}"
-                )
+                write!(f, "invalid market operation: {message}")
             }
 
-            Self::NoEligibleOperation => {
-                f.write_str(
-                    "no eligible market operation"
-                )
-            }
+            Self::NoEligibleOperation => f.write_str("no eligible market operation"),
 
-            Self::SequenceExhausted => {
-                f.write_str(
-                    "upstream sequence numbers exhausted"
-                )
-            }
+            Self::SequenceExhausted => f.write_str("upstream sequence numbers exhausted"),
 
-            Self::UnexpectedSequence {
-                expected,
-                actual,
-            } => {
+            Self::UnexpectedSequence { expected, actual } => {
                 write!(
                     f,
                     "unexpected sequence: \
@@ -306,41 +251,19 @@ impl fmt::Display for SimulatorError {
                 )
             }
 
-            Self::OrderIdExhausted => {
-                f.write_str(
-                    "order identifiers exhausted"
-                )
-            }
+            Self::OrderIdExhausted => f.write_str("order identifiers exhausted"),
 
-            Self::TimestampOverflow => {
-                f.write_str(
-                    "simulation timestamp overflow"
-                )
-            }
+            Self::TimestampOverflow => f.write_str("simulation timestamp overflow"),
 
             Self::ArithmeticOverflow(operation) => {
-                write!(
-                    f,
-                    "arithmetic overflow: {operation}"
-                )
+                write!(f, "arithmetic overflow: {operation}")
             }
 
-            Self::InvalidHistoryRange {
-                start,
-                end,
-            } => {
-                write!(
-                    f,
-                    "invalid history range: {}..={}",
-                    start.raw(),
-                    end.raw(),
-                )
+            Self::InvalidHistoryRange { start, end } => {
+                write!(f, "invalid history range: {}..={}", start.raw(), end.raw(),)
             }
 
-            Self::HistoryUnavailable {
-                start,
-                end,
-            } => {
+            Self::HistoryUnavailable { start, end } => {
                 write!(
                     f,
                     "authoritative history unavailable: {}..={}",
@@ -349,10 +272,7 @@ impl fmt::Display for SimulatorError {
                 )
             }
 
-            Self::SnapshotCapacityExceeded {
-                limit,
-                required,
-            } => {
+            Self::SnapshotCapacityExceeded { limit, required } => {
                 write!(
                     f,
                     "snapshot capacity exceeded: \
@@ -361,10 +281,7 @@ impl fmt::Display for SimulatorError {
             }
 
             Self::InvariantViolation(message) => {
-                write!(
-                    f,
-                    "simulator invariant violated: {message}"
-                )
+                write!(f, "simulator invariant violated: {message}")
             }
 
             Self::Core(error) => {
@@ -395,9 +312,7 @@ impl fmt::Display for SimulatorError {
 // ============================================================
 
 impl std::error::Error for SimulatorError {
-    fn source(
-        &self,
-    ) -> Option<&(dyn std::error::Error + 'static)> {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Core(error) => Some(error),
 
@@ -423,30 +338,21 @@ impl SimulatorError {
     /// outbound delivery backpressure.
     #[must_use]
     pub const fn is_backpressure(&self) -> bool {
-        matches!(
-            self,
-            Self::DeliveryBackpressure { .. }
-        )
+        matches!(self, Self::DeliveryBackpressure { .. })
     }
 
     /// Returns whether the requested recovery history
     /// is unavailable.
     #[must_use]
     pub const fn is_history_unavailable(&self) -> bool {
-        matches!(
-            self,
-            Self::HistoryUnavailable { .. }
-        )
+        matches!(self, Self::HistoryUnavailable { .. })
     }
 
     /// Returns whether the error represents an internal
     /// state consistency failure.
     #[must_use]
     pub const fn is_invariant_violation(&self) -> bool {
-        matches!(
-            self,
-            Self::InvariantViolation(_)
-        )
+        matches!(self, Self::InvariantViolation(_))
     }
 
     /// Returns whether the error represents resource
@@ -455,8 +361,7 @@ impl SimulatorError {
     pub const fn is_capacity_exceeded(&self) -> bool {
         matches!(
             self,
-            Self::CapacityExceeded { .. }
-                | Self::SnapshotCapacityExceeded { .. }
+            Self::CapacityExceeded { .. } | Self::SnapshotCapacityExceeded { .. }
         )
     }
 }
@@ -492,9 +397,7 @@ mod tests {
 
     #[test]
     fn invalid_configuration_has_context() {
-        let error = SimulatorError::InvalidConfig(
-            "instrument count must be positive",
-        );
+        let error = SimulatorError::InvalidConfig("instrument count must be positive");
 
         assert_eq!(
             error.to_string(),
@@ -505,9 +408,7 @@ mod tests {
 
     #[test]
     fn invalid_state_has_context() {
-        let error = SimulatorError::InvalidState(
-            "simulation is stopped",
-        );
+        let error = SimulatorError::InvalidState("simulation is stopped");
 
         assert_eq!(
             error.to_string(),
@@ -517,14 +418,9 @@ mod tests {
 
     #[test]
     fn unknown_scenario_preserves_name() {
-        let error = SimulatorError::UnknownScenario(
-            String::from("unknown"),
-        );
+        let error = SimulatorError::UnknownScenario(String::from("unknown"));
 
-        assert_eq!(
-            error.to_string(),
-            "unknown simulation scenario: unknown",
-        );
+        assert_eq!(error.to_string(), "unknown simulation scenario: unknown",);
     }
 
     #[test]
@@ -575,15 +471,9 @@ mod tests {
                 instrument_id,
                 order_id,
             } => {
-                assert_eq!(
-                    instrument_id,
-                    InstrumentId::new(1),
-                );
+                assert_eq!(instrument_id, InstrumentId::new(1),);
 
-                assert_eq!(
-                    order_id,
-                    OrderId::new(100),
-                );
+                assert_eq!(order_id, OrderId::new(100),);
             }
 
             other => panic!("unexpected error: {other}"),
@@ -618,10 +508,7 @@ mod tests {
             end: SequenceNumber::new(10),
         };
 
-        assert_eq!(
-            error.to_string(),
-            "invalid history range: 20..=10",
-        );
+        assert_eq!(error.to_string(), "invalid history range: 20..=10",);
 
         assert!(!error.is_history_unavailable());
     }
@@ -660,9 +547,7 @@ mod tests {
 
     #[test]
     fn invariant_violation_is_distinguishable() {
-        let error = SimulatorError::InvariantViolation(
-            "authoritative market sequence mismatch",
-        );
+        let error = SimulatorError::InvariantViolation("authoritative market sequence mismatch");
 
         assert!(error.is_invariant_violation());
         assert!(!error.is_backpressure());
@@ -671,9 +556,7 @@ mod tests {
 
     #[test]
     fn arithmetic_overflow_preserves_operation() {
-        let error = SimulatorError::ArithmeticOverflow(
-            "order quantity multiplication",
-        );
+        let error = SimulatorError::ArithmeticOverflow("order quantity multiplication");
 
         assert_eq!(
             error.to_string(),
@@ -702,19 +585,13 @@ mod tests {
 
     #[test]
     fn io_error_conversion_preserves_error_kind() {
-        let original = io::Error::new(
-            io::ErrorKind::BrokenPipe,
-            "connection closed",
-        );
+        let original = io::Error::new(io::ErrorKind::BrokenPipe, "connection closed");
 
         let error = SimulatorError::from(original);
 
         match error {
             SimulatorError::Io(source) => {
-                assert_eq!(
-                    source.kind(),
-                    io::ErrorKind::BrokenPipe,
-                );
+                assert_eq!(source.kind(), io::ErrorKind::BrokenPipe,);
             }
 
             other => panic!("unexpected error: {other}"),
@@ -723,16 +600,11 @@ mod tests {
 
     #[test]
     fn io_error_exposes_underlying_source() {
-        let error = SimulatorError::from(
-            io::Error::other("delivery failed"),
-        );
+        let error = SimulatorError::from(io::Error::other("delivery failed"));
 
         let source = error.source().unwrap();
 
-        assert_eq!(
-            source.to_string(),
-            "delivery failed",
-        );
+        assert_eq!(source.to_string(), "delivery failed",);
     }
 
     #[test]
@@ -769,9 +641,6 @@ mod tests {
             Ok(())
         }
 
-        assert!(matches!(
-            operation(),
-            Err(SimulatorError::Io(_)),
-        ));
+        assert!(matches!(operation(), Err(SimulatorError::Io(_)),));
     }
 }

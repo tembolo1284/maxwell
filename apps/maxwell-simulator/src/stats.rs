@@ -120,54 +120,39 @@ pub struct RecoveryStats {
 
 impl RecoveryStats {
     pub fn record_retransmission_request(&mut self) {
-        self.retransmission_requests =
-            self.retransmission_requests.saturating_add(1);
+        self.retransmission_requests = self.retransmission_requests.saturating_add(1);
     }
 
-    pub fn record_retransmission_prepared(
-        &mut self,
-        event_count: usize,
-    ) {
-        self.retransmission_ranges_prepared =
-            self.retransmission_ranges_prepared
-                .saturating_add(1);
+    pub fn record_retransmission_prepared(&mut self, event_count: usize) {
+        self.retransmission_ranges_prepared = self.retransmission_ranges_prepared.saturating_add(1);
 
-        self.retransmission_events_prepared =
-            self.retransmission_events_prepared
-                .saturating_add(event_count as u64);
+        self.retransmission_events_prepared = self
+            .retransmission_events_prepared
+            .saturating_add(event_count as u64);
     }
 
     pub fn record_retransmission_unavailable(&mut self) {
-        self.retransmission_unavailable =
-            self.retransmission_unavailable
-                .saturating_add(1);
+        self.retransmission_unavailable = self.retransmission_unavailable.saturating_add(1);
     }
 
     pub fn record_retransmission_failed(&mut self) {
-        self.retransmission_failed =
-            self.retransmission_failed.saturating_add(1);
+        self.retransmission_failed = self.retransmission_failed.saturating_add(1);
     }
 
     pub fn record_snapshot_request(&mut self) {
-        self.snapshot_requests =
-            self.snapshot_requests.saturating_add(1);
+        self.snapshot_requests = self.snapshot_requests.saturating_add(1);
     }
 
-    pub fn record_snapshot_prepared(
-        &mut self,
-        entry_count: usize,
-    ) {
-        self.snapshots_prepared =
-            self.snapshots_prepared.saturating_add(1);
+    pub fn record_snapshot_prepared(&mut self, entry_count: usize) {
+        self.snapshots_prepared = self.snapshots_prepared.saturating_add(1);
 
-        self.snapshot_entries_prepared =
-            self.snapshot_entries_prepared
-                .saturating_add(entry_count as u64);
+        self.snapshot_entries_prepared = self
+            .snapshot_entries_prepared
+            .saturating_add(entry_count as u64);
     }
 
     pub fn record_snapshot_failed(&mut self) {
-        self.snapshot_failed =
-            self.snapshot_failed.saturating_add(1);
+        self.snapshot_failed = self.snapshot_failed.saturating_add(1);
     }
 }
 
@@ -215,9 +200,7 @@ impl SimulatorStats {
     ///
     /// Repeated calls preserve the first completion time.
     pub fn finish(&mut self) {
-        if self.started_at.is_some()
-            && self.finished_at.is_none()
-        {
+        if self.started_at.is_some() && self.finished_at.is_none() {
             self.finished_at = Some(Instant::now());
         }
     }
@@ -238,9 +221,7 @@ impl SimulatorStats {
             return Duration::ZERO;
         };
 
-        let finished_at = self
-            .finished_at
-            .unwrap_or_else(Instant::now);
+        let finished_at = self.finished_at.unwrap_or_else(Instant::now);
 
         finished_at.saturating_duration_since(started_at)
     }
@@ -254,20 +235,17 @@ impl SimulatorStats {
     }
 
     pub fn record_generation_blocked(&mut self) {
-        self.generation_blocked =
-            self.generation_blocked.saturating_add(1);
+        self.generation_blocked = self.generation_blocked.saturating_add(1);
     }
 
     pub fn record_service_iteration(&mut self) {
-        self.service_iterations =
-            self.service_iterations.saturating_add(1);
+        self.service_iterations = self.service_iterations.saturating_add(1);
     }
 
     pub fn observe_resting_orders(&mut self, count: usize) {
         self.current_resting_orders = count;
 
-        self.peak_resting_orders =
-            self.peak_resting_orders.max(count);
+        self.peak_resting_orders = self.peak_resting_orders.max(count);
     }
 
     // --------------------------------------------------------
@@ -302,11 +280,7 @@ impl SimulatorStats {
     // --------------------------------------------------------
 
     #[must_use]
-    pub fn report(
-        &self,
-        faults: FaultStats,
-        history: HistoryStats,
-    ) -> StatsReport {
+    pub fn report(&self, faults: FaultStats, history: HistoryStats) -> StatsReport {
         StatsReport {
             events: self.events,
             delivery: self.delivery,
@@ -382,8 +356,7 @@ impl StatsReport {
     /// delayed events have been released.
     #[must_use]
     pub fn expected_delivery_messages(&self) -> u128 {
-        u128::from(self.faults.accepted)
-            .saturating_sub(u128::from(self.faults.dropped))
+        u128::from(self.faults.accepted).saturating_sub(u128::from(self.faults.dropped))
             + u128::from(self.faults.duplicated)
     }
 
@@ -399,8 +372,7 @@ impl StatsReport {
         self.generated() == self.history.recorded
             && self.generated() == self.faults.accepted
             && classified == u128::from(self.faults.accepted)
-            && self.expected_delivery_messages()
-                == u128::from(self.faults.enqueued)
+            && self.expected_delivery_messages() == u128::from(self.faults.enqueued)
             && self.faults.enqueued == self.faults.dequeued
             && self.faults.dequeued == self.delivery.accepted
     }
@@ -411,10 +383,7 @@ impl StatsReport {
 // ============================================================
 
 impl fmt::Display for StatsReport {
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Maxwell Simulator Statistics")?;
         writeln!(f, "============================")?;
 
@@ -424,11 +393,7 @@ impl fmt::Display for StatsReport {
             self.elapsed.as_secs_f64(),
         )?;
 
-        writeln!(
-            f,
-            "Generated events:         {}",
-            self.generated(),
-        )?;
+        writeln!(f, "Generated events:         {}", self.generated(),)?;
 
         writeln!(
             f,
@@ -436,11 +401,7 @@ impl fmt::Display for StatsReport {
             self.generated_per_second(),
         )?;
 
-        writeln!(
-            f,
-            "Delivered messages:       {}",
-            self.delivery.accepted,
-        )?;
+        writeln!(f, "Delivered messages:       {}", self.delivery.accepted,)?;
 
         writeln!(
             f,
@@ -482,38 +443,18 @@ impl fmt::Display for StatsReport {
             self.reorder_ratio() * 100.0,
         )?;
 
-        writeln!(
-            f,
-            "  Delivery blocked:       {}",
-            self.delivery.blocked,
-        )?;
+        writeln!(f, "  Delivery blocked:       {}", self.delivery.blocked,)?;
 
-        writeln!(
-            f,
-            "  Delivery failed:        {}",
-            self.delivery.failed,
-        )?;
+        writeln!(f, "  Delivery failed:        {}", self.delivery.failed,)?;
 
-        writeln!(
-            f,
-            "  Generation blocked:     {}",
-            self.generation_blocked,
-        )?;
+        writeln!(f, "  Generation blocked:     {}", self.generation_blocked,)?;
 
         writeln!(f)?;
         writeln!(f, "Recovery")?;
 
-        writeln!(
-            f,
-            "  History recorded:       {}",
-            self.history.recorded,
-        )?;
+        writeln!(f, "  History recorded:       {}", self.history.recorded,)?;
 
-        writeln!(
-            f,
-            "  History evicted:        {}",
-            self.history.evicted,
-        )?;
+        writeln!(f, "  History evicted:        {}", self.history.evicted,)?;
 
         writeln!(
             f,
@@ -572,11 +513,7 @@ impl fmt::Display for StatsReport {
         writeln!(f)?;
         writeln!(f, "Runtime")?;
 
-        writeln!(
-            f,
-            "  Service iterations:     {}",
-            self.service_iterations,
-        )?;
+        writeln!(f, "  Service iterations:     {}", self.service_iterations,)?;
 
         writeln!(
             f,
@@ -584,17 +521,9 @@ impl fmt::Display for StatsReport {
             self.current_resting_orders,
         )?;
 
-        writeln!(
-            f,
-            "  Peak resting orders:    {}",
-            self.peak_resting_orders,
-        )?;
+        writeln!(f, "  Peak resting orders:    {}", self.peak_resting_orders,)?;
 
-        write!(
-            f,
-            "  Fully accounted:        {}",
-            self.is_fully_accounted(),
-        )
+        write!(f, "  Fully accounted:        {}", self.is_fully_accounted(),)
     }
 }
 
@@ -685,15 +614,9 @@ mod tests {
         report.delivery.accepted = 90_000;
         report.elapsed = Duration::from_secs(2);
 
-        assert_eq!(
-            report.generated_per_second(),
-            50_000.0,
-        );
+        assert_eq!(report.generated_per_second(), 50_000.0,);
 
-        assert_eq!(
-            report.delivered_per_second(),
-            45_000.0,
-        );
+        assert_eq!(report.delivered_per_second(), 45_000.0,);
     }
 
     #[test]
@@ -740,10 +663,7 @@ mod tests {
         stats.observe_resting_orders(100);
         stats.observe_resting_orders(25);
 
-        let report = stats.report(
-            FaultStats::default(),
-            HistoryStats::default(),
-        );
+        let report = stats.report(FaultStats::default(), HistoryStats::default());
 
         assert_eq!(report.current_resting_orders, 25);
         assert_eq!(report.peak_resting_orders, 100);
@@ -798,10 +718,7 @@ mod tests {
         report.faults.dequeued = 110;
         report.delivery.accepted = 110;
 
-        assert_eq!(
-            report.expected_delivery_messages(),
-            110,
-        );
+        assert_eq!(report.expected_delivery_messages(), 110,);
 
         assert!(report.is_fully_accounted());
     }

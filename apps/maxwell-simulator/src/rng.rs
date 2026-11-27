@@ -34,9 +34,7 @@ impl SplitMix64 {
     /// Creates a deterministic domain-separated RNG stream.
     #[must_use]
     pub fn for_stream(seed: u64, stream: u64) -> Self {
-        let mut root = Self::new(
-            seed ^ stream.wrapping_mul(GAMMA),
-        );
+        let mut root = Self::new(seed ^ stream.wrapping_mul(GAMMA));
 
         Self::new(root.next_u64())
     }
@@ -53,11 +51,9 @@ impl SplitMix64 {
 
         let mut value = self.state;
 
-        value = (value ^ (value >> 30))
-            .wrapping_mul(MIX_A);
+        value = (value ^ (value >> 30)).wrapping_mul(MIX_A);
 
-        value = (value ^ (value >> 27))
-            .wrapping_mul(MIX_B);
+        value = (value ^ (value >> 27)).wrapping_mul(MIX_B);
 
         value ^ (value >> 31)
     }
@@ -65,10 +61,7 @@ impl SplitMix64 {
     /// Generates a random integer in [0, upper).
     ///
     /// Rejection sampling avoids modulo bias.
-    pub fn below(
-        &mut self,
-        upper: u64,
-    ) -> SimulatorResult<u64> {
+    pub fn below(&mut self, upper: u64) -> SimulatorResult<u64> {
         if upper == 0 {
             return Err(SimulatorError::InvalidArgument(
                 "random upper bound must be positive",
@@ -87,32 +80,18 @@ impl SplitMix64 {
     }
 
     /// Generates a valid index into a nonempty collection.
-    pub fn index(
-        &mut self,
-        length: usize,
-    ) -> SimulatorResult<usize> {
+    pub fn index(&mut self, length: usize) -> SimulatorResult<usize> {
         let upper = u64::try_from(length)
-            .map_err(|_| {
-                SimulatorError::ArithmeticOverflow(
-                    "random index upper bound",
-                )
-            })?;
+            .map_err(|_| SimulatorError::ArithmeticOverflow("random index upper bound"))?;
 
         let index = self.below(upper)?;
 
-        usize::try_from(index).map_err(|_| {
-            SimulatorError::ArithmeticOverflow(
-                "random index conversion",
-            )
-        })
+        usize::try_from(index)
+            .map_err(|_| SimulatorError::ArithmeticOverflow("random index conversion"))
     }
 
     /// Generates a random integer in [minimum, maximum].
-    pub fn inclusive(
-        &mut self,
-        minimum: u64,
-        maximum: u64,
-    ) -> SimulatorResult<u64> {
+    pub fn inclusive(&mut self, minimum: u64, maximum: u64) -> SimulatorResult<u64> {
         if minimum > maximum {
             return Err(SimulatorError::InvalidArgument(
                 "random range minimum exceeds maximum",
@@ -151,10 +130,7 @@ impl SplitMix64 {
     }
 
     /// Returns true with the specified basis-point probability.
-    pub fn chance(
-        &mut self,
-        probability_bps: u32,
-    ) -> SimulatorResult<bool> {
+    pub fn chance(&mut self, probability_bps: u32) -> SimulatorResult<bool> {
         if probability_bps > BASIS_POINTS {
             return Err(SimulatorError::InvalidArgument(
                 "probability exceeds 10000 basis points",
@@ -173,10 +149,7 @@ impl SplitMix64 {
     }
 
     /// Randomizes a slice using Fisher-Yates shuffling.
-    pub fn shuffle<T>(
-        &mut self,
-        values: &mut [T],
-    ) -> SimulatorResult<()> {
+    pub fn shuffle<T>(&mut self, values: &mut [T]) -> SimulatorResult<()> {
         for index in (1..values.len()).rev() {
             let selected = self.index(index + 1)?;
 
@@ -199,20 +172,11 @@ mod tests {
     fn known_splitmix64_reference_values() {
         let mut rng = SplitMix64::new(0);
 
-        assert_eq!(
-            rng.next_u64(),
-            0xE220_A839_7B1D_CDAF,
-        );
+        assert_eq!(rng.next_u64(), 0xE220_A839_7B1D_CDAF,);
 
-        assert_eq!(
-            rng.next_u64(),
-            0x6E78_9E6A_A1B9_65F4,
-        );
+        assert_eq!(rng.next_u64(), 0x6E78_9E6A_A1B9_65F4,);
 
-        assert_eq!(
-            rng.next_u64(),
-            0x06C4_5D18_8009_454F,
-        );
+        assert_eq!(rng.next_u64(), 0x06C4_5D18_8009_454F,);
     }
 
     #[test]
@@ -221,10 +185,7 @@ mod tests {
         let mut second = SplitMix64::new(42);
 
         for _ in 0..10_000 {
-            assert_eq!(
-                first.next_u64(),
-                second.next_u64(),
-            );
+            assert_eq!(first.next_u64(), second.next_u64(),);
         }
     }
 
@@ -233,39 +194,26 @@ mod tests {
         let mut first = SplitMix64::new(42);
         let mut second = SplitMix64::new(43);
 
-        assert_ne!(
-            first.next_u64(),
-            second.next_u64(),
-        );
+        assert_ne!(first.next_u64(), second.next_u64(),);
     }
 
     #[test]
     fn streams_are_domain_separated() {
-        let mut market =
-            SplitMix64::for_stream(42, MARKET_STREAM);
+        let mut market = SplitMix64::for_stream(42, MARKET_STREAM);
 
-        let mut faults =
-            SplitMix64::for_stream(42, FAULT_STREAM);
+        let mut faults = SplitMix64::for_stream(42, FAULT_STREAM);
 
-        assert_ne!(
-            market.next_u64(),
-            faults.next_u64(),
-        );
+        assert_ne!(market.next_u64(), faults.next_u64(),);
     }
 
     #[test]
     fn identical_streams_are_reproducible() {
-        let mut first =
-            SplitMix64::for_stream(42, MARKET_STREAM);
+        let mut first = SplitMix64::for_stream(42, MARKET_STREAM);
 
-        let mut second =
-            SplitMix64::for_stream(42, MARKET_STREAM);
+        let mut second = SplitMix64::for_stream(42, MARKET_STREAM);
 
         for _ in 0..100 {
-            assert_eq!(
-                first.next_u64(),
-                second.next_u64(),
-            );
+            assert_eq!(first.next_u64(), second.next_u64(),);
         }
     }
 
@@ -300,10 +248,7 @@ mod tests {
         let mut first = SplitMix64::new(42);
         let mut second = SplitMix64::new(42);
 
-        assert_eq!(
-            first.inclusive(0, u64::MAX).unwrap(),
-            second.next_u64(),
-        );
+        assert_eq!(first.inclusive(0, u64::MAX).unwrap(), second.next_u64(),);
     }
 
     #[test]

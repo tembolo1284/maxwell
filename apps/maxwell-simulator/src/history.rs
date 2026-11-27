@@ -8,9 +8,7 @@
 
 use std::collections::VecDeque;
 
-use maxwell_core::{
-    EventEnvelope, FeedId, SequenceNumber,
-};
+use maxwell_core::{EventEnvelope, FeedId, SequenceNumber};
 
 use crate::error::{SimulatorError, SimulatorResult};
 
@@ -44,15 +42,8 @@ pub struct EventHistory {
 
 impl EventHistory {
     /// Creates an empty history beginning at sequence one.
-    pub fn new(
-        feed: FeedId,
-        capacity: usize,
-    ) -> SimulatorResult<Self> {
-        Self::with_start(
-            feed,
-            capacity,
-            SequenceNumber::ONE,
-        )
+    pub fn new(feed: FeedId, capacity: usize) -> SimulatorResult<Self> {
+        Self::with_start(feed, capacity, SequenceNumber::ONE)
     }
 
     /// Creates an empty history with an explicit initial
@@ -130,27 +121,18 @@ impl EventHistory {
 
     #[must_use]
     pub fn oldest_sequence(&self) -> Option<SequenceNumber> {
-        self.events
-            .front()
-            .map(|event| event.sequence())
+        self.events.front().map(|event| event.sequence())
     }
 
     #[must_use]
     pub fn newest_sequence(&self) -> Option<SequenceNumber> {
-        self.events
-            .back()
-            .map(|event| event.sequence())
+        self.events.back().map(|event| event.sequence())
     }
 
     /// Returns the inclusive retained sequence bounds.
     #[must_use]
-    pub fn retained_bounds(
-        &self,
-    ) -> Option<(SequenceNumber, SequenceNumber)> {
-        Some((
-            self.oldest_sequence()?,
-            self.newest_sequence()?,
-        ))
+    pub fn retained_bounds(&self) -> Option<(SequenceNumber, SequenceNumber)> {
+        Some((self.oldest_sequence()?, self.newest_sequence()?))
     }
 
     // --------------------------------------------------------
@@ -161,16 +143,11 @@ impl EventHistory {
     ///
     /// History capacity does not cause backpressure because
     /// the oldest retained event may be evicted.
-    pub fn validate_next(
-        &self,
-        event: &EventEnvelope,
-    ) -> SimulatorResult<()> {
+    pub fn validate_next(&self, event: &EventEnvelope) -> SimulatorResult<()> {
         if event.header.feed() != self.feed {
-            return Err(
-                SimulatorError::InvalidMarketOperation(
-                    "event feed does not match history feed",
-                ),
-            );
+            return Err(SimulatorError::InvalidMarketOperation(
+                "event feed does not match history feed",
+            ));
         }
 
         if event.sequence() != self.next_expected {
@@ -192,10 +169,7 @@ impl EventHistory {
     /// Returns the evicted event, if any.
     ///
     /// Validation occurs before any history mutation.
-    pub fn record(
-        &mut self,
-        event: EventEnvelope,
-    ) -> SimulatorResult<Option<EventEnvelope>> {
+    pub fn record(&mut self, event: EventEnvelope) -> SimulatorResult<Option<EventEnvelope>> {
         self.validate_next(&event)?;
 
         let next = event.sequence().raw() + 1;
@@ -203,8 +177,7 @@ impl EventHistory {
         let evicted = if self.is_full() {
             let oldest = self.events.pop_front();
 
-            self.stats.evicted =
-                self.stats.evicted.saturating_add(1);
+            self.stats.evicted = self.stats.evicted.saturating_add(1);
 
             oldest
         } else {
@@ -215,8 +188,7 @@ impl EventHistory {
 
         self.next_expected = SequenceNumber::new(next);
 
-        self.stats.recorded =
-            self.stats.recorded.saturating_add(1);
+        self.stats.recorded = self.stats.recorded.saturating_add(1);
 
         Ok(evicted)
     }
@@ -225,15 +197,10 @@ impl EventHistory {
     // Individual event lookup
     // --------------------------------------------------------
 
-    fn offset(
-        &self,
-        sequence: SequenceNumber,
-    ) -> Option<usize> {
+    fn offset(&self, sequence: SequenceNumber) -> Option<usize> {
         let oldest = self.oldest_sequence()?;
 
-        let distance = sequence
-            .raw()
-            .checked_sub(oldest.raw())?;
+        let distance = sequence.raw().checked_sub(oldest.raw())?;
 
         let offset = usize::try_from(distance).ok()?;
 
@@ -246,19 +213,13 @@ impl EventHistory {
 
     /// Returns whether a sequence is currently retained.
     #[must_use]
-    pub fn contains(
-        &self,
-        sequence: SequenceNumber,
-    ) -> bool {
+    pub fn contains(&self, sequence: SequenceNumber) -> bool {
         self.offset(sequence).is_some()
     }
 
     /// Returns a retained event by its authoritative sequence.
     #[must_use]
-    pub fn get(
-        &self,
-        sequence: SequenceNumber,
-    ) -> Option<&EventEnvelope> {
+    pub fn get(&self, sequence: SequenceNumber) -> Option<&EventEnvelope> {
         let offset = self.offset(sequence)?;
 
         self.events.get(offset)
@@ -271,15 +232,8 @@ impl EventHistory {
     /// Returns whether an entire inclusive sequence range
     /// is currently retained.
     #[must_use]
-    pub fn contains_range(
-        &self,
-        start: SequenceNumber,
-        end: SequenceNumber,
-    ) -> bool {
-        start.raw() != 0
-            && start <= end
-            && self.contains(start)
-            && self.contains(end)
+    pub fn contains_range(&self, start: SequenceNumber, end: SequenceNumber) -> bool {
+        start.raw() != 0 && start <= end && self.contains(start) && self.contains(end)
     }
 
     /// Returns an allocation-free iterator over an inclusive
@@ -293,24 +247,14 @@ impl EventHistory {
         end: SequenceNumber,
     ) -> SimulatorResult<HistoryRange<'_>> {
         if start.raw() == 0 || start > end {
-            return Err(SimulatorError::InvalidHistoryRange {
-                start,
-                end,
-            });
+            return Err(SimulatorError::InvalidHistoryRange { start, end });
         }
 
-        let unavailable = || {
-            SimulatorError::HistoryUnavailable {
-                start,
-                end,
-            }
-        };
+        let unavailable = || SimulatorError::HistoryUnavailable { start, end };
 
-        let first = self.offset(start)
-            .ok_or_else(unavailable)?;
+        let first = self.offset(start).ok_or_else(unavailable)?;
 
-        let last = self.offset(end)
-            .ok_or_else(unavailable)?;
+        let last = self.offset(end).ok_or_else(unavailable)?;
 
         Ok(HistoryRange {
             inner: self.events.range(first..=last),
@@ -318,11 +262,7 @@ impl EventHistory {
     }
 
     /// Returns all retained events in authoritative order.
-    pub fn iter(
-        &self,
-    ) -> impl ExactSizeIterator<Item = &EventEnvelope>
-           + DoubleEndedIterator
-           + '_ {
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = &EventEnvelope> + DoubleEndedIterator + '_ {
         self.events.iter()
     }
 
@@ -349,19 +289,15 @@ impl EventHistory {
 
         for event in &self.events {
             if event.header.feed() != self.feed {
-                return Err(
-                    SimulatorError::InvariantViolation(
-                        "history contains a foreign feed",
-                    ),
-                );
+                return Err(SimulatorError::InvariantViolation(
+                    "history contains a foreign feed",
+                ));
             }
 
             if event.sequence().raw() != expected {
-                return Err(
-                    SimulatorError::InvariantViolation(
-                        "history sequence is not contiguous",
-                    ),
-                );
+                return Err(SimulatorError::InvariantViolation(
+                    "history sequence is not contiguous",
+                ));
             }
 
             expected = expected
@@ -386,10 +322,7 @@ impl EventHistory {
 /// Borrowed allocation-free retransmission range.
 #[derive(Debug)]
 pub struct HistoryRange<'a> {
-    inner: std::collections::vec_deque::Iter<
-        'a,
-        EventEnvelope,
-    >,
+    inner: std::collections::vec_deque::Iter<'a, EventEnvelope>,
 }
 
 impl<'a> Iterator for HistoryRange<'a> {
@@ -427,16 +360,12 @@ mod tests {
     use super::*;
 
     use maxwell_core::{
-        EventHeader, EventId, InstrumentId, MarketEvent,
-        OrderAdded, OrderId, Price, Quantity, SessionId,
-        Side, StreamId,
+        EventHeader, EventId, InstrumentId, MarketEvent, OrderAdded, OrderId, Price, Quantity,
+        SessionId, Side, StreamId,
     };
 
     fn feed() -> FeedId {
-        FeedId::new(
-            StreamId::new(1),
-            SessionId::new(1),
-        )
+        FeedId::new(StreamId::new(1), SessionId::new(1))
     }
 
     fn sequence(value: u64) -> SequenceNumber {
@@ -446,10 +375,7 @@ mod tests {
     fn event(value: u64) -> EventEnvelope {
         EventEnvelope::new(
             EventHeader::new(
-                EventId::new(
-                    feed(),
-                    sequence(value),
-                ),
+                EventId::new(feed(), sequence(value)),
                 InstrumentId::new(1),
                 None,
             ),
@@ -476,10 +402,7 @@ mod tests {
         assert_eq!(history.newest_sequence(), None);
         assert_eq!(history.retained_bounds(), None);
 
-        assert_eq!(
-            history.next_expected(),
-            SequenceNumber::ONE,
-        );
+        assert_eq!(history.next_expected(), SequenceNumber::ONE,);
     }
 
     #[test]
@@ -489,36 +412,18 @@ mod tests {
 
     #[test]
     fn zero_initial_sequence_is_rejected() {
-        assert!(
-            EventHistory::with_start(
-                feed(),
-                4,
-                sequence(0),
-            )
-            .is_err()
-        );
+        assert!(EventHistory::with_start(feed(), 4, sequence(0),).is_err());
     }
 
     #[test]
     fn explicit_initial_sequence_is_supported() {
-        let mut history = EventHistory::with_start(
-            feed(),
-            4,
-            sequence(100),
-        )
-        .unwrap();
+        let mut history = EventHistory::with_start(feed(), 4, sequence(100)).unwrap();
 
         history.record(event(100)).unwrap();
 
-        assert_eq!(
-            history.oldest_sequence(),
-            Some(sequence(100)),
-        );
+        assert_eq!(history.oldest_sequence(), Some(sequence(100)),);
 
-        assert_eq!(
-            history.next_expected(),
-            sequence(101),
-        );
+        assert_eq!(history.next_expected(), sequence(101),);
     }
 
     #[test]
@@ -526,22 +431,14 @@ mod tests {
         let mut history = history(4);
 
         for value in 1..=4 {
-            assert!(
-                history.record(event(value)).unwrap().is_none()
-            );
+            assert!(history.record(event(value)).unwrap().is_none());
         }
 
         assert!(history.is_full());
 
-        assert_eq!(
-            history.retained_bounds(),
-            Some((sequence(1), sequence(4))),
-        );
+        assert_eq!(history.retained_bounds(), Some((sequence(1), sequence(4))),);
 
-        assert_eq!(
-            history.next_expected(),
-            sequence(5),
-        );
+        assert_eq!(history.next_expected(), sequence(5),);
 
         assert_eq!(history.stats().recorded, 4);
         assert_eq!(history.stats().evicted, 0);
@@ -557,16 +454,12 @@ mod tests {
             history.record(event(value)).unwrap();
         }
 
-        let evicted =
-            history.record(event(4)).unwrap().unwrap();
+        let evicted = history.record(event(4)).unwrap().unwrap();
 
         assert_eq!(evicted.sequence(), sequence(1));
         assert_eq!(history.len(), 3);
 
-        assert_eq!(
-            history.retained_bounds(),
-            Some((sequence(2), sequence(4))),
-        );
+        assert_eq!(history.retained_bounds(), Some((sequence(2), sequence(4))),);
 
         assert_eq!(history.stats().evicted, 1);
         assert_eq!(history.stats().recorded, 4);
@@ -602,10 +495,7 @@ mod tests {
 
         assert_eq!(history.len(), 1);
 
-        assert_eq!(
-            history.get(sequence(10)),
-            Some(&event(10)),
-        );
+        assert_eq!(history.get(sequence(10)), Some(&event(10)),);
 
         assert_eq!(history.stats().evicted, 9);
     }
@@ -646,10 +536,7 @@ mod tests {
 
         let mut foreign = event(1);
 
-        foreign.header.id.feed = FeedId::new(
-            StreamId::new(2),
-            SessionId::new(1),
-        );
+        foreign.header.id.feed = FeedId::new(StreamId::new(2), SessionId::new(1));
 
         assert!(history.record(foreign).is_err());
         assert!(history.is_empty());
@@ -657,12 +544,7 @@ mod tests {
 
     #[test]
     fn exhausted_sequence_is_rejected_before_mutation() {
-        let mut history = EventHistory::with_start(
-            feed(),
-            4,
-            sequence(u64::MAX),
-        )
-        .unwrap();
+        let mut history = EventHistory::with_start(feed(), 4, sequence(u64::MAX)).unwrap();
 
         assert!(matches!(
             history.record(event(u64::MAX)),
@@ -681,10 +563,7 @@ mod tests {
         }
 
         for value in 7..=10 {
-            assert_eq!(
-                history.get(sequence(value)),
-                Some(&event(value)),
-            );
+            assert_eq!(history.get(sequence(value)), Some(&event(value)),);
         }
 
         assert!(history.get(sequence(6)).is_none());
@@ -714,9 +593,7 @@ mod tests {
 
         history.record(event(1)).unwrap();
 
-        let mut range = history
-            .range(sequence(1), sequence(1))
-            .unwrap();
+        let mut range = history.range(sequence(1), sequence(1)).unwrap();
 
         assert_eq!(range.len(), 1);
         assert_eq!(range.next(), Some(&event(1)));
@@ -796,26 +673,11 @@ mod tests {
             history.record(event(value)).unwrap();
         }
 
-        assert!(
-            history.contains_range(
-                sequence(5),
-                sequence(8),
-            )
-        );
+        assert!(history.contains_range(sequence(5), sequence(8),));
 
-        assert!(
-            !history.contains_range(
-                sequence(4),
-                sequence(8),
-            )
-        );
+        assert!(!history.contains_range(sequence(4), sequence(8),));
 
-        assert!(
-            !history.contains_range(
-                sequence(5),
-                sequence(9),
-            )
-        );
+        assert!(!history.contains_range(sequence(5), sequence(9),));
     }
 
     #[test]
@@ -826,10 +688,7 @@ mod tests {
             history.record(event(value)).unwrap();
         }
 
-        let values: Vec<_> = history
-            .iter()
-            .map(|event| event.sequence().raw())
-            .collect();
+        let values: Vec<_> = history.iter().map(|event| event.sequence().raw()).collect();
 
         assert_eq!(values, vec![5, 6, 7, 8]);
     }

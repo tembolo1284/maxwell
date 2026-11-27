@@ -7,10 +7,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use crate::config::{
-    EventDistribution, FaultConfig, PacingMode,
-    SimulatorConfig,
-};
+use crate::config::{EventDistribution, FaultConfig, PacingMode, SimulatorConfig};
 use crate::error::{SimulatorError, SimulatorResult};
 
 // ============================================================
@@ -69,45 +66,25 @@ impl Scenario {
     #[must_use]
     pub const fn description(self) -> &'static str {
         match self {
-            Self::Clean => {
-                "Baseline ordered market data workload"
-            }
+            Self::Clean => "Baseline ordered market data workload",
 
-            Self::Smoke => {
-                "Small deterministic correctness workload"
-            }
+            Self::Smoke => "Small deterministic correctness workload",
 
-            Self::HighThroughput => {
-                "Large unpaced throughput workload"
-            }
+            Self::HighThroughput => "Large unpaced throughput workload",
 
-            Self::PacketLoss => {
-                "Random event loss and gap recovery"
-            }
+            Self::PacketLoss => "Random event loss and gap recovery",
 
-            Self::Duplicates => {
-                "Duplicate event detection and suppression"
-            }
+            Self::Duplicates => "Duplicate event detection and suppression",
 
-            Self::OutOfOrder => {
-                "Bounded event reordering and sequencing"
-            }
+            Self::OutOfOrder => "Bounded event reordering and sequencing",
 
-            Self::MixedFaults => {
-                "Combined loss, duplication, and reordering"
-            }
+            Self::MixedFaults => "Combined loss, duplication, and reordering",
 
-            Self::RecoveryStress => {
-                "High-frequency recovery fault workload"
-            }
+            Self::RecoveryStress => "High-frequency recovery fault workload",
 
-            Self::OrderChurn => {
-                "Frequent order insertion and removal"
-            }
+            Self::OrderChurn => "Frequent order insertion and removal",
 
-            Self::CapacityStress => {
-                "Small authoritative instrument capacity"
-            }
+            Self::CapacityStress => "Small authoritative instrument capacity",
         }
     }
 
@@ -131,16 +108,11 @@ impl Scenario {
 
     /// Constructs and validates the predefined configuration.
     pub fn config(self) -> SimulatorResult<SimulatorConfig> {
-        self.config_with_seed(
-            SimulatorConfig::default().run.seed,
-        )
+        self.config_with_seed(SimulatorConfig::default().run.seed)
     }
 
     /// Constructs a scenario using an explicit random seed.
-    pub fn config_with_seed(
-        self,
-        seed: u64,
-    ) -> SimulatorResult<SimulatorConfig> {
+    pub fn config_with_seed(self, seed: u64) -> SimulatorResult<SimulatorConfig> {
         let mut config = SimulatorConfig::default();
 
         config.run.seed = seed;
@@ -251,10 +223,7 @@ impl Scenario {
 // ============================================================
 
 impl fmt::Display for Scenario {
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
 }
@@ -275,9 +244,7 @@ impl FromStr for Scenario {
             "order-churn" => Ok(Self::OrderChurn),
             "capacity-stress" => Ok(Self::CapacityStress),
 
-            _ => Err(SimulatorError::UnknownScenario(
-                value.to_owned(),
-            )),
+            _ => Err(SimulatorError::UnknownScenario(value.to_owned())),
         }
     }
 }
@@ -307,10 +274,7 @@ mod tests {
     #[test]
     fn every_scenario_round_trips_through_string() {
         for scenario in Scenario::ALL {
-            let parsed = scenario
-                .to_string()
-                .parse::<Scenario>()
-                .unwrap();
+            let parsed = scenario.to_string().parse::<Scenario>().unwrap();
 
             assert_eq!(parsed, scenario);
         }
@@ -338,10 +302,7 @@ mod tests {
         assert_eq!(config.run.event_count, 1_000);
         assert_eq!(config.market.instrument_count, 2);
 
-        assert_eq!(
-            config.market.max_orders_per_instrument,
-            64,
-        );
+        assert_eq!(config.market.max_orders_per_instrument, 64,);
     }
 
     #[test]
@@ -353,15 +314,11 @@ mod tests {
 
     #[test]
     fn throughput_scenario_is_unpaced() {
-        let config =
-            Scenario::HighThroughput.config().unwrap();
+        let config = Scenario::HighThroughput.config().unwrap();
 
         assert_eq!(config.run.event_count, 1_000_000);
 
-        assert_eq!(
-            config.pacing.mode,
-            PacingMode::Unbounded,
-        );
+        assert_eq!(config.pacing.mode, PacingMode::Unbounded,);
     }
 
     #[test]
@@ -404,33 +361,24 @@ mod tests {
         for scenario in Scenario::ALL {
             let config = scenario.config().unwrap();
 
-            assert_eq!(
-                scenario.has_faults(),
-                config.faults.is_enabled(),
-            );
+            assert_eq!(scenario.has_faults(), config.faults.is_enabled(),);
         }
     }
 
     #[test]
     fn custom_seed_is_preserved() {
-        let config = Scenario::MixedFaults
-            .config_with_seed(123_456)
-            .unwrap();
+        let config = Scenario::MixedFaults.config_with_seed(123_456).unwrap();
 
         assert_eq!(config.run.seed, 123_456);
     }
 
     #[test]
     fn capacity_stress_has_small_order_capacity() {
-        let config =
-            Scenario::CapacityStress.config().unwrap();
+        let config = Scenario::CapacityStress.config().unwrap();
 
         assert_eq!(config.market.instrument_count, 2);
 
-        assert_eq!(
-            config.market.max_orders_per_instrument,
-            8,
-        );
+        assert_eq!(config.market.max_orders_per_instrument, 8,);
 
         assert_eq!(config.distribution.add, 8_000);
     }

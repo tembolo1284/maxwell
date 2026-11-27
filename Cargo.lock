@@ -85,6 +85,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "maxwell-simulator"
+version = "0.1.0"
+dependencies = [
+ "maxwell-book",
+ "maxwell-core",
+ "maxwell-protocol",
+ "maxwell-recovery",
+ "maxwell-server",
+ "maxwell-transport",
+]
+
+[[package]]
 name = "maxwell-transport"
 version = "0.1.0"
 dependencies = [

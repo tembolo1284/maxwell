@@ -8,9 +8,7 @@
 
 use std::fmt;
 
-use maxwell_core::{
-    EventEnvelope, FeedId, MonotonicTimestamp, SequenceNumber,
-};
+use maxwell_core::{EventEnvelope, FeedId, MonotonicTimestamp, SequenceNumber};
 
 use crate::clock::Pacer;
 use crate::config::SimulatorConfig;
@@ -131,10 +129,7 @@ impl SimulatorState {
 }
 
 impl fmt::Display for SimulatorState {
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
 }
@@ -220,9 +215,7 @@ impl ServiceReport {
 
     #[must_use]
     pub const fn made_progress(&self) -> bool {
-        self.generated != 0
-            || self.delivered != 0
-            || self.released_delayed != 0
+        self.generated != 0 || self.delivered != 0 || self.released_delayed != 0
     }
 
     #[must_use]
@@ -278,26 +271,17 @@ impl Simulator {
             ))?;
 
         if required_snapshot_entries > limits.snapshot_capacity {
-            return Err(
-                SimulatorError::SnapshotCapacityExceeded {
-                    limit: limits.snapshot_capacity,
-                    required: required_snapshot_entries,
-                },
-            );
+            return Err(SimulatorError::SnapshotCapacityExceeded {
+                limit: limits.snapshot_capacity,
+                required: required_snapshot_entries,
+            });
         }
 
         let generator = EventGenerator::new(config, feed)?;
 
-        let history = EventHistory::new(
-            feed,
-            limits.history_capacity,
-        )?;
+        let history = EventHistory::new(feed, limits.history_capacity)?;
 
-        let faults = FaultInjector::new(
-            config.faults,
-            config.run.seed,
-            limits.delivery_capacity,
-        )?;
+        let faults = FaultInjector::new(config.faults, config.run.seed, limits.delivery_capacity)?;
 
         let pacer = Pacer::new(config.pacing)?;
 
@@ -389,10 +373,7 @@ impl Simulator {
 
     #[must_use]
     pub fn stats(&self) -> StatsReport {
-        self.stats.report(
-            self.faults.stats(),
-            self.history.stats(),
-        )
+        self.stats.report(self.faults.stats(), self.history.stats())
     }
 
     // --------------------------------------------------------
@@ -425,8 +406,7 @@ impl Simulator {
                 Ok(())
             }
 
-            SimulatorState::Draining
-            | SimulatorState::Completed => Ok(()),
+            SimulatorState::Draining | SimulatorState::Completed => Ok(()),
 
             _ => Err(SimulatorError::InvalidState(
                 "simulator cannot drain from current state",
@@ -472,19 +452,16 @@ impl Simulator {
 
         // Both components must agree on the authoritative
         // sequence before generation mutates market state.
-        if self.history.next_expected()
-            != self.market().next_expected()
-        {
-            return Err(
-                SimulatorError::InvariantViolation(
-                    "market and history cursors differ",
-                ),
-            );
+        if self.history.next_expected() != self.market().next_expected() {
+            return Err(SimulatorError::InvariantViolation(
+                "market and history cursors differ",
+            ));
         }
 
         self.pacer.wait_for(self.generator.generated())?;
 
-        let event = self.generator
+        let event = self
+            .generator
             .generate()?
             .ok_or(SimulatorError::InvariantViolation(
                 "generator unexpectedly returned no event",
@@ -500,9 +477,8 @@ impl Simulator {
 
         self.stats.record_generated(&event);
 
-        self.stats.observe_resting_orders(
-            self.generator.market().total_orders(),
-        );
+        self.stats
+            .observe_resting_orders(self.generator.market().total_orders());
 
         if self.generator.is_finished() {
             self.state = SimulatorState::Draining;
@@ -519,20 +495,15 @@ impl Simulator {
     ///
     /// Exchange timestamps may arrive out of order due
     /// to fault injection. Reception timestamps must not.
-    fn next_delivery_timestamp(
-        &self,
-    ) -> SimulatorResult<MonotonicTimestamp> {
+    fn next_delivery_timestamp(&self) -> SimulatorResult<MonotonicTimestamp> {
         let incremented = self
             .delivery_clock_ns
             .checked_add(1)
             .ok_or(SimulatorError::TimestampOverflow)?;
 
-        let generated_time =
-            self.generator.clock().current_ns();
+        let generated_time = self.generator.clock().current_ns();
 
-        Ok(MonotonicTimestamp::new(
-            incremented.max(generated_time),
-        ))
+        Ok(MonotonicTimestamp::new(incremented.max(generated_time)))
     }
 
     /// Delivers up to the specified number of messages.
@@ -546,8 +517,7 @@ impl Simulator {
         let mut delivered = 0;
 
         while delivered < budget {
-            let Some(event) = self.faults.front().copied()
-            else {
+            let Some(event) = self.faults.front().copied() else {
                 break;
             };
 
@@ -559,25 +529,19 @@ impl Simulator {
 
                     self.delivery_clock_ns = timestamp.raw();
 
-                    self.stats
-                        .delivery_mut()
-                        .record_accepted();
+                    self.stats.delivery_mut().record_accepted();
 
                     delivered += 1;
                 }
 
                 Ok(DeliveryOutcome::Blocked) => {
-                    self.stats
-                        .delivery_mut()
-                        .record_blocked();
+                    self.stats.delivery_mut().record_blocked();
 
                     return Ok((delivered, true));
                 }
 
                 Err(error) => {
-                    self.stats
-                        .delivery_mut()
-                        .record_failed();
+                    self.stats.delivery_mut().record_failed();
 
                     return Err(error);
                 }
@@ -599,10 +563,7 @@ impl Simulator {
     ///
     /// Backpressure is reported without failing the
     /// simulator. Other runtime errors are terminal.
-    pub fn service<S: EventSink>(
-        &mut self,
-        sink: &mut S,
-    ) -> SimulatorResult<ServiceReport> {
+    pub fn service<S: EventSink>(&mut self, sink: &mut S) -> SimulatorResult<ServiceReport> {
         if self.state == SimulatorState::Completed {
             return Ok(ServiceReport::new(self.state));
         }
@@ -626,28 +587,19 @@ impl Simulator {
         }
     }
 
-    fn service_inner<S: EventSink>(
-        &mut self,
-        sink: &mut S,
-    ) -> SimulatorResult<ServiceReport> {
+    fn service_inner<S: EventSink>(&mut self, sink: &mut S) -> SimulatorResult<ServiceReport> {
         let mut report = ServiceReport::new(self.state);
 
         // First make room for additional generation.
-        let (delivered, blocked) = self.deliver(
-            sink,
-            self.limits.delivery_budget,
-        )?;
+        let (delivered, blocked) = self.deliver(sink, self.limits.delivery_budget)?;
 
         report.delivered = delivered;
         report.delivery_blocked = blocked;
 
         // Generate a bounded number of authoritative events.
-        while report.generated < self.limits.generation_budget
-            && self.state.can_generate()
-        {
+        while report.generated < self.limits.generation_budget && self.state.can_generate() {
             if !self.generate_one()? {
-                report.generation_blocked =
-                    self.state.can_generate();
+                report.generation_blocked = self.state.can_generate();
 
                 break;
             }
@@ -656,9 +608,7 @@ impl Simulator {
         }
 
         // At end of generation, release withheld events.
-        if self.state == SimulatorState::Draining
-            && self.faults.pending_delayed() != 0
-        {
+        if self.state == SimulatorState::Draining && self.faults.pending_delayed() != 0 {
             match self.faults.flush_delayed() {
                 Ok(count) => {
                     report.released_delayed = count;
@@ -675,28 +625,20 @@ impl Simulator {
 
         // Avoid retrying a blocked sink in the same
         // iteration. Preserve the total delivery budget.
-        let remaining_budget =
-            self.limits.delivery_budget - report.delivered;
+        let remaining_budget = self.limits.delivery_budget - report.delivered;
 
-        if remaining_budget != 0
-            && !report.delivery_blocked
-        {
-            let (delivered, blocked) =
-                self.deliver(sink, remaining_budget)?;
+        if remaining_budget != 0 && !report.delivery_blocked {
+            let (delivered, blocked) = self.deliver(sink, remaining_budget)?;
 
             report.delivered += delivered;
             report.delivery_blocked = blocked;
         }
 
-        if self.state == SimulatorState::Draining
-            && self.faults.is_empty()
-        {
+        if self.state == SimulatorState::Draining && self.faults.is_empty() {
             if !self.stats().is_fully_accounted() {
-                return Err(
-                    SimulatorError::InvariantViolation(
-                        "completed simulator accounting mismatch",
-                    ),
-                );
+                return Err(SimulatorError::InvariantViolation(
+                    "completed simulator accounting mismatch",
+                ));
             }
 
             self.complete();
@@ -704,11 +646,9 @@ impl Simulator {
 
         report.state = self.state;
 
-        report.pending_delivery =
-            self.faults.pending_delivery();
+        report.pending_delivery = self.faults.pending_delivery();
 
-        report.pending_delayed =
-            self.faults.pending_delayed();
+        report.pending_delayed = self.faults.pending_delayed();
 
         Ok(report)
     }
@@ -734,9 +674,7 @@ impl Simulator {
         loop {
             let report = self.service(sink)?;
 
-            if report.is_completed()
-                || !report.made_progress()
-            {
+            if report.is_completed() || !report.made_progress() {
                 return Ok(report);
             }
         }
@@ -756,17 +694,13 @@ impl Simulator {
         start: SequenceNumber,
         end: SequenceNumber,
     ) -> SimulatorResult<HistoryRange<'_>> {
-        self.stats
-            .recovery_mut()
-            .record_retransmission_request();
+        self.stats.recovery_mut().record_retransmission_request();
 
         match self.history.range(start, end) {
             Ok(range) => {
                 self.stats
                     .recovery_mut()
-                    .record_retransmission_prepared(
-                        range.len(),
-                    );
+                    .record_retransmission_prepared(range.len());
 
                 Ok(range)
             }
@@ -777,9 +711,7 @@ impl Simulator {
                         .recovery_mut()
                         .record_retransmission_unavailable();
                 } else {
-                    self.stats
-                        .recovery_mut()
-                        .record_retransmission_failed();
+                    self.stats.recovery_mut().record_retransmission_failed();
                 }
 
                 Err(error)
@@ -793,38 +725,27 @@ impl Simulator {
         &mut self,
         minimum_watermark: SequenceNumber,
     ) -> SimulatorResult<MarketSnapshot> {
-        self.stats
-            .recovery_mut()
-            .record_snapshot_request();
+        self.stats.recovery_mut().record_snapshot_request();
 
-        let result = MarketSnapshot::capture(
-            self.generator.market(),
-            self.limits.snapshot_capacity,
-        )
-        .and_then(|snapshot| {
-            snapshot.validate_for(
-                self.feed(),
-                minimum_watermark,
-            )?;
+        let result =
+            MarketSnapshot::capture(self.generator.market(), self.limits.snapshot_capacity)
+                .and_then(|snapshot| {
+                    snapshot.validate_for(self.feed(), minimum_watermark)?;
 
-            Ok(snapshot)
-        });
+                    Ok(snapshot)
+                });
 
         match result {
             Ok(snapshot) => {
                 self.stats
                     .recovery_mut()
-                    .record_snapshot_prepared(
-                        snapshot.entry_count(),
-                    );
+                    .record_snapshot_prepared(snapshot.entry_count());
 
                 Ok(snapshot)
             }
 
             Err(error) => {
-                self.stats
-                    .recovery_mut()
-                    .record_snapshot_failed();
+                self.stats.recovery_mut().record_snapshot_failed();
 
                 Err(error)
             }
@@ -841,49 +762,36 @@ impl Simulator {
         self.market().validate_consistency()?;
         self.history.validate_consistency()?;
 
-        if self.market().next_expected()
-            != self.history.next_expected()
-        {
-            return Err(
-                SimulatorError::InvariantViolation(
-                    "market and history sequence mismatch",
-                ),
-            );
+        if self.market().next_expected() != self.history.next_expected() {
+            return Err(SimulatorError::InvariantViolation(
+                "market and history sequence mismatch",
+            ));
         }
 
         if self.generated() != self.history.stats().recorded {
-            return Err(
-                SimulatorError::InvariantViolation(
-                    "generated and recorded event counts differ",
-                ),
-            );
+            return Err(SimulatorError::InvariantViolation(
+                "generated and recorded event counts differ",
+            ));
         }
 
         if self.generated() != self.faults.stats().accepted {
-            return Err(
-                SimulatorError::InvariantViolation(
-                    "generated and fault admission counts differ",
-                ),
-            );
+            return Err(SimulatorError::InvariantViolation(
+                "generated and fault admission counts differ",
+            ));
         }
 
         if self.generated() != self.stats.events().total() {
-            return Err(
-                SimulatorError::InvariantViolation(
-                    "generated and statistics counts differ",
-                ),
-            );
+            return Err(SimulatorError::InvariantViolation(
+                "generated and statistics counts differ",
+            ));
         }
 
         if self.state == SimulatorState::Completed
-            && (!self.faults.is_empty()
-                || !self.stats().is_fully_accounted())
+            && (!self.faults.is_empty() || !self.stats().is_fully_accounted())
         {
-            return Err(
-                SimulatorError::InvariantViolation(
-                    "completed simulator contains pending work",
-                ),
-            );
+            return Err(SimulatorError::InvariantViolation(
+                "completed simulator contains pending work",
+            ));
         }
 
         Ok(())
@@ -904,10 +812,7 @@ mod tests {
     use crate::scenario::Scenario;
 
     fn feed() -> FeedId {
-        FeedId::new(
-            StreamId::new(1),
-            SessionId::new(1),
-        )
+        FeedId::new(StreamId::new(1), SessionId::new(1))
     }
 
     fn simulator(event_count: u64) -> Simulator {
@@ -915,12 +820,7 @@ mod tests {
 
         config.run.event_count = event_count;
 
-        Simulator::new(
-            config,
-            feed(),
-            RuntimeLimits::default(),
-        )
-        .unwrap()
+        Simulator::new(config, feed(), RuntimeLimits::default()).unwrap()
     }
 
     #[derive(Default)]
@@ -951,10 +851,7 @@ mod tests {
     fn simulator_starts_initialized() {
         let simulator = simulator(100);
 
-        assert_eq!(
-            simulator.state(),
-            SimulatorState::Initialized,
-        );
+        assert_eq!(simulator.state(), SimulatorState::Initialized,);
 
         assert_eq!(simulator.generated(), 0);
         assert_eq!(simulator.remaining(), 100);
@@ -982,18 +879,13 @@ mod tests {
         let mut simulator = simulator(1_000);
         let mut sink = RecordingSink::default();
 
-        let report = simulator
-            .run_until_blocked(&mut sink)
-            .unwrap();
+        let report = simulator.run_until_blocked(&mut sink).unwrap();
 
         assert!(report.is_completed());
         assert_eq!(simulator.generated(), 1_000);
         assert_eq!(sink.sequences.len(), 1_000);
 
-        assert_eq!(
-            sink.sequences,
-            (1..=1_000).collect::<Vec<_>>(),
-        );
+        assert_eq!(sink.sequences, (1..=1_000).collect::<Vec<_>>(),);
 
         assert!(simulator.stats().is_fully_accounted());
 
@@ -1010,8 +902,7 @@ mod tests {
             ..RuntimeLimits::default()
         };
 
-        let mut simulator =
-            Simulator::new(config, feed(), limits).unwrap();
+        let mut simulator = Simulator::new(config, feed(), limits).unwrap();
 
         simulator.start().unwrap();
 
@@ -1033,17 +924,14 @@ mod tests {
             ..RuntimeLimits::default()
         };
 
-        let mut simulator =
-            Simulator::new(config, feed(), limits).unwrap();
+        let mut simulator = Simulator::new(config, feed(), limits).unwrap();
 
         let mut sink = RecordingSink {
             blocked: true,
             ..RecordingSink::default()
         };
 
-        let report = simulator
-            .run_until_blocked(&mut sink)
-            .unwrap();
+        let report = simulator.run_until_blocked(&mut sink).unwrap();
 
         assert!(report.is_blocked());
         assert_eq!(simulator.generated(), 4);
@@ -1052,16 +940,11 @@ mod tests {
 
         sink.blocked = false;
 
-        let report = simulator
-            .run_until_blocked(&mut sink)
-            .unwrap();
+        let report = simulator.run_until_blocked(&mut sink).unwrap();
 
         assert!(report.is_completed());
 
-        assert_eq!(
-            sink.sequences,
-            (1..=1_000).collect::<Vec<_>>(),
-        );
+        assert_eq!(sink.sequences, (1..=1_000).collect::<Vec<_>>(),);
 
         simulator.validate_consistency().unwrap();
     }
@@ -1077,12 +960,7 @@ mod tests {
             ..FaultConfig::default()
         };
 
-        let mut simulator = Simulator::new(
-            config,
-            feed(),
-            RuntimeLimits::default(),
-        )
-        .unwrap();
+        let mut simulator = Simulator::new(config, feed(), RuntimeLimits::default()).unwrap();
 
         let mut sink = RecordingSink::default();
 
@@ -1106,12 +984,7 @@ mod tests {
             ..FaultConfig::default()
         };
 
-        let mut simulator = Simulator::new(
-            config,
-            feed(),
-            RuntimeLimits::default(),
-        )
-        .unwrap();
+        let mut simulator = Simulator::new(config, feed(), RuntimeLimits::default()).unwrap();
 
         let mut sink = RecordingSink::default();
 
@@ -1123,10 +996,7 @@ mod tests {
         assert_eq!(simulator.stats().faults.dropped, 100);
 
         let replay = simulator
-            .retransmission(
-                SequenceNumber::new(1),
-                SequenceNumber::new(100),
-            )
+            .retransmission(SequenceNumber::new(1), SequenceNumber::new(100))
             .unwrap();
 
         assert_eq!(replay.len(), 100);
@@ -1144,12 +1014,7 @@ mod tests {
             ..FaultConfig::default()
         };
 
-        let mut simulator = Simulator::new(
-            config,
-            feed(),
-            RuntimeLimits::default(),
-        )
-        .unwrap();
+        let mut simulator = Simulator::new(config, feed(), RuntimeLimits::default()).unwrap();
 
         let mut sink = RecordingSink::default();
 
@@ -1157,17 +1022,9 @@ mod tests {
 
         assert_eq!(sink.sequences.len(), 100);
 
-        assert!(
-            sink.sequences.windows(2).any(|pair| {
-                pair[0] > pair[1]
-            })
-        );
+        assert!(sink.sequences.windows(2).any(|pair| { pair[0] > pair[1] }));
 
-        assert!(
-            sink.timestamps.windows(2).all(|pair| {
-                pair[0] < pair[1]
-            })
-        );
+        assert!(sink.timestamps.windows(2).all(|pair| { pair[0] < pair[1] }));
 
         assert!(simulator.stats().is_fully_accounted());
     }
@@ -1182,8 +1039,7 @@ mod tests {
             ..RuntimeLimits::default()
         };
 
-        let mut simulator =
-            Simulator::new(config, feed(), limits).unwrap();
+        let mut simulator = Simulator::new(config, feed(), limits).unwrap();
 
         simulator.start().unwrap();
 
@@ -1193,9 +1049,7 @@ mod tests {
 
         simulator.request_stop().unwrap();
 
-        let report = simulator
-            .run_until_blocked(&mut NullSink)
-            .unwrap();
+        let report = simulator.run_until_blocked(&mut NullSink).unwrap();
 
         assert!(report.is_completed());
         assert_eq!(simulator.generated(), 10);
@@ -1223,10 +1077,7 @@ mod tests {
         simulator.run_until_blocked(&mut NullSink).unwrap();
 
         let replay = simulator
-            .retransmission(
-                SequenceNumber::new(10),
-                SequenceNumber::new(20),
-            )
+            .retransmission(SequenceNumber::new(10), SequenceNumber::new(20))
             .unwrap();
 
         assert_eq!(replay.len(), 11);
@@ -1235,10 +1086,7 @@ mod tests {
 
         assert_eq!(stats.recovery.retransmission_requests, 1);
 
-        assert_eq!(
-            stats.recovery.retransmission_events_prepared,
-            11,
-        );
+        assert_eq!(stats.recovery.retransmission_events_prepared, 11,);
     }
 
     #[test]
@@ -1250,23 +1098,16 @@ mod tests {
             ..RuntimeLimits::default()
         };
 
-        let mut simulator =
-            Simulator::new(config, feed(), limits).unwrap();
+        let mut simulator = Simulator::new(config, feed(), limits).unwrap();
 
         simulator.run_until_blocked(&mut NullSink).unwrap();
 
         assert!(matches!(
-            simulator.retransmission(
-                SequenceNumber::new(1),
-                SequenceNumber::new(10),
-            ),
+            simulator.retransmission(SequenceNumber::new(1), SequenceNumber::new(10),),
             Err(SimulatorError::HistoryUnavailable { .. }),
         ));
 
-        assert_eq!(
-            simulator.stats().recovery.retransmission_unavailable,
-            1,
-        );
+        assert_eq!(simulator.stats().recovery.retransmission_unavailable, 1,);
     }
 
     #[test]
@@ -1275,35 +1116,22 @@ mod tests {
 
         simulator.run_until_blocked(&mut NullSink).unwrap();
 
-        let snapshot = simulator
-            .snapshot(SequenceNumber::new(100))
-            .unwrap();
+        let snapshot = simulator.snapshot(SequenceNumber::new(100)).unwrap();
 
         assert_eq!(snapshot.watermark().raw(), 100);
 
-        assert_eq!(
-            snapshot.order_count(),
-            simulator.market().total_orders(),
-        );
+        assert_eq!(snapshot.order_count(), simulator.market().total_orders(),);
 
-        assert_eq!(
-            simulator.stats().recovery.snapshots_prepared,
-            1,
-        );
+        assert_eq!(simulator.stats().recovery.snapshots_prepared, 1,);
     }
 
     #[test]
     fn future_snapshot_watermark_is_rejected() {
         let mut simulator = simulator(100);
 
-        assert!(
-            simulator.snapshot(SequenceNumber::new(1)).is_err()
-        );
+        assert!(simulator.snapshot(SequenceNumber::new(1)).is_err());
 
-        assert_eq!(
-            simulator.stats().recovery.snapshot_failed,
-            1,
-        );
+        assert_eq!(simulator.stats().recovery.snapshot_failed, 1,);
     }
 
     #[test]
@@ -1316,22 +1144,15 @@ mod tests {
                 _event: &EventEnvelope,
                 _received_at: MonotonicTimestamp,
             ) -> SimulatorResult<DeliveryOutcome> {
-                Err(SimulatorError::InvalidState(
-                    "simulated transport failure",
-                ))
+                Err(SimulatorError::InvalidState("simulated transport failure"))
             }
         }
 
         let mut simulator = simulator(100);
 
-        assert!(
-            simulator.run_until_blocked(&mut FailingSink).is_err()
-        );
+        assert!(simulator.run_until_blocked(&mut FailingSink).is_err());
 
-        assert_eq!(
-            simulator.state(),
-            SimulatorState::Failed,
-        );
+        assert_eq!(simulator.state(), SimulatorState::Failed,);
 
         assert_eq!(simulator.stats().delivery.failed, 1);
         assert!(simulator.pending_delivery() > 0);

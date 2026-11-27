@@ -77,24 +77,16 @@ pub struct FaultInjector {
 }
 
 impl FaultInjector {
-    pub fn new(
-        config: FaultConfig,
-        seed: u64,
-        delivery_capacity: usize,
-    ) -> SimulatorResult<Self> {
+    pub fn new(config: FaultConfig, seed: u64, delivery_capacity: usize) -> SimulatorResult<Self> {
         config.validate()?;
 
-        let reorder_capacity =
-            config.effective_reorder_window();
+        let reorder_capacity = config.effective_reorder_window();
 
-        let immediate_capacity =
-            if config.duplicate_bps != 0 { 2 } else { 1 };
+        let immediate_capacity = if config.duplicate_bps != 0 { 2 } else { 1 };
 
-        let required = reorder_capacity
-            .checked_add(immediate_capacity)
-            .ok_or(SimulatorError::ArithmeticOverflow(
-                "fault injector delivery capacity",
-            ))?;
+        let required = reorder_capacity.checked_add(immediate_capacity).ok_or(
+            SimulatorError::ArithmeticOverflow("fault injector delivery capacity"),
+        )?;
 
         if delivery_capacity < required {
             return Err(SimulatorError::InvalidConfig(
@@ -163,10 +155,7 @@ impl FaultInjector {
     // Fault selection
     // --------------------------------------------------------
 
-    fn select_action(
-        config: FaultConfig,
-        rng: &mut SplitMix64,
-    ) -> FaultAction {
+    fn select_action(config: FaultConfig, rng: &mut SplitMix64) -> FaultAction {
         if !config.is_enabled() {
             return FaultAction::Pass;
         }
@@ -196,20 +185,13 @@ impl FaultInjector {
     // Capacity preflight
     // --------------------------------------------------------
 
-    fn required_capacity(
-        &self,
-        action: FaultAction,
-    ) -> usize {
+    fn required_capacity(&self, action: FaultAction) -> usize {
         match action {
             FaultAction::Drop => 0,
 
-            FaultAction::Pass => {
-                1 + self.delayed.len()
-            }
+            FaultAction::Pass => 1 + self.delayed.len(),
 
-            FaultAction::Duplicate => {
-                2 + self.delayed.len()
-            }
+            FaultAction::Duplicate => 2 + self.delayed.len(),
 
             FaultAction::Reorder => {
                 if self.delayed.len() == self.reorder_capacity {
@@ -229,24 +211,16 @@ impl FaultInjector {
     pub fn can_accept_next(&self) -> bool {
         let mut rng = self.rng;
 
-        let action = Self::select_action(
-            self.config,
-            &mut rng,
-        );
+        let action = Self::select_action(self.config, &mut rng);
 
-        self.required_capacity(action)
-            <= self.remaining_capacity()
+        self.required_capacity(action) <= self.remaining_capacity()
     }
 
-    fn preflight(
-        &mut self,
-        required: usize,
-    ) -> SimulatorResult<()> {
+    fn preflight(&mut self, required: usize) -> SimulatorResult<()> {
         let available = self.remaining_capacity();
 
         if required > available {
-            self.stats.backpressure =
-                self.stats.backpressure.saturating_add(1);
+            self.stats.backpressure = self.stats.backpressure.saturating_add(1);
 
             return Err(SimulatorError::DeliveryBackpressure {
                 required,
@@ -262,22 +236,18 @@ impl FaultInjector {
     // --------------------------------------------------------
 
     fn enqueue(&mut self, event: EventEnvelope) {
-        debug_assert!(
-            self.outbound.len() < self.delivery_capacity
-        );
+        debug_assert!(self.outbound.len() < self.delivery_capacity);
 
         self.outbound.push_back(event);
 
-        self.stats.enqueued =
-            self.stats.enqueued.saturating_add(1);
+        self.stats.enqueued = self.stats.enqueued.saturating_add(1);
     }
 
     fn release_delayed(&mut self) {
         while let Some(event) = self.delayed.pop_front() {
             self.enqueue(event);
 
-            self.stats.released =
-                self.stats.released.saturating_add(1);
+            self.stats.released = self.stats.released.saturating_add(1);
         }
     }
 
@@ -289,16 +259,10 @@ impl FaultInjector {
     ///
     /// On backpressure, the event remains unconsumed and
     /// the random decision remains unchanged for retry.
-    pub fn accept(
-        &mut self,
-        event: EventEnvelope,
-    ) -> SimulatorResult<FaultOutcome> {
+    pub fn accept(&mut self, event: EventEnvelope) -> SimulatorResult<FaultOutcome> {
         let mut rng = self.rng;
 
-        let action = Self::select_action(
-            self.config,
-            &mut rng,
-        );
+        let action = Self::select_action(self.config, &mut rng);
 
         let required = self.required_capacity(action);
 
@@ -311,13 +275,11 @@ impl FaultInjector {
                 self.enqueue(event);
                 self.release_delayed();
 
-                self.stats.passed =
-                    self.stats.passed.saturating_add(1);
+                self.stats.passed = self.stats.passed.saturating_add(1);
             }
 
             FaultAction::Drop => {
-                self.stats.dropped =
-                    self.stats.dropped.saturating_add(1);
+                self.stats.dropped = self.stats.dropped.saturating_add(1);
             }
 
             FaultAction::Duplicate => {
@@ -325,8 +287,7 @@ impl FaultInjector {
                 self.enqueue(event);
                 self.release_delayed();
 
-                self.stats.duplicated =
-                    self.stats.duplicated.saturating_add(1);
+                self.stats.duplicated = self.stats.duplicated.saturating_add(1);
             }
 
             FaultAction::Reorder => {
@@ -339,15 +300,13 @@ impl FaultInjector {
                     self.delayed.push_back(event);
                 }
 
-                self.stats.reordered =
-                    self.stats.reordered.saturating_add(1);
+                self.stats.reordered = self.stats.reordered.saturating_add(1);
             }
         }
 
         self.rng = rng;
 
-        self.stats.accepted =
-            self.stats.accepted.saturating_add(1);
+        self.stats.accepted = self.stats.accepted.saturating_add(1);
 
         Ok(FaultOutcome {
             action,
@@ -370,8 +329,7 @@ impl FaultInjector {
     pub fn pop_front(&mut self) -> Option<EventEnvelope> {
         let event = self.outbound.pop_front()?;
 
-        self.stats.dequeued =
-            self.stats.dequeued.saturating_add(1);
+        self.stats.dequeued = self.stats.dequeued.saturating_add(1);
 
         Some(event)
     }
@@ -400,9 +358,8 @@ mod tests {
     use super::*;
 
     use maxwell_core::{
-        EventHeader, EventId, FeedId, InstrumentId,
-        MarketEvent, OrderAdded, OrderId, Price, Quantity,
-        SequenceNumber, SessionId, Side, StreamId,
+        EventHeader, EventId, FeedId, InstrumentId, MarketEvent, OrderAdded, OrderId, Price,
+        Quantity, SequenceNumber, SessionId, Side, StreamId,
     };
 
     use crate::config::BASIS_POINTS;
@@ -411,10 +368,7 @@ mod tests {
         EventEnvelope::new(
             EventHeader::new(
                 EventId::new(
-                    FeedId::new(
-                        StreamId::new(1),
-                        SessionId::new(1),
-                    ),
+                    FeedId::new(StreamId::new(1), SessionId::new(1)),
                     SequenceNumber::new(sequence),
                 ),
                 InstrumentId::new(1),
@@ -441,24 +395,15 @@ mod tests {
 
     #[test]
     fn disabled_faults_preserve_event_order() {
-        let mut injector = FaultInjector::new(
-            FaultConfig::disabled(),
-            42,
-            16,
-        )
-        .unwrap();
+        let mut injector = FaultInjector::new(FaultConfig::disabled(), 42, 16).unwrap();
 
         for sequence in 1..=5 {
-            let outcome =
-                injector.accept(event(sequence)).unwrap();
+            let outcome = injector.accept(event(sequence)).unwrap();
 
             assert_eq!(outcome.action, FaultAction::Pass);
         }
 
-        assert_eq!(
-            drain(&mut injector),
-            vec![1, 2, 3, 4, 5],
-        );
+        assert_eq!(drain(&mut injector), vec![1, 2, 3, 4, 5],);
     }
 
     #[test]
@@ -468,12 +413,10 @@ mod tests {
             ..FaultConfig::default()
         };
 
-        let mut injector =
-            FaultInjector::new(config, 42, 16).unwrap();
+        let mut injector = FaultInjector::new(config, 42, 16).unwrap();
 
         for sequence in 1..=5 {
-            let outcome =
-                injector.accept(event(sequence)).unwrap();
+            let outcome = injector.accept(event(sequence)).unwrap();
 
             assert_eq!(outcome.action, FaultAction::Drop);
         }
@@ -490,17 +433,13 @@ mod tests {
             ..FaultConfig::default()
         };
 
-        let mut injector =
-            FaultInjector::new(config, 42, 16).unwrap();
+        let mut injector = FaultInjector::new(config, 42, 16).unwrap();
 
         for sequence in 1..=3 {
             injector.accept(event(sequence)).unwrap();
         }
 
-        assert_eq!(
-            drain(&mut injector),
-            vec![1, 1, 2, 2, 3, 3],
-        );
+        assert_eq!(drain(&mut injector), vec![1, 1, 2, 2, 3, 3],);
 
         assert_eq!(injector.stats().duplicated, 3);
         assert_eq!(injector.stats().enqueued, 6);
@@ -514,8 +453,7 @@ mod tests {
             ..FaultConfig::default()
         };
 
-        let mut injector =
-            FaultInjector::new(config, 42, 8).unwrap();
+        let mut injector = FaultInjector::new(config, 42, 8).unwrap();
 
         injector.accept(event(1)).unwrap();
         injector.accept(event(2)).unwrap();
@@ -525,10 +463,7 @@ mod tests {
 
         injector.accept(event(3)).unwrap();
 
-        assert_eq!(
-            drain(&mut injector),
-            vec![3, 1, 2],
-        );
+        assert_eq!(drain(&mut injector), vec![3, 1, 2],);
 
         assert_eq!(injector.pending_delayed(), 0);
         assert_eq!(injector.stats().released, 2);
@@ -542,18 +477,14 @@ mod tests {
             ..FaultConfig::default()
         };
 
-        let mut injector =
-            FaultInjector::new(config, 42, 8).unwrap();
+        let mut injector = FaultInjector::new(config, 42, 8).unwrap();
 
         injector.accept(event(1)).unwrap();
         injector.accept(event(2)).unwrap();
 
         assert_eq!(injector.flush_delayed().unwrap(), 2);
 
-        assert_eq!(
-            drain(&mut injector),
-            vec![1, 2],
-        );
+        assert_eq!(drain(&mut injector), vec![1, 2],);
 
         assert!(injector.is_empty());
     }
@@ -565,8 +496,7 @@ mod tests {
             ..FaultConfig::default()
         };
 
-        let mut injector =
-            FaultInjector::new(config, 42, 2).unwrap();
+        let mut injector = FaultInjector::new(config, 42, 2).unwrap();
 
         injector.accept(event(1)).unwrap();
 
@@ -594,10 +524,7 @@ mod tests {
 
         injector.accept(event(2)).unwrap();
 
-        assert_eq!(
-            drain(&mut injector),
-            vec![2, 2],
-        );
+        assert_eq!(drain(&mut injector), vec![2, 2],);
     }
 
     #[test]
@@ -608,8 +535,7 @@ mod tests {
             ..FaultConfig::default()
         };
 
-        let mut injector =
-            FaultInjector::new(config, 42, 3).unwrap();
+        let mut injector = FaultInjector::new(config, 42, 3).unwrap();
 
         for sequence in 1..=4 {
             injector.accept(event(sequence)).unwrap();
@@ -622,10 +548,7 @@ mod tests {
 
         assert_eq!(injector.pending_delayed(), 1);
 
-        assert_eq!(
-            drain(&mut injector),
-            vec![3, 1, 2],
-        );
+        assert_eq!(drain(&mut injector), vec![3, 1, 2],);
 
         injector.flush_delayed().unwrap();
 
@@ -641,11 +564,9 @@ mod tests {
             reorder_window: 4,
         };
 
-        let mut first =
-            FaultInjector::new(config, 42, 16).unwrap();
+        let mut first = FaultInjector::new(config, 42, 16).unwrap();
 
-        let mut second =
-            FaultInjector::new(config, 42, 16).unwrap();
+        let mut second = FaultInjector::new(config, 42, 16).unwrap();
 
         for sequence in 1..=1_000 {
             assert_eq!(
@@ -653,19 +574,13 @@ mod tests {
                 second.accept(event(sequence)).unwrap(),
             );
 
-            assert_eq!(
-                drain(&mut first),
-                drain(&mut second),
-            );
+            assert_eq!(drain(&mut first), drain(&mut second),);
         }
 
         first.flush_delayed().unwrap();
         second.flush_delayed().unwrap();
 
-        assert_eq!(
-            drain(&mut first),
-            drain(&mut second),
-        );
+        assert_eq!(drain(&mut first), drain(&mut second),);
 
         assert_eq!(first.stats(), second.stats());
     }
