@@ -1,0 +1,11 @@
+[package]
+name = "maxwell-metrics"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Low-overhead metrics, latency histograms and deterministic telemetry for Maxwell"
+
+[dependencies]
+
+[lints]
+workspace = true

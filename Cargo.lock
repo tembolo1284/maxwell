@@ -35,6 +35,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "maxwell-metrics"
+version = "0.1.0"
+
+[[package]]
 name = "maxwell-protocol"
 version = "0.1.0"
 dependencies = [
