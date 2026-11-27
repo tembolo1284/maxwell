@@ -1,0 +1,32 @@
+[package]
+name = "maxwell-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Integrated market data server for the Maxwell platform"
+publish = false
+
+[lib]
+name = "maxwell_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "maxwell-server"
+path = "src/main.rs"
+
+[dependencies]
+maxwell-core = { path = "../../crates/maxwell-core" }
+maxwell-protocol = { path = "../../crates/maxwell-protocol" }
+maxwell-sequencer = { path = "../../crates/maxwell-sequencer" }
+maxwell-book = { path = "../../crates/maxwell-book" }
+maxwell-transport = { path = "../../crates/maxwell-transport" }
+maxwell-recovery = { path = "../../crates/maxwell-recovery" }
+maxwell-publisher = { path = "../../crates/maxwell-publisher" }
+maxwell-gateway = { path = "../../crates/maxwell-gateway" }
+maxwell-metrics = { path = "../../crates/maxwell-metrics" }
+
+[dev-dependencies]
+maxwell-client = { path = "../../crates/maxwell-client" }
+
+[lints]
+workspace = true
