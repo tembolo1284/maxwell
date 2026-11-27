@@ -1,4 +1,3 @@
-
 //! Single-writer sequencing metrics.
 //!
 //! Counters require no atomic operations because the
@@ -59,8 +58,7 @@ impl SequencerMetrics {
     pub(crate) fn on_out_of_order(&mut self, buffered: usize) {
         self.out_of_order = self.out_of_order.saturating_add(1);
 
-        self.buffer_high_watermark =
-            self.buffer_high_watermark.max(buffered);
+        self.buffer_high_watermark = self.buffer_high_watermark.max(buffered);
     }
 
     #[inline]
@@ -75,20 +73,17 @@ impl SequencerMetrics {
 
     #[inline]
     pub(crate) fn on_recovery_requested(&mut self) {
-        self.recovery_requests =
-            self.recovery_requests.saturating_add(1);
+        self.recovery_requests = self.recovery_requests.saturating_add(1);
     }
 
     #[inline]
     pub(crate) fn on_recovery_completed(&mut self) {
-        self.recoveries_completed =
-            self.recoveries_completed.saturating_add(1);
+        self.recoveries_completed = self.recoveries_completed.saturating_add(1);
     }
 
     #[inline]
     pub(crate) fn on_session_changed(&mut self) {
-        self.session_changes =
-            self.session_changes.saturating_add(1);
+        self.session_changes = self.session_changes.saturating_add(1);
     }
 
     #[inline]
@@ -110,10 +105,7 @@ mod tests {
 
     #[test]
     fn default_metrics_are_zero() {
-        assert_eq!(
-            SequencerMetrics::default(),
-            SequencerMetrics::new(),
-        );
+        assert_eq!(SequencerMetrics::default(), SequencerMetrics::new(),);
     }
 
     #[test]
@@ -163,4 +155,3 @@ mod tests {
         assert_eq!(metrics, SequencerMetrics::new());
     }
 }
-

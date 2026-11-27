@@ -1,18 +1,11 @@
-
 //! UDP unicast transport.
 //!
 //! Suitable for direct market data delivery between
 //! exchange components and AWS EC2 instances.
 
-use std::net::{
-    SocketAddr,
-    UdpSocket,
-};
+use std::net::{SocketAddr, UdpSocket};
 
-use socket2::{
-    SockAddr,
-    SockRef,
-};
+use socket2::{SockAddr, SockRef};
 
 use crate::buffer::ReceiveBuffer;
 use crate::config::UdpConfig;
@@ -21,17 +14,10 @@ use crate::socket::{self, SocketBufferSizes};
 use crate::stats::TransportStats;
 
 use crate::transport::{
-    DatagramReceiver,
-    DatagramSender,
-    ReceivedDatagram,
-    TransportKind,
-    WriteOutcome,
+    DatagramReceiver, DatagramSender, ReceivedDatagram, TransportKind, WriteOutcome,
 };
 
-use super::{
-    receive_datagram,
-    send_datagram,
-};
+use super::{receive_datagram, send_datagram};
 
 #[derive(Debug)]
 pub struct UdpUnicast {
@@ -41,16 +27,10 @@ pub struct UdpUnicast {
 }
 
 impl UdpUnicast {
-    pub fn bind(
-        address: SocketAddr,
-        config: UdpConfig,
-    ) -> TransportResult<Self> {
+    pub fn bind(address: SocketAddr, config: UdpConfig) -> TransportResult<Self> {
         config.validate()?;
 
-        let socket = socket::create_udp_socket(
-            address,
-            config.socket,
-        )?;
+        let socket = socket::create_udp_socket(address, config.socket)?;
 
         socket.bind(&SockAddr::from(address))?;
 
@@ -112,10 +92,7 @@ impl UdpUnicast {
         Ok(result)
     }
 
-    pub fn set_nonblocking(
-        &mut self,
-        enabled: bool,
-    ) -> TransportResult<()> {
+    pub fn set_nonblocking(&mut self, enabled: bool) -> TransportResult<()> {
         self.socket.set_nonblocking(enabled)?;
         self.config.socket.nonblocking = enabled;
 
@@ -129,10 +106,7 @@ impl UdpUnicast {
 
 impl DatagramReceiver for UdpUnicast {
     #[inline]
-    fn receive(
-        &mut self,
-        buffer: &mut [u8],
-    ) -> TransportResult<Option<ReceivedDatagram>> {
+    fn receive(&mut self, buffer: &mut [u8]) -> TransportResult<Option<ReceivedDatagram>> {
         receive_datagram(
             &self.socket,
             buffer,
@@ -162,4 +136,3 @@ impl DatagramSender for UdpUnicast {
         )
     }
 }
-

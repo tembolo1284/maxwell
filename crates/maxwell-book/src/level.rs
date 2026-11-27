@@ -1,4 +1,3 @@
-
 //! Aggregated price level representation.
 //!
 //! A price level stores aggregate resting quantity and
@@ -23,13 +22,8 @@ impl PriceLevel {
         order_count: 0,
     };
 
-    pub const fn new(
-        quantity: Quantity,
-        order_count: u32,
-    ) -> BookResult<Self> {
-        if quantity.is_zero() != (order_count == 0)
-            || quantity.raw() < order_count as u64
-        {
+    pub const fn new(quantity: Quantity, order_count: u32) -> BookResult<Self> {
+        if quantity.is_zero() != (order_count == 0) || quantity.raw() < order_count as u64 {
             return Err(BookError::InvalidPriceLevel);
         }
 
@@ -61,19 +55,18 @@ impl PriceLevel {
     ///
     /// All arithmetic is validated before mutation.
     #[inline]
-    pub fn add_order(
-        &mut self,
-        quantity: Quantity,
-    ) -> BookResult<()> {
+    pub fn add_order(&mut self, quantity: Quantity) -> BookResult<()> {
         if quantity.is_zero() {
             return Err(BookError::ZeroQuantity);
         }
 
-        let next_quantity = self.quantity
+        let next_quantity = self
+            .quantity
             .checked_add(quantity)
             .ok_or(BookError::QuantityOverflow)?;
 
-        let next_count = self.order_count
+        let next_count = self
+            .order_count
             .checked_add(1)
             .ok_or(BookError::OrderCountOverflow)?;
 
@@ -87,15 +80,13 @@ impl PriceLevel {
     /// The caller must ensure that the individual order
     /// retains a positive remaining quantity.
     #[inline]
-    pub fn reduce_quantity(
-        &mut self,
-        quantity: Quantity,
-    ) -> BookResult<()> {
+    pub fn reduce_quantity(&mut self, quantity: Quantity) -> BookResult<()> {
         if quantity.is_zero() {
             return Err(BookError::ZeroQuantity);
         }
 
-        let next_quantity = self.quantity
+        let next_quantity = self
+            .quantity
             .checked_sub(quantity)
             .ok_or(BookError::QuantityUnderflow)?;
 
@@ -106,10 +97,7 @@ impl PriceLevel {
 
     /// Increases aggregate quantity without adding an order.
     #[inline]
-    pub fn increase_quantity(
-        &mut self,
-        quantity: Quantity,
-    ) -> BookResult<()> {
+    pub fn increase_quantity(&mut self, quantity: Quantity) -> BookResult<()> {
         if quantity.is_zero() {
             return Err(BookError::ZeroQuantity);
         }
@@ -118,7 +106,8 @@ impl PriceLevel {
             return Err(BookError::InvalidPriceLevel);
         }
 
-        let next_quantity = self.quantity
+        let next_quantity = self
+            .quantity
             .checked_add(quantity)
             .ok_or(BookError::QuantityOverflow)?;
 
@@ -129,19 +118,18 @@ impl PriceLevel {
 
     /// Removes one complete resting order.
     #[inline]
-    pub fn remove_order(
-        &mut self,
-        quantity: Quantity,
-    ) -> BookResult<()> {
+    pub fn remove_order(&mut self, quantity: Quantity) -> BookResult<()> {
         if quantity.is_zero() {
             return Err(BookError::ZeroQuantity);
         }
 
-        let next_quantity = self.quantity
+        let next_quantity = self
+            .quantity
             .checked_sub(quantity)
             .ok_or(BookError::QuantityUnderflow)?;
 
-        let next_count = self.order_count
+        let next_count = self
+            .order_count
             .checked_sub(1)
             .ok_or(BookError::OrderCountUnderflow)?;
 
@@ -211,15 +199,11 @@ mod tests {
 
     #[test]
     fn overflow_does_not_mutate_level() {
-        let mut level =
-            PriceLevel::new(Quantity::MAX, 1).unwrap();
+        let mut level = PriceLevel::new(Quantity::MAX, 1).unwrap();
 
         let previous = level;
 
-        assert_eq!(
-            level.add_order(qty(1)),
-            Err(BookError::QuantityOverflow),
-        );
+        assert_eq!(level.add_order(qty(1)), Err(BookError::QuantityOverflow),);
 
         assert_eq!(level, previous);
     }
@@ -239,9 +223,7 @@ mod tests {
 
     #[test]
     fn zero_quantity_with_nonzero_count_rejected() {
-        assert!(
-            PriceLevel::new(Quantity::ZERO, 1).is_err()
-        );
+        assert!(PriceLevel::new(Quantity::ZERO, 1).is_err());
     }
 
     #[test]
@@ -254,4 +236,3 @@ mod tests {
         assert!(PriceLevel::new(qty(1), 2).is_err());
     }
 }
-

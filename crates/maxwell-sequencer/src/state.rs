@@ -1,4 +1,3 @@
-
 //! Explicit feed sequencing states.
 
 use core::fmt;
@@ -84,9 +83,7 @@ mod tests {
 
     #[test]
     fn recovery_rejects_events() {
-        assert!(
-            !SequencerState::RecoveryRequired.accepts_events()
-        );
+        assert!(!SequencerState::RecoveryRequired.accepts_events());
     }
 
     #[test]
@@ -96,10 +93,6 @@ mod tests {
 
     #[test]
     fn state_display() {
-        assert_eq!(
-            SequencerState::GapDetected.to_string(),
-            "gap_detected",
-        );
+        assert_eq!(SequencerState::GapDetected.to_string(), "gap_detected",);
     }
 }
-

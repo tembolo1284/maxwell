@@ -1,4 +1,3 @@
-
 //! Deterministic full-depth order book snapshots.
 //!
 //! Snapshots store individual resting orders. Aggregate
@@ -7,11 +6,7 @@
 //! Snapshot creation and restoration are control-path
 //! operations and may allocate memory.
 
-use maxwell_core::{
-    FeedId,
-    Instrument,
-    SequenceNumber,
-};
+use maxwell_core::{FeedId, Instrument, SequenceNumber};
 
 use crate::book::{BookState, OrderBook};
 use crate::config::BookConfig;
@@ -68,11 +63,7 @@ impl BookSnapshot {
             return Err(BookError::InvalidSnapshot);
         }
 
-        let mut book = OrderBook::new(
-            self.instrument,
-            self.feed,
-            config,
-        )?;
+        let mut book = OrderBook::new(self.instrument, self.feed, config)?;
 
         for order in &self.orders {
             if let Some(watermark) = self.last_sequence {
@@ -95,9 +86,7 @@ impl BookSnapshot {
     /// The caller must coordinate this operation with the
     /// stream sequencer and recovery subsystem.
     pub fn install(&self, book: &mut OrderBook) -> BookResult<()> {
-        if self.instrument != *book.instrument()
-            || self.feed != book.feed()
-        {
+        if self.instrument != *book.instrument() || self.feed != book.feed() {
             return Err(BookError::InvalidSnapshot);
         }
 
@@ -112,4 +101,3 @@ impl BookSnapshot {
         Ok(())
     }
 }
-

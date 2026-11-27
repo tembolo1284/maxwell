@@ -1,16 +1,9 @@
-
 //! Level 1 market data: best bid and offer.
 //!
 //! Midpoint and spread calculations use widened integer
 //! arithmetic to avoid overflow and preserve precision.
 
-use maxwell_core::{
-    FeedId,
-    InstrumentId,
-    Price,
-    Quantity,
-    SequenceNumber,
-};
+use maxwell_core::{FeedId, InstrumentId, Price, Quantity, SequenceNumber};
 
 use crate::book::{BookState, OrderBook};
 
@@ -76,9 +69,7 @@ impl Level1 {
     #[inline]
     pub const fn spread(self) -> Option<i128> {
         match (self.bid, self.ask) {
-            (Some(bid), Some(ask)) => {
-                Some(ask.price.raw() as i128 - bid.price.raw() as i128)
-            }
+            (Some(bid), Some(ask)) => Some(ask.price.raw() as i128 - bid.price.raw() as i128),
 
             _ => None,
         }
@@ -92,9 +83,7 @@ impl Level1 {
     #[inline]
     pub const fn midpoint_numerator(self) -> Option<i128> {
         match (self.bid, self.ask) {
-            (Some(bid), Some(ask)) => {
-                Some(bid.price.raw() as i128 + ask.price.raw() as i128)
-            }
+            (Some(bid), Some(ask)) => Some(bid.price.raw() as i128 + ask.price.raw() as i128),
 
             _ => None,
         }
@@ -127,10 +116,7 @@ impl Level1 {
 mod tests {
     use super::*;
 
-    use maxwell_core::{
-        SessionId,
-        StreamId,
-    };
+    use maxwell_core::{SessionId, StreamId};
 
     fn quote(price: i64) -> Quote {
         Quote {
@@ -143,10 +129,7 @@ mod tests {
     fn bbo(bid: Option<Quote>, ask: Option<Quote>) -> Level1 {
         Level1 {
             instrument_id: InstrumentId::new(1),
-            feed: FeedId::new(
-                StreamId::new(1),
-                SessionId::new(1),
-            ),
+            feed: FeedId::new(StreamId::new(1), SessionId::new(1)),
             sequence: Some(SequenceNumber::ONE),
             state: BookState::Live,
             bid,
@@ -197,12 +180,8 @@ mod tests {
 
     #[test]
     fn full_price_range_spread() {
-        let value = bbo(
-            Some(quote(i64::MIN)),
-            Some(quote(i64::MAX)),
-        );
+        let value = bbo(Some(quote(i64::MIN)), Some(quote(i64::MAX)));
 
         assert_eq!(value.spread(), Some(u64::MAX as i128));
     }
 }
-

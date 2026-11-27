@@ -1,15 +1,8 @@
-
 //! Strongly typed order book errors.
 
 use core::fmt;
 
-use maxwell_core::{
-    InstrumentError,
-    InstrumentId,
-    OrderId,
-    Price,
-    SequenceNumber,
-};
+use maxwell_core::{InstrumentError, InstrumentId, OrderId, Price, SequenceNumber};
 
 pub type BookResult<T> = Result<T, BookError>;
 
@@ -74,21 +67,13 @@ impl fmt::Display for BookError {
                 write!(f, "invalid instrument capacity: {value}")
             }
 
-            Self::AllocationFailed => {
-                f.write_str("order book allocation failed")
-            }
+            Self::AllocationFailed => f.write_str("order book allocation failed"),
 
-            Self::PriceLevelCapacityExceeded => {
-                f.write_str("price level capacity exceeded")
-            }
+            Self::PriceLevelCapacityExceeded => f.write_str("price level capacity exceeded"),
 
-            Self::OrderCapacityExceeded => {
-                f.write_str("order capacity exceeded")
-            }
+            Self::OrderCapacityExceeded => f.write_str("order capacity exceeded"),
 
-            Self::InstrumentCapacityExceeded => {
-                f.write_str("instrument capacity exceeded")
-            }
+            Self::InstrumentCapacityExceeded => f.write_str("instrument capacity exceeded"),
 
             Self::UnknownInstrument(id) => {
                 write!(f, "unknown instrument: {id}")
@@ -118,46 +103,25 @@ impl fmt::Display for BookError {
                 write!(f, "invalid price: {price}")
             }
 
-            Self::ZeroQuantity => {
-                f.write_str("quantity must be nonzero")
-            }
+            Self::ZeroQuantity => f.write_str("quantity must be nonzero"),
 
-            Self::QuantityOverflow => {
-                f.write_str("quantity overflow")
-            }
+            Self::QuantityOverflow => f.write_str("quantity overflow"),
 
-            Self::QuantityUnderflow => {
-                f.write_str("quantity underflow")
-            }
+            Self::QuantityUnderflow => f.write_str("quantity underflow"),
 
-            Self::OrderCountOverflow => {
-                f.write_str("order count overflow")
-            }
+            Self::OrderCountOverflow => f.write_str("order count overflow"),
 
-            Self::OrderCountUnderflow => {
-                f.write_str("order count underflow")
-            }
+            Self::OrderCountUnderflow => f.write_str("order count underflow"),
 
-            Self::InvalidPriceLevel => {
-                f.write_str("invalid price level")
-            }
+            Self::InvalidPriceLevel => f.write_str("invalid price level"),
 
-            Self::InvalidReduction => {
-                f.write_str("invalid order reduction")
-            }
+            Self::InvalidReduction => f.write_str("invalid order reduction"),
 
-            Self::InvalidReplacement => {
-                f.write_str("invalid order replacement")
-            }
+            Self::InvalidReplacement => f.write_str("invalid order replacement"),
 
-            Self::InvalidSnapshot => {
-                f.write_str("invalid book snapshot")
-            }
+            Self::InvalidSnapshot => f.write_str("invalid book snapshot"),
 
-            Self::NonIncreasingSequence {
-                previous,
-                received,
-            } => {
+            Self::NonIncreasingSequence { previous, received } => {
                 write!(
                     f,
                     "non-increasing sequence: previous {previous}, \
@@ -165,17 +129,11 @@ impl fmt::Display for BookError {
                 )
             }
 
-            Self::RecoveryRequired => {
-                f.write_str("order book recovery required")
-            }
+            Self::RecoveryRequired => f.write_str("order book recovery required"),
 
-            Self::InconsistentBook => {
-                f.write_str("inconsistent order book state")
-            }
+            Self::InconsistentBook => f.write_str("inconsistent order book state"),
 
-            Self::UnsupportedEvent => {
-                f.write_str("unsupported market event")
-            }
+            Self::UnsupportedEvent => f.write_str("unsupported market event"),
 
             Self::Instrument(error) => {
                 write!(f, "instrument validation failed: {error}")
@@ -203,4 +161,3 @@ impl From<InstrumentError> for BookError {
 const _: () = {
     assert!(!core::mem::needs_drop::<BookError>());
 };
-

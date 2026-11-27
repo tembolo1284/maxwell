@@ -1,4 +1,3 @@
-
 //! Single-feed sequencing engine.
 //!
 //! Events are delivered through a synchronous callback.
@@ -6,11 +5,7 @@
 //! or panic. A downstream failure requires coordinated
 //! recovery before sequencing resumes.
 
-use maxwell_core::{
-    EventEnvelope,
-    FeedId,
-    SequenceNumber,
-};
+use maxwell_core::{EventEnvelope, FeedId, SequenceNumber};
 
 use crate::config::SequencerConfig;
 use crate::dedup::SequenceDisposition;
@@ -48,9 +43,7 @@ impl StreamSequencer {
         Ok(Self {
             feed,
             tracker: SequenceTracker::new(expected),
-            reorder: ReorderBuffer::new(
-                config.reorder_capacity,
-            )?,
+            reorder: ReorderBuffer::new(config.reorder_capacity)?,
             state: SequencerState::Live,
             metrics: SequencerMetrics::new(),
         })
@@ -121,10 +114,7 @@ impl StreamSequencer {
     {
         self.metrics.on_received();
 
-        let actual_feed = FeedId::new(
-            event.header.stream_id(),
-            event.header.session_id(),
-        );
+        let actual_feed = FeedId::new(event.header.stream_id(), event.header.session_id());
 
         if actual_feed != self.feed {
             self.metrics.on_rejected();
@@ -185,14 +175,14 @@ impl StreamSequencer {
             }
 
             SequenceDisposition::Future { .. } => {
-                let expected = self.tracker.expected()
+                let expected = self
+                    .tracker
+                    .expected()
                     .ok_or(SequencerError::SequenceExhausted)?;
 
                 match self.reorder.insert(expected, event) {
                     Ok(InsertOutcome::Inserted) => {
-                        self.metrics.on_out_of_order(
-                            self.reorder.len(),
-                        );
+                        self.metrics.on_out_of_order(self.reorder.len());
 
                         if self.state.is_live() {
                             self.metrics.on_gap_detected();
@@ -227,11 +217,7 @@ impl StreamSequencer {
     }
 
     #[inline]
-    fn deliver_one<F>(
-        &mut self,
-        event: EventEnvelope,
-        deliver: &mut F,
-    ) -> SequencerResult<()>
+    fn deliver_one<F>(&mut self, event: EventEnvelope, deliver: &mut F) -> SequencerResult<()>
     where
         F: FnMut(EventEnvelope),
     {
@@ -289,11 +275,10 @@ impl StreamSequencer {
     ///
     /// Buffered events are discarded. The recovery layer
     /// must replay any events still needed after this point.
-    pub fn install_checkpoint(
-        &mut self,
-        expected: SequenceNumber,
-    ) -> SequencerResult<()> {
-        let current = self.tracker.expected()
+    pub fn install_checkpoint(&mut self, expected: SequenceNumber) -> SequencerResult<()> {
+        let current = self
+            .tracker
+            .expected()
             .ok_or(SequencerError::SequenceExhausted)?;
 
         if expected < current {
@@ -315,11 +300,7 @@ impl StreamSequencer {
     /// initialize downstream state before calling this.
     ///
     /// Reusing the current feed identity is prohibited.
-    pub fn start_session(
-        &mut self,
-        feed: FeedId,
-        expected: SequenceNumber,
-    ) -> SequencerResult<()> {
+    pub fn start_session(&mut self, feed: FeedId, expected: SequenceNumber) -> SequencerResult<()> {
         if feed == self.feed {
             return Err(SequencerError::InvalidRecoverySequence);
         }
@@ -334,4 +315,3 @@ impl StreamSequencer {
         Ok(())
     }
 }
-

@@ -1,14 +1,8 @@
-
 //! Strongly typed sequencing errors.
 
 use core::fmt;
 
-use maxwell_core::{
-    EventError,
-    FeedId,
-    SequenceNumber,
-    StreamId,
-};
+use maxwell_core::{EventError, FeedId, SequenceNumber, StreamId};
 
 pub type SequencerResult<T> = Result<T, SequencerError>;
 
@@ -61,13 +55,9 @@ impl fmt::Display for SequencerError {
                 write!(f, "invalid stream capacity: {value}")
             }
 
-            Self::AllocationFailed => {
-                f.write_str("sequencer allocation failed")
-            }
+            Self::AllocationFailed => f.write_str("sequencer allocation failed"),
 
-            Self::StreamCapacityExceeded => {
-                f.write_str("stream capacity exceeded")
-            }
+            Self::StreamCapacityExceeded => f.write_str("stream capacity exceeded"),
 
             Self::UnknownStream(stream) => {
                 write!(f, "unknown stream: {stream}")
@@ -97,10 +87,7 @@ impl fmt::Display for SequencerError {
                 )
             }
 
-            Self::SequenceMismatch {
-                expected,
-                received,
-            } => {
+            Self::SequenceMismatch { expected, received } => {
                 write!(
                     f,
                     "sequence mismatch: expected {expected:?}, \
@@ -108,10 +95,7 @@ impl fmt::Display for SequencerError {
                 )
             }
 
-            Self::BufferCollision {
-                existing,
-                incoming,
-            } => {
+            Self::BufferCollision { existing, incoming } => {
                 write!(
                     f,
                     "buffer collision: existing {existing:?}, \
@@ -120,27 +104,16 @@ impl fmt::Display for SequencerError {
             }
 
             Self::ConflictingDuplicate(sequence) => {
-                write!(
-                    f,
-                    "conflicting duplicate: {sequence:?}"
-                )
+                write!(f, "conflicting duplicate: {sequence:?}")
             }
 
-            Self::InvalidGap => {
-                f.write_str("invalid sequence gap")
-            }
+            Self::InvalidGap => f.write_str("invalid sequence gap"),
 
-            Self::SequenceExhausted => {
-                f.write_str("sequence number space exhausted")
-            }
+            Self::SequenceExhausted => f.write_str("sequence number space exhausted"),
 
-            Self::RecoveryRequired => {
-                f.write_str("feed recovery required")
-            }
+            Self::RecoveryRequired => f.write_str("feed recovery required"),
 
-            Self::InvalidRecoverySequence => {
-                f.write_str("recovery would regress sequence")
-            }
+            Self::InvalidRecoverySequence => f.write_str("recovery would regress sequence"),
 
             Self::InvalidEvent(error) => {
                 write!(f, "invalid event: {error}")
@@ -175,14 +148,11 @@ mod tests {
 
     #[test]
     fn error_conversion() {
-        let error: SequencerError =
-            EventError::ZeroOrderQuantity.into();
+        let error: SequencerError = EventError::ZeroOrderQuantity.into();
 
         assert_eq!(
             error,
-            SequencerError::InvalidEvent(
-                EventError::ZeroOrderQuantity,
-            ),
+            SequencerError::InvalidEvent(EventError::ZeroOrderQuantity,),
         );
     }
 
@@ -201,4 +171,3 @@ mod tests {
         assert_send_sync::<SequencerError>();
     }
 }
-

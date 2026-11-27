@@ -1,15 +1,11 @@
-
 //! UDP unicast and multicast transports.
 
-pub mod unicast;
 pub mod multicast;
+pub mod unicast;
 
 pub use unicast::UdpUnicast;
 
-pub use multicast::{
-    MulticastConfig,
-    UdpMulticast,
-};
+pub use multicast::{MulticastConfig, UdpMulticast};
 
 use std::io::ErrorKind;
 use std::net::{SocketAddr, UdpSocket};
@@ -17,10 +13,7 @@ use std::net::{SocketAddr, UdpSocket};
 use crate::error::{TransportError, TransportResult};
 use crate::stats::TransportStats;
 
-use crate::transport::{
-    ReceivedDatagram,
-    WriteOutcome,
-};
+use crate::transport::{ReceivedDatagram, WriteOutcome};
 
 pub(crate) fn receive_datagram(
     socket: &UdpSocket,
@@ -53,10 +46,7 @@ pub(crate) fn receive_datagram(
 
                 stats.record_datagram_received(length);
 
-                return Ok(Some(ReceivedDatagram {
-                    source,
-                    length,
-                }));
+                return Ok(Some(ReceivedDatagram { source, length }));
             }
 
             Err(error) if error.kind() == ErrorKind::WouldBlock => {
@@ -112,12 +102,10 @@ pub(crate) fn send_datagram(
                 if length != payload.len() {
                     stats.record_partial_write();
 
-                    return Err(
-                        TransportError::PartialDatagramWrite {
-                            expected: payload.len(),
-                            actual: length,
-                        }
-                    );
+                    return Err(TransportError::PartialDatagramWrite {
+                        expected: payload.len(),
+                        actual: length,
+                    });
                 }
 
                 stats.record_datagram_sent(length);
@@ -143,4 +131,3 @@ pub(crate) fn send_datagram(
         }
     }
 }
-

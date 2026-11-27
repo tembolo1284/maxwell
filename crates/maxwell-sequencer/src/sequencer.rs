@@ -1,4 +1,3 @@
-
 //! Multi-stream sequencing coordinator.
 //!
 //! Stream registration and removal occur on the control
@@ -8,12 +7,7 @@
 
 use std::collections::HashMap;
 
-use maxwell_core::{
-    EventEnvelope,
-    FeedId,
-    SequenceNumber,
-    StreamId,
-};
+use maxwell_core::{EventEnvelope, FeedId, SequenceNumber, StreamId};
 
 use crate::config::SequencerConfig;
 use crate::error::{SequencerError, SequencerResult};
@@ -35,10 +29,7 @@ impl Sequencer {
             .try_reserve(config.max_streams)
             .map_err(|_| SequencerError::AllocationFailed)?;
 
-        Ok(Self {
-            config,
-            streams,
-        })
+        Ok(Self { config, streams })
     }
 
     #[must_use]
@@ -70,20 +61,14 @@ impl Sequencer {
         expected: SequenceNumber,
     ) -> SequencerResult<()> {
         if self.streams.contains_key(&stream_id) {
-            return Err(
-                SequencerError::StreamAlreadyRegistered(stream_id),
-            );
+            return Err(SequencerError::StreamAlreadyRegistered(stream_id));
         }
 
         if self.streams.len() >= self.config.max_streams {
             return Err(SequencerError::StreamCapacityExceeded);
         }
 
-        let stream = StreamSequencer::new(
-            feed,
-            expected,
-            self.config,
-        )?;
+        let stream = StreamSequencer::new(feed, expected, self.config)?;
 
         self.streams.insert(stream_id, stream);
 
@@ -92,45 +77,34 @@ impl Sequencer {
 
     #[must_use]
     #[inline]
-    pub fn stream(
-        &self,
-        stream_id: StreamId,
-    ) -> Option<&StreamSequencer> {
+    pub fn stream(&self, stream_id: StreamId) -> Option<&StreamSequencer> {
         self.streams.get(&stream_id)
     }
 
     /// Removes a stream and releases its reorder buffer.
-    pub fn remove(
-        &mut self,
-        stream_id: StreamId,
-    ) -> Option<StreamSequencer> {
+    pub fn remove(&mut self, stream_id: StreamId) -> Option<StreamSequencer> {
         self.streams.remove(&stream_id)
     }
 
     /// Routes an event to its registered stream sequencer.
     #[inline]
-    pub fn ingest<F>(
-        &mut self,
-        event: EventEnvelope,
-        deliver: F,
-    ) -> SequencerResult<IngestOutcome>
+    pub fn ingest<F>(&mut self, event: EventEnvelope, deliver: F) -> SequencerResult<IngestOutcome>
     where
         F: FnMut(EventEnvelope),
     {
         let stream_id = event.header.stream_id();
 
-        let stream = self.streams
+        let stream = self
+            .streams
             .get_mut(&stream_id)
             .ok_or(SequencerError::UnknownStream(stream_id))?;
 
         stream.ingest(event, deliver)
     }
 
-    pub fn require_recovery(
-        &mut self,
-        stream_id: StreamId,
-    ) -> SequencerResult<()> {
-        let stream = self.streams
+    pub fn require_recovery(&mut self, stream_id: StreamId) -> SequencerResult<()> {
+        let stream = self
+            .streams
             .get_mut(&stream_id)
             .ok_or(SequencerError::UnknownStream(stream_id))?;
 
@@ -144,7 +118,8 @@ impl Sequencer {
         stream_id: StreamId,
         expected: SequenceNumber,
     ) -> SequencerResult<()> {
-        let stream = self.streams
+        let stream = self
+            .streams
             .get_mut(&stream_id)
             .ok_or(SequencerError::UnknownStream(stream_id))?;
 
@@ -157,11 +132,11 @@ impl Sequencer {
         feed: FeedId,
         expected: SequenceNumber,
     ) -> SequencerResult<()> {
-        let stream = self.streams
+        let stream = self
+            .streams
             .get_mut(&stream_id)
             .ok_or(SequencerError::UnknownStream(stream_id))?;
 
         stream.start_session(feed, expected)
     }
 }
-

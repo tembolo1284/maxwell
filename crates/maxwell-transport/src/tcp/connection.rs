@@ -1,4 +1,3 @@
-
 //! Single-owner TCP connection.
 //!
 //! Connection establishment is a bounded blocking
@@ -7,22 +6,11 @@
 //! Established connections operate in nonblocking mode
 //! by default.
 
-use std::io::{
-    ErrorKind,
-    Read,
-    Write,
-};
+use std::io::{ErrorKind, Read, Write};
 
-use std::net::{
-    Shutdown,
-    SocketAddr,
-    TcpStream,
-};
+use std::net::{Shutdown, SocketAddr, TcpStream};
 
-use socket2::{
-    SockAddr,
-    SockRef,
-};
+use socket2::{SockAddr, SockRef};
 
 use crate::buffer::ReceiveBuffer;
 use crate::config::TcpConfig;
@@ -30,11 +18,7 @@ use crate::error::{TransportError, TransportResult};
 use crate::socket::{self, SocketBufferSizes};
 use crate::stats::TransportStats;
 
-use crate::transport::{
-    ReadOutcome,
-    TransportKind,
-    WriteOutcome,
-};
+use crate::transport::{ReadOutcome, TransportKind, WriteOutcome};
 
 #[derive(Debug)]
 pub struct TcpConnection {
@@ -46,34 +30,22 @@ pub struct TcpConnection {
 }
 
 impl TcpConnection {
-    pub fn connect(
-        address: SocketAddr,
-        config: TcpConfig,
-    ) -> TransportResult<Self> {
+    pub fn connect(address: SocketAddr, config: TcpConfig) -> TransportResult<Self> {
         config.validate()?;
 
         let mut initial = config.socket;
         initial.nonblocking = false;
 
-        let socket = socket::create_tcp_socket(
-            address,
-            initial,
-        )?;
+        let socket = socket::create_tcp_socket(address, initial)?;
 
-        socket.connect_timeout(
-            &SockAddr::from(address),
-            config.connect_timeout,
-        )?;
+        socket.connect_timeout(&SockAddr::from(address), config.connect_timeout)?;
 
         let stream: TcpStream = socket.into();
 
         Self::from_stream(stream, config)
     }
 
-    pub fn from_stream(
-        stream: TcpStream,
-        config: TcpConfig,
-    ) -> TransportResult<Self> {
+    pub fn from_stream(stream: TcpStream, config: TcpConfig) -> TransportResult<Self> {
         config.validate()?;
 
         stream.set_nodelay(config.no_delay)?;
@@ -83,13 +55,9 @@ impl TcpConnection {
 
             socket.set_keepalive(config.keepalive)?;
 
-            socket.set_recv_buffer_size(
-                config.socket.receive_buffer_size
-            )?;
+            socket.set_recv_buffer_size(config.socket.receive_buffer_size)?;
 
-            socket.set_send_buffer_size(
-                config.socket.send_buffer_size
-            )?;
+            socket.set_send_buffer_size(config.socket.send_buffer_size)?;
         }
 
         stream.set_nonblocking(config.socket.nonblocking)?;
@@ -150,10 +118,7 @@ impl TcpConnection {
         socket::buffer_sizes(&SockRef::from(&self.stream))
     }
 
-    pub fn set_nonblocking(
-        &mut self,
-        enabled: bool,
-    ) -> TransportResult<()> {
+    pub fn set_nonblocking(&mut self, enabled: bool) -> TransportResult<()> {
         self.stream.set_nonblocking(enabled)?;
         self.config.socket.nonblocking = enabled;
 
@@ -163,10 +128,7 @@ impl TcpConnection {
     /// Reads available bytes without assuming that a
     /// complete application message has arrived.
     #[inline]
-    pub fn read(
-        &mut self,
-        buffer: &mut [u8],
-    ) -> TransportResult<ReadOutcome> {
+    pub fn read(&mut self, buffer: &mut [u8]) -> TransportResult<ReadOutcome> {
         if self.read_closed {
             return Ok(ReadOutcome::Closed);
         }
@@ -223,10 +185,7 @@ impl TcpConnection {
     }
 
     #[inline]
-    pub fn read_into(
-        &mut self,
-        buffer: &mut ReceiveBuffer,
-    ) -> TransportResult<ReadOutcome> {
+    pub fn read_into(&mut self, buffer: &mut ReceiveBuffer) -> TransportResult<ReadOutcome> {
         let outcome = self.read(buffer.writable())?;
 
         if let ReadOutcome::Data(length) = outcome {
@@ -243,10 +202,7 @@ impl TcpConnection {
     ///
     /// The caller must retain and resume the remainder.
     #[inline]
-    pub fn write(
-        &mut self,
-        payload: &[u8],
-    ) -> TransportResult<WriteOutcome> {
+    pub fn write(&mut self, payload: &[u8]) -> TransportResult<WriteOutcome> {
         if self.write_closed {
             return Err(TransportError::ConnectionClosed);
         }
@@ -308,10 +264,7 @@ impl TcpConnection {
         }
     }
 
-    pub fn shutdown(
-        &mut self,
-        direction: Shutdown,
-    ) -> TransportResult<()> {
+    pub fn shutdown(&mut self, direction: Shutdown) -> TransportResult<()> {
         self.stream.shutdown(direction)?;
 
         match direction {
@@ -336,4 +289,3 @@ impl TcpConnection {
         self.stats.reset();
     }
 }
-

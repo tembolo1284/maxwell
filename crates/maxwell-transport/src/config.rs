@@ -1,4 +1,3 @@
-
 //! Transport configuration and resource limits.
 
 use std::time::Duration;
@@ -13,8 +12,7 @@ pub const MAX_UDP_DATAGRAM_SIZE: usize = 65_507;
 pub const DEFAULT_MAX_FRAME_SIZE: usize = 1024 * 1024;
 pub const MAX_FRAME_SIZE: usize = 64 * 1024 * 1024;
 
-pub const DEFAULT_CONNECT_TIMEOUT: Duration =
-    Duration::from_secs(5);
+pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SocketConfig {
@@ -26,16 +24,13 @@ pub struct SocketConfig {
 
 impl SocketConfig {
     pub fn validate(self) -> TransportResult<()> {
-        if self.receive_buffer_size == 0
-            || self.send_buffer_size == 0
-        {
+        if self.receive_buffer_size == 0 || self.send_buffer_size == 0 {
             return Err(TransportError::InvalidConfiguration(
                 "socket buffer sizes must be positive",
             ));
         }
 
-        if self.receive_buffer_size > i32::MAX as usize
-            || self.send_buffer_size > i32::MAX as usize
+        if self.receive_buffer_size > i32::MAX as usize || self.send_buffer_size > i32::MAX as usize
         {
             return Err(TransportError::InvalidConfiguration(
                 "socket buffer size exceeds supported range",
@@ -72,9 +67,7 @@ impl UdpConfig {
     pub fn validate(self) -> TransportResult<()> {
         self.socket.validate()?;
 
-        if self.max_datagram_size == 0
-            || self.max_datagram_size > MAX_UDP_DATAGRAM_SIZE
-        {
+        if self.max_datagram_size == 0 || self.max_datagram_size > MAX_UDP_DATAGRAM_SIZE {
             return Err(TransportError::InvalidConfiguration(
                 "invalid maximum UDP datagram size",
             ));
@@ -159,9 +152,7 @@ pub struct FramingConfig {
 
 impl FramingConfig {
     pub fn validate(self) -> TransportResult<()> {
-        if self.max_frame_size == 0
-            || self.max_frame_size > MAX_FRAME_SIZE
-        {
+        if self.max_frame_size == 0 || self.max_frame_size > MAX_FRAME_SIZE {
             return Err(TransportError::InvalidConfiguration(
                 "invalid maximum TCP frame size",
             ));
@@ -232,4 +223,3 @@ mod tests {
         assert!(config.validate().is_err());
     }
 }
-

@@ -1,4 +1,3 @@
-
 #![forbid(unsafe_code)]
 
 //! Deterministic market data order book reconstruction.
@@ -22,46 +21,32 @@
 //! maxwell-sequencer. Individual instrument books may
 //! receive nonconsecutive stream sequence numbers.
 
+pub mod book;
 pub mod config;
+pub mod depth;
 pub mod error;
-pub mod level;
 pub mod ladder;
+pub mod level;
+pub mod manager;
 pub mod order;
 pub mod registry;
-pub mod book;
-pub mod update;
 pub mod snapshot;
-pub mod manager;
-pub mod depth;
+pub mod update;
 
 pub use config::BookConfig;
 
-pub use error::{
-    BookError,
-    BookResult,
-};
+pub use error::{BookError, BookResult};
 
-pub use level::PriceLevel;
 pub use ladder::PriceLadder;
+pub use level::PriceLevel;
 pub use order::RestingOrder;
 pub use registry::OrderRegistry;
 
-pub use book::{
-    OrderBook,
-    BookState,
-};
+pub use book::{BookState, OrderBook};
 
-pub use update::{
-    BookUpdate,
-    BookUpdateKind,
-};
+pub use update::{BookUpdate, BookUpdateKind};
 
-pub use snapshot::BookSnapshot;
 pub use manager::BookManager;
+pub use snapshot::BookSnapshot;
 
-pub use depth::{
-    Level1,
-    Level2,
-    Level3,
-};
-
+pub use depth::{Level1, Level2, Level3};

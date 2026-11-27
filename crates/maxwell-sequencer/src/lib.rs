@@ -1,4 +1,3 @@
-
 #![forbid(unsafe_code)]
 
 //! Deterministic market data sequencing for Maxwell.
@@ -27,15 +26,15 @@
 //! thread scheduling, and downstream event delivery.
 
 pub mod config;
-pub mod error;
-pub mod state;
-pub mod gap;
 pub mod dedup;
-pub mod reorder;
-pub mod tracker;
-pub mod stream;
-pub mod sequencer;
+pub mod error;
+pub mod gap;
 pub mod metrics;
+pub mod reorder;
+pub mod sequencer;
+pub mod state;
+pub mod stream;
+pub mod tracker;
 
 // ============================================================
 // Configuration
@@ -47,19 +46,16 @@ pub use config::SequencerConfig;
 // Errors
 // ============================================================
 
-pub use error::{
-    SequencerError,
-    SequencerResult,
-};
+pub use error::{SequencerError, SequencerResult};
 
 // ============================================================
 // State and sequence tracking
 // ============================================================
 
+pub use dedup::SequenceDisposition;
+pub use gap::SequenceGap;
 pub use state::SequencerState;
 pub use tracker::SequenceTracker;
-pub use gap::SequenceGap;
-pub use dedup::SequenceDisposition;
 
 // ============================================================
 // Buffering
@@ -71,10 +67,7 @@ pub use reorder::ReorderBuffer;
 // Stream and sequencer
 // ============================================================
 
-pub use stream::{
-    StreamSequencer,
-    IngestOutcome,
-};
+pub use stream::{IngestOutcome, StreamSequencer};
 
 pub use sequencer::Sequencer;
 
@@ -83,4 +76,3 @@ pub use sequencer::Sequencer;
 // ============================================================
 
 pub use metrics::SequencerMetrics;
-

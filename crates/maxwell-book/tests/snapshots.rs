@@ -1,25 +1,14 @@
-
 //! Snapshot reconstruction and recovery tests.
 
 use maxwell_core::*;
 
 use maxwell_book::{
-    BookConfig,
-    BookError,
-    BookSnapshot,
-    BookState,
-    BookUpdate,
-    BookUpdateKind,
-    Level1,
-    OrderBook,
+    BookConfig, BookError, BookSnapshot, BookState, BookUpdate, BookUpdateKind, Level1, OrderBook,
     RestingOrder,
 };
 
 fn feed() -> FeedId {
-    FeedId::new(
-        StreamId::new(1),
-        SessionId::new(1),
-    )
+    FeedId::new(StreamId::new(1), SessionId::new(1))
 }
 
 fn instrument() -> Instrument {
@@ -42,12 +31,7 @@ fn config() -> BookConfig {
 }
 
 fn populated_book() -> OrderBook {
-    let mut book = OrderBook::new(
-        instrument(),
-        feed(),
-        config(),
-    )
-    .unwrap();
+    let mut book = OrderBook::new(instrument(), feed(), config()).unwrap();
 
     let orders = [
         (50, Side::Buy, 10_000, 100),
@@ -57,9 +41,7 @@ fn populated_book() -> OrderBook {
         (30, Side::Sell, 10_020, 500),
     ];
 
-    for (index, (id, side, price, quantity)) in
-        orders.into_iter().enumerate()
-    {
+    for (index, (id, side, price, quantity)) in orders.into_iter().enumerate() {
         book.apply(BookUpdate::new(
             feed(),
             InstrumentId::new(1),
@@ -88,15 +70,9 @@ fn snapshot_roundtrip() {
     assert_eq!(original.last_sequence(), restored.last_sequence());
     assert_eq!(original.feed(), restored.feed());
 
-    assert_eq!(
-        Level1::from_book(&original),
-        Level1::from_book(&restored),
-    );
+    assert_eq!(Level1::from_book(&original), Level1::from_book(&restored),);
 
-    assert_eq!(
-        BookSnapshot::capture(&restored).unwrap(),
-        snapshot,
-    );
+    assert_eq!(BookSnapshot::capture(&restored).unwrap(), snapshot,);
 
     assert!(restored.validate_consistency().is_ok());
 }
@@ -106,7 +82,8 @@ fn snapshot_ordering_is_canonical() {
     let book = populated_book();
     let snapshot = BookSnapshot::capture(&book).unwrap();
 
-    let ids: Vec<_> = snapshot.orders
+    let ids: Vec<_> = snapshot
+        .orders
         .iter()
         .map(|order| order.order_id().raw())
         .collect();
@@ -151,10 +128,7 @@ fn invalid_snapshot_does_not_replace_existing_book() {
 
     assert!(invalid.install(&mut book).is_err());
 
-    assert_eq!(
-        BookSnapshot::capture(&book).unwrap(),
-        original,
-    );
+    assert_eq!(BookSnapshot::capture(&book).unwrap(), original,);
 }
 
 #[test]
@@ -216,10 +190,7 @@ fn stale_snapshot_rejected() {
     ))
     .unwrap();
 
-    assert_eq!(
-        snapshot.install(&mut book),
-        Err(BookError::InvalidSnapshot),
-    );
+    assert_eq!(snapshot.install(&mut book), Err(BookError::InvalidSnapshot),);
 
     assert_eq!(book.last_sequence(), Some(SequenceNumber::new(6)));
 }
@@ -243,16 +214,17 @@ fn restored_book_accepts_incremental_updates() {
 
     let mut restored = snapshot.restore(config()).unwrap();
 
-    restored.apply(BookUpdate::new(
-        feed(),
-        InstrumentId::new(1),
-        SequenceNumber::new(6),
-        BookUpdateKind::Execute {
-            order_id: OrderId::new(50),
-            quantity: Quantity::new(50),
-        },
-    ))
-    .unwrap();
+    restored
+        .apply(BookUpdate::new(
+            feed(),
+            InstrumentId::new(1),
+            SequenceNumber::new(6),
+            BookUpdateKind::Execute {
+                order_id: OrderId::new(50),
+                quantity: Quantity::new(50),
+            },
+        ))
+        .unwrap();
 
     assert_eq!(
         restored.orders().get(OrderId::new(50)).unwrap().quantity(),
@@ -261,4 +233,3 @@ fn restored_book_accepts_incremental_updates() {
 
     assert!(restored.validate_consistency().is_ok());
 }
-

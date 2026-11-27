@@ -1,19 +1,15 @@
-
 //! Nonblocking TCP connection acceptance.
 
 use std::io::ErrorKind;
 
-use std::net::{
-    SocketAddr,
-    TcpListener,
-};
+use std::net::{SocketAddr, TcpListener};
 
 use socket2::SockAddr;
 
+use super::connection::TcpConnection;
 use crate::config::TcpConfig;
 use crate::error::TransportResult;
 use crate::socket;
-use super::connection::TcpConnection;
 
 #[derive(Debug)]
 pub struct TcpAcceptor {
@@ -25,16 +21,10 @@ pub struct TcpAcceptor {
 }
 
 impl TcpAcceptor {
-    pub fn bind(
-        address: SocketAddr,
-        config: TcpConfig,
-    ) -> TransportResult<Self> {
+    pub fn bind(address: SocketAddr, config: TcpConfig) -> TransportResult<Self> {
         config.validate()?;
 
-        let socket = socket::create_tcp_socket(
-            address,
-            config.socket,
-        )?;
+        let socket = socket::create_tcp_socket(address, config.socket)?;
 
         socket.bind(&SockAddr::from(address))?;
         socket.listen(config.listen_backlog)?;
@@ -76,32 +66,22 @@ impl TcpAcceptor {
     /// Attempts to accept one pending connection.
     ///
     /// None indicates that no connection is available.
-    pub fn accept(
-        &mut self,
-    ) -> TransportResult<Option<(TcpConnection, SocketAddr)>> {
+    pub fn accept(&mut self) -> TransportResult<Option<(TcpConnection, SocketAddr)>> {
         loop {
             match self.listener.accept() {
-                Ok((stream, peer)) => {
-                    match TcpConnection::from_stream(
-                        stream,
-                        self.config,
-                    ) {
-                        Ok(connection) => {
-                            self.accepted_connections =
-                                self.accepted_connections
-                                    .saturating_add(1);
+                Ok((stream, peer)) => match TcpConnection::from_stream(stream, self.config) {
+                    Ok(connection) => {
+                        self.accepted_connections = self.accepted_connections.saturating_add(1);
 
-                            return Ok(Some((connection, peer)));
-                        }
-
-                        Err(error) => {
-                            self.accept_errors =
-                                self.accept_errors.saturating_add(1);
-
-                            return Err(error);
-                        }
+                        return Ok(Some((connection, peer)));
                     }
-                }
+
+                    Err(error) => {
+                        self.accept_errors = self.accept_errors.saturating_add(1);
+
+                        return Err(error);
+                    }
+                },
 
                 Err(error) if error.kind() == ErrorKind::WouldBlock => {
                     return Ok(None);
@@ -112,8 +92,7 @@ impl TcpAcceptor {
                 }
 
                 Err(error) => {
-                    self.accept_errors =
-                        self.accept_errors.saturating_add(1);
+                    self.accept_errors = self.accept_errors.saturating_add(1);
 
                     return Err(error.into());
                 }
@@ -121,14 +100,10 @@ impl TcpAcceptor {
         }
     }
 
-    pub fn set_nonblocking(
-        &mut self,
-        enabled: bool,
-    ) -> TransportResult<()> {
+    pub fn set_nonblocking(&mut self, enabled: bool) -> TransportResult<()> {
         self.listener.set_nonblocking(enabled)?;
         self.config.socket.nonblocking = enabled;
 
         Ok(())
     }
 }
-

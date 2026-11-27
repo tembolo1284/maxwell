@@ -1,14 +1,9 @@
-
 //! Recovery, session transition, and failure tests.
 
 use maxwell_core::*;
 
 use maxwell_sequencer::{
-    IngestOutcome,
-    SequencerConfig,
-    SequencerError,
-    SequencerState,
-    StreamSequencer,
+    IngestOutcome, SequencerConfig, SequencerError, SequencerState, StreamSequencer,
 };
 
 fn seq(value: u64) -> SequenceNumber {
@@ -16,10 +11,7 @@ fn seq(value: u64) -> SequenceNumber {
 }
 
 fn feed(session: u64) -> FeedId {
-    FeedId::new(
-        StreamId::new(1),
-        SessionId::new(session),
-    )
+    FeedId::new(StreamId::new(1), SessionId::new(session))
 }
 
 fn event(session: u64, sequence: u64) -> EventEnvelope {
@@ -39,12 +31,7 @@ fn event(session: u64, sequence: u64) -> EventEnvelope {
 }
 
 fn stream(expected: u64) -> StreamSequencer {
-    StreamSequencer::new(
-        feed(1),
-        seq(expected),
-        SequencerConfig::new(8, 1),
-    )
-    .unwrap()
+    StreamSequencer::new(feed(1), seq(expected), SequencerConfig::new(8, 1)).unwrap()
 }
 
 // ============================================================
@@ -62,10 +49,7 @@ fn excessive_gap_requires_recovery() {
         Err(SequencerError::SequenceOutsideWindow { .. }),
     ));
 
-    assert_eq!(
-        sequencer.state(),
-        SequencerState::RecoveryRequired,
-    );
+    assert_eq!(sequencer.state(), SequencerState::RecoveryRequired,);
 
     assert_eq!(sequencer.expected(), Some(seq(100)));
     assert_eq!(sequencer.metrics().recovery_requests, 1);
@@ -237,9 +221,7 @@ fn conflicting_buffered_duplicate_requires_recovery() {
 
     let mut conflicting = event(1, 102);
 
-    if let MarketEvent::OrderAdded(ref mut value) =
-        conflicting.event
-    {
+    if let MarketEvent::OrderAdded(ref mut value) = conflicting.event {
         value.quantity = Quantity::new(999);
     }
 
@@ -248,10 +230,7 @@ fn conflicting_buffered_duplicate_requires_recovery() {
         Err(SequencerError::ConflictingDuplicate(seq(102))),
     );
 
-    assert_eq!(
-        sequencer.state(),
-        SequencerState::RecoveryRequired,
-    );
+    assert_eq!(sequencer.state(), SequencerState::RecoveryRequired,);
 }
 
 // ============================================================
@@ -272,11 +251,7 @@ fn downstream_panic_leaves_stream_fail_closed() {
 
     assert!(result.is_err());
 
-    assert_eq!(
-        sequencer.state(),
-        SequencerState::RecoveryRequired,
-    );
+    assert_eq!(sequencer.state(), SequencerState::RecoveryRequired,);
 
     assert_eq!(sequencer.expected(), Some(seq(100)));
 }
-

@@ -1,4 +1,3 @@
-
 //! Deterministic high-volume order book stress tests.
 //!
 //! These tests validate correctness rather than latency.
@@ -7,20 +6,10 @@ use std::collections::BTreeMap;
 
 use maxwell_core::*;
 
-use maxwell_book::{
-    BookConfig,
-    BookSnapshot,
-    BookUpdate,
-    BookUpdateKind,
-    Level1,
-    OrderBook,
-};
+use maxwell_book::{BookConfig, BookSnapshot, BookUpdate, BookUpdateKind, Level1, OrderBook};
 
 fn feed() -> FeedId {
-    FeedId::new(
-        StreamId::new(1),
-        SessionId::new(1),
-    )
+    FeedId::new(StreamId::new(1), SessionId::new(1))
 }
 
 fn instrument() -> Instrument {
@@ -39,19 +28,10 @@ fn instrument() -> Instrument {
 }
 
 fn book() -> OrderBook {
-    OrderBook::new(
-        instrument(),
-        feed(),
-        BookConfig::new(4_096, 8_192, 1),
-    )
-    .unwrap()
+    OrderBook::new(instrument(), feed(), BookConfig::new(4_096, 8_192, 1)).unwrap()
 }
 
-fn apply(
-    book: &mut OrderBook,
-    sequence: &mut u64,
-    kind: BookUpdateKind,
-) {
+fn apply(book: &mut OrderBook, sequence: &mut u64, kind: BookUpdateKind) {
     *sequence += 1;
 
     book.apply(BookUpdate::new(
@@ -140,10 +120,7 @@ fn one_million_book_updates() {
     }
 
     assert_eq!(sequence, 1_000_000);
-    assert_eq!(
-        book.last_sequence(),
-        Some(SequenceNumber::new(1_000_000)),
-    );
+    assert_eq!(book.last_sequence(), Some(SequenceNumber::new(1_000_000)),);
 
     assert!(book.validate_consistency().is_ok());
 }
@@ -160,11 +137,7 @@ fn thousands_of_simultaneous_orders() {
     let mut sequence = 0;
 
     for id in 1..=ORDERS {
-        let side = if id % 2 == 0 {
-            Side::Buy
-        } else {
-            Side::Sell
-        };
+        let side = if id % 2 == 0 { Side::Buy } else { Side::Sell };
 
         let price = match side {
             Side::Buy => 10_000 - (id % 100) as i64,
@@ -214,19 +187,14 @@ struct ReferenceOrder {
     quantity: u64,
 }
 
-fn compare_reference(
-    book: &OrderBook,
-    reference: &BTreeMap<u64, ReferenceOrder>,
-) {
+fn compare_reference(book: &OrderBook, reference: &BTreeMap<u64, ReferenceOrder>) {
     assert_eq!(book.order_count(), reference.len());
 
     let mut bids: BTreeMap<i64, (u128, u32)> = BTreeMap::new();
     let mut asks: BTreeMap<i64, (u128, u32)> = BTreeMap::new();
 
     for (&id, order) in reference {
-        let actual = book.orders()
-            .get(OrderId::new(id))
-            .unwrap();
+        let actual = book.orders().get(OrderId::new(id)).unwrap();
 
         assert_eq!(actual.side(), order.side);
         assert_eq!(actual.price().raw(), order.price);
@@ -246,28 +214,24 @@ fn compare_reference(
     assert_eq!(book.bids().active_levels(), bids.len());
     assert_eq!(book.asks().active_levels(), asks.len());
 
-    let actual_bids: Vec<_> = book.bids()
+    let actual_bids: Vec<_> = book
+        .bids()
         .iter()
         .map(|(price, level)| {
             (
                 price.raw(),
-                (
-                    u128::from(level.quantity().raw()),
-                    level.order_count(),
-                ),
+                (u128::from(level.quantity().raw()), level.order_count()),
             )
         })
         .collect();
 
-    let actual_asks: Vec<_> = book.asks()
+    let actual_asks: Vec<_> = book
+        .asks()
         .iter()
         .map(|(price, level)| {
             (
                 price.raw(),
-                (
-                    u128::from(level.quantity().raw()),
-                    level.order_count(),
-                ),
+                (u128::from(level.quantity().raw()), level.order_count()),
             )
         })
         .collect();
@@ -294,10 +258,7 @@ fn randomized_updates_against_reference_model() {
     for iteration in 0..ITERATIONS {
         let id = rng.next() % ID_SPACE + 1;
 
-        if let Some(existing) = reference
-            .get(&id)
-            .copied()
-        {
+        if let Some(existing) = reference.get(&id).copied() {
             let existing: ReferenceOrder = existing;
 
             match rng.next() % 3 {
@@ -314,8 +275,7 @@ fn randomized_updates_against_reference_model() {
                 }
 
                 1 => {
-                    let reduction =
-                        rng.next() % existing.quantity + 1;
+                    let reduction = rng.next() % existing.quantity + 1;
 
                     apply(
                         &mut book,
@@ -341,13 +301,9 @@ fn randomized_updates_against_reference_model() {
 
                 _ => {
                     let price = match existing.side {
-                        Side::Buy => {
-                            10_000 - (rng.next() % 100) as i64
-                        }
+                        Side::Buy => 10_000 - (rng.next() % 100) as i64,
 
-                        Side::Sell => {
-                            10_001 + (rng.next() % 100) as i64
-                        }
+                        Side::Sell => 10_001 + (rng.next() % 100) as i64,
                     };
 
                     let quantity = rng.next() % 1_000 + 1;
@@ -380,13 +336,9 @@ fn randomized_updates_against_reference_model() {
             };
 
             let price = match side {
-                Side::Buy => {
-                    10_000 - (rng.next() % 100) as i64
-                }
+                Side::Buy => 10_000 - (rng.next() % 100) as i64,
 
-                Side::Sell => {
-                    10_001 + (rng.next() % 100) as i64
-                }
+                Side::Sell => 10_001 + (rng.next() % 100) as i64,
             };
 
             let quantity = rng.next() % 1_000 + 1;
@@ -489,12 +441,8 @@ fn repeated_snapshot_roundtrips() {
 
         book = snapshot.restore(book.config()).unwrap();
 
-        assert_eq!(
-            BookSnapshot::capture(&book).unwrap(),
-            expected,
-        );
+        assert_eq!(BookSnapshot::capture(&book).unwrap(), expected,);
 
         assert_eq!(Level1::from_book(&book), expected_bbo);
     }
 }
-

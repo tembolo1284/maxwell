@@ -1,4 +1,3 @@
-
 //! Reusable, fixed-capacity receive buffers.
 //!
 //! Storage is allocated once during construction.
@@ -125,8 +124,7 @@ mod tests {
     fn receive_and_commit() {
         let mut buffer = ReceiveBuffer::new(1024).unwrap();
 
-        buffer.writable()[..4]
-            .copy_from_slice(&[1, 2, 3, 4]);
+        buffer.writable()[..4].copy_from_slice(&[1, 2, 3, 4]);
 
         buffer.commit(4).unwrap();
 
@@ -176,4 +174,3 @@ mod tests {
         assert_eq!(buffer.as_slice(), &[1, 2]);
     }
 }
-

@@ -1,4 +1,3 @@
-
 //! Single-owner transport statistics.
 //!
 //! Counters saturate rather than wrap.
@@ -31,72 +30,60 @@ pub struct TransportStats {
 impl TransportStats {
     #[inline]
     pub fn record_read(&mut self, bytes: usize) {
-        self.bytes_received = self.bytes_received
-            .saturating_add(bytes as u64);
+        self.bytes_received = self.bytes_received.saturating_add(bytes as u64);
 
-        self.read_operations =
-            self.read_operations.saturating_add(1);
+        self.read_operations = self.read_operations.saturating_add(1);
     }
 
     #[inline]
     pub fn record_write(&mut self, bytes: usize) {
-        self.bytes_sent = self.bytes_sent
-            .saturating_add(bytes as u64);
+        self.bytes_sent = self.bytes_sent.saturating_add(bytes as u64);
 
-        self.write_operations =
-            self.write_operations.saturating_add(1);
+        self.write_operations = self.write_operations.saturating_add(1);
     }
 
     #[inline]
     pub fn record_datagram_received(&mut self, bytes: usize) {
         self.record_read(bytes);
 
-        self.datagrams_received =
-            self.datagrams_received.saturating_add(1);
+        self.datagrams_received = self.datagrams_received.saturating_add(1);
     }
 
     #[inline]
     pub fn record_datagram_sent(&mut self, bytes: usize) {
         self.record_write(bytes);
 
-        self.datagrams_sent =
-            self.datagrams_sent.saturating_add(1);
+        self.datagrams_sent = self.datagrams_sent.saturating_add(1);
     }
 
     #[inline]
     pub fn record_read_would_block(&mut self) {
-        self.read_would_block =
-            self.read_would_block.saturating_add(1);
+        self.read_would_block = self.read_would_block.saturating_add(1);
     }
 
     #[inline]
     pub fn record_write_would_block(&mut self) {
-        self.write_would_block =
-            self.write_would_block.saturating_add(1);
+        self.write_would_block = self.write_would_block.saturating_add(1);
     }
 
     #[inline]
     pub fn record_interrupted(&mut self) {
-        self.interrupted_operations =
-            self.interrupted_operations.saturating_add(1);
+        self.interrupted_operations = self.interrupted_operations.saturating_add(1);
     }
 
     #[inline]
     pub fn record_rejected_datagram(&mut self) {
-        self.rejected_datagrams =
-            self.rejected_datagrams.saturating_add(1);
+        self.rejected_datagrams = self.rejected_datagrams.saturating_add(1);
     }
 
     #[inline]
     pub fn record_partial_write(&mut self) {
-        self.partial_writes =
-            self.partial_writes.saturating_add(1);
+        self.partial_writes = self.partial_writes.saturating_add(1);
     }
 
     #[inline]
     pub fn record_connection_closed(&mut self) {
-        self.connection_closures =
-            self.connection_closures.saturating_add(1);
+        self.connection_closures = self.connection_closures.saturating_add(1);
     }
 
     #[inline]
@@ -150,4 +137,3 @@ mod tests {
         assert_eq!(stats, TransportStats::default());
     }
 }
-

@@ -1,25 +1,13 @@
-
 //! UDP loopback integration tests.
 
-use std::net::{
-    Ipv4Addr,
-    SocketAddr,
-    UdpSocket,
-};
+use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
 
 use std::thread;
 use std::time::{Duration, Instant};
 
 use maxwell_transport::{
-    DatagramReceiver,
-    DatagramSender,
-    MulticastConfig,
-    ReceiveBuffer,
-    TransportError,
-    UdpConfig,
-    UdpMulticast,
-    UdpUnicast,
-    WriteOutcome,
+    DatagramReceiver, DatagramSender, MulticastConfig, ReceiveBuffer, TransportError, UdpConfig,
+    UdpMulticast, UdpUnicast, WriteOutcome,
 };
 
 const TIMEOUT: Duration = Duration::from_secs(5);
@@ -35,23 +23,15 @@ fn config() -> UdpConfig {
     }
 }
 
-fn receive(
-    receiver: &mut UdpUnicast,
-    buffer: &mut ReceiveBuffer,
-) -> usize {
+fn receive(receiver: &mut UdpUnicast, buffer: &mut ReceiveBuffer) -> usize {
     let deadline = Instant::now() + TIMEOUT;
 
     loop {
-        if let Some(datagram) =
-            receiver.receive_into(buffer).unwrap()
-        {
+        if let Some(datagram) = receiver.receive_into(buffer).unwrap() {
             return datagram.length;
         }
 
-        assert!(
-            Instant::now() < deadline,
-            "UDP receive timed out",
-        );
+        assert!(Instant::now() < deadline, "UDP receive timed out",);
 
         thread::yield_now();
     }
@@ -59,11 +39,9 @@ fn receive(
 
 #[test]
 fn unicast_roundtrip() {
-    let mut receiver =
-        UdpUnicast::bind(address(), config()).unwrap();
+    let mut receiver = UdpUnicast::bind(address(), config()).unwrap();
 
-    let mut sender =
-        UdpUnicast::bind(address(), config()).unwrap();
+    let mut sender = UdpUnicast::bind(address(), config()).unwrap();
 
     let destination = receiver.local_addr().unwrap();
 
@@ -76,10 +54,7 @@ fn unicast_roundtrip() {
 
     let mut buffer = receiver.create_receive_buffer().unwrap();
 
-    assert_eq!(
-        receive(&mut receiver, &mut buffer),
-        payload.len(),
-    );
+    assert_eq!(receive(&mut receiver, &mut buffer), payload.len(),);
 
     assert_eq!(buffer.as_slice(), payload);
     assert_eq!(receiver.stats().datagrams_received, 1);
@@ -88,8 +63,7 @@ fn unicast_roundtrip() {
 
 #[test]
 fn empty_nonblocking_socket() {
-    let mut receiver =
-        UdpUnicast::bind(address(), config()).unwrap();
+    let mut receiver = UdpUnicast::bind(address(), config()).unwrap();
 
     let mut buffer = receiver.create_receive_buffer().unwrap();
 
@@ -99,11 +73,9 @@ fn empty_nonblocking_socket() {
 
 #[test]
 fn datagram_boundaries_preserved() {
-    let mut receiver =
-        UdpUnicast::bind(address(), config()).unwrap();
+    let mut receiver = UdpUnicast::bind(address(), config()).unwrap();
 
-    let mut sender =
-        UdpUnicast::bind(address(), config()).unwrap();
+    let mut sender = UdpUnicast::bind(address(), config()).unwrap();
 
     let destination = receiver.local_addr().unwrap();
 
@@ -122,19 +94,14 @@ fn datagram_boundaries_preserved() {
     // UDP does not guarantee delivery order.
     received.sort_unstable();
 
-    assert_eq!(
-        received,
-        vec![b"first".to_vec(), b"second".to_vec()],
-    );
+    assert_eq!(received, vec![b"first".to_vec(), b"second".to_vec()],);
 }
 
 #[test]
 fn maximum_size_datagram() {
-    let mut receiver =
-        UdpUnicast::bind(address(), config()).unwrap();
+    let mut receiver = UdpUnicast::bind(address(), config()).unwrap();
 
-    let mut sender =
-        UdpUnicast::bind(address(), config()).unwrap();
+    let mut sender = UdpUnicast::bind(address(), config()).unwrap();
 
     let payload = vec![42; 1024];
 
@@ -150,16 +117,11 @@ fn maximum_size_datagram() {
 
 #[test]
 fn oversized_outgoing_datagram_rejected() {
-    let mut sender =
-        UdpUnicast::bind(address(), config()).unwrap();
+    let mut sender = UdpUnicast::bind(address(), config()).unwrap();
 
-    let receiver =
-        UdpUnicast::bind(address(), config()).unwrap();
+    let receiver = UdpUnicast::bind(address(), config()).unwrap();
 
-    let result = sender.send_to(
-        &[0; 1025],
-        receiver.local_addr().unwrap(),
-    );
+    let result = sender.send_to(&[0; 1025], receiver.local_addr().unwrap());
 
     assert!(matches!(
         result,
@@ -169,17 +131,14 @@ fn oversized_outgoing_datagram_rejected() {
 
 #[test]
 fn oversized_incoming_datagram_rejected() {
-    let mut receiver =
-        UdpUnicast::bind(address(), config()).unwrap();
+    let mut receiver = UdpUnicast::bind(address(), config()).unwrap();
 
     // Bypass Maxwell's outgoing size validation.
     let sender = UdpSocket::bind(address()).unwrap();
 
-    sender.send_to(
-        &[42; 2048],
-        receiver.local_addr().unwrap(),
-    )
-    .unwrap();
+    sender
+        .send_to(&[42; 2048], receiver.local_addr().unwrap())
+        .unwrap();
 
     let mut buffer = receiver.create_receive_buffer().unwrap();
 
@@ -208,8 +167,7 @@ fn oversized_incoming_datagram_rejected() {
 
 #[test]
 fn receive_buffer_requires_guard_byte() {
-    let mut receiver =
-        UdpUnicast::bind(address(), config()).unwrap();
+    let mut receiver = UdpUnicast::bind(address(), config()).unwrap();
 
     let mut buffer = [0; 1024];
 
@@ -224,15 +182,11 @@ fn receive_buffer_requires_guard_byte() {
 
 #[test]
 fn zero_length_udp_datagram() {
-    let mut receiver =
-        UdpUnicast::bind(address(), config()).unwrap();
+    let mut receiver = UdpUnicast::bind(address(), config()).unwrap();
 
-    let mut sender =
-        UdpUnicast::bind(address(), config()).unwrap();
+    let mut sender = UdpUnicast::bind(address(), config()).unwrap();
 
-    sender
-        .send_to(&[], receiver.local_addr().unwrap())
-        .unwrap();
+    sender.send_to(&[], receiver.local_addr().unwrap()).unwrap();
 
     let mut buffer = receiver.create_receive_buffer().unwrap();
 
@@ -242,8 +196,7 @@ fn zero_length_udp_datagram() {
 
 #[test]
 fn actual_socket_buffer_sizes_available() {
-    let socket =
-        UdpUnicast::bind(address(), config()).unwrap();
+    let socket = UdpUnicast::bind(address(), config()).unwrap();
 
     let sizes = socket.buffer_sizes().unwrap();
 
@@ -275,11 +228,9 @@ fn multicast_loopback() {
         ..MulticastConfig::default()
     };
 
-    let mut receiver =
-        UdpMulticast::subscribe(config).unwrap();
+    let mut receiver = UdpMulticast::subscribe(config).unwrap();
 
-    let mut sender =
-        UdpMulticast::publisher(config).unwrap();
+    let mut sender = UdpMulticast::publisher(config).unwrap();
 
     let mut buffer = receiver.create_receive_buffer().unwrap();
 
@@ -292,10 +243,7 @@ fn multicast_loopback() {
             break;
         }
 
-        assert!(
-            Instant::now() < deadline,
-            "multicast receive timed out",
-        );
+        assert!(Instant::now() < deadline, "multicast receive timed out",);
 
         thread::yield_now();
     }
@@ -306,4 +254,3 @@ fn multicast_loopback() {
 
     assert!(!receiver.is_joined());
 }
-

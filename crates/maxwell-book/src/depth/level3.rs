@@ -1,15 +1,10 @@
-
 //! Level 3 market data: individual resting orders.
 //!
 //! Unsorted iteration requires no additional allocation.
 //! Canonical sorted output is available for diagnostics
 //! and snapshot generation.
 
-use maxwell_core::{
-    OrderId,
-    Price,
-    Side,
-};
+use maxwell_core::{OrderId, Price, Side};
 
 use crate::book::OrderBook;
 use crate::error::{BookError, BookResult};
@@ -59,14 +54,9 @@ impl<'a> Level3<'a> {
     /// Iterates orders at one side and price.
     ///
     /// O(registry capacity) in the initial implementation.
-    pub fn orders_at(
-        &self,
-        side: Side,
-        price: Price,
-    ) -> impl Iterator<Item = RestingOrder> + '_ {
-        self.iter().filter(move |order| {
-            order.side() == side && order.price() == price
-        })
+    pub fn orders_at(&self, side: Side, price: Price) -> impl Iterator<Item = RestingOrder> + '_ {
+        self.iter()
+            .filter(move |order| order.side() == side && order.price() == price)
     }
 
     /// Produces deterministic price-priority ordered output.
@@ -77,19 +67,14 @@ impl<'a> Level3<'a> {
     /// This is not a guarantee of actual exchange queue
     /// position unless the source feed supplies sufficient
     /// priority information.
-    pub fn sorted_side(
-        &self,
-        side: Side,
-    ) -> BookResult<Vec<RestingOrder>> {
+    pub fn sorted_side(&self, side: Side) -> BookResult<Vec<RestingOrder>> {
         let mut orders = Vec::new();
 
         orders
             .try_reserve_exact(self.len())
             .map_err(|_| BookError::AllocationFailed)?;
 
-        orders.extend(
-            self.iter().filter(|order| order.side() == side)
-        );
+        orders.extend(self.iter().filter(|order| order.side() == side));
 
         orders.sort_unstable_by(|left, right| {
             let price_order = match side {
@@ -98,25 +83,17 @@ impl<'a> Level3<'a> {
             };
 
             price_order
-                .then_with(|| {
-                    left.priority_sequence()
-                        .cmp(&right.priority_sequence())
-                })
-                .then_with(|| {
-                    left.order_id().cmp(&right.order_id())
-                })
+                .then_with(|| left.priority_sequence().cmp(&right.priority_sequence()))
+                .then_with(|| left.order_id().cmp(&right.order_id()))
         });
 
         Ok(orders)
     }
 
     /// Produces a deterministic list of orders at a price.
-    pub fn sorted_orders_at(
-        &self,
-        side: Side,
-        price: Price,
-    ) -> BookResult<Vec<RestingOrder>> {
-        let count = self.book
+    pub fn sorted_orders_at(&self, side: Side, price: Price) -> BookResult<Vec<RestingOrder>> {
+        let count = self
+            .book
             .ladder(side)
             .level(price)
             .map_or(0, |level| level.order_count() as usize);
@@ -129,14 +106,8 @@ impl<'a> Level3<'a> {
 
         orders.extend(self.orders_at(side, price));
 
-        orders.sort_unstable_by_key(|order| {
-            (
-                order.priority_sequence(),
-                order.order_id(),
-            )
-        });
+        orders.sort_unstable_by_key(|order| (order.priority_sequence(), order.order_id()));
 
         Ok(orders)
     }
 }
-

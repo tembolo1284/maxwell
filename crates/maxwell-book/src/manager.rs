@@ -1,4 +1,3 @@
-
 //! Multi-instrument order book coordinator.
 //!
 //! Each instrument owns an independent order book.
@@ -6,11 +5,7 @@
 
 use std::collections::HashMap;
 
-use maxwell_core::{
-    FeedId,
-    Instrument,
-    InstrumentId,
-};
+use maxwell_core::{FeedId, Instrument, InstrumentId};
 
 use crate::book::OrderBook;
 use crate::config::BookConfig;
@@ -34,10 +29,7 @@ impl BookManager {
             .try_reserve(config.max_instruments)
             .map_err(|_| BookError::AllocationFailed)?;
 
-        Ok(Self {
-            config,
-            books,
-        })
+        Ok(Self { config, books })
     }
 
     #[must_use]
@@ -61,11 +53,7 @@ impl BookManager {
     /// Registers an instrument with an initially empty book.
     ///
     /// Registration belongs to the control path.
-    pub fn register(
-        &mut self,
-        instrument: Instrument,
-        feed: FeedId,
-    ) -> BookResult<()> {
+    pub fn register(&mut self, instrument: Instrument, feed: FeedId) -> BookResult<()> {
         let id = instrument.id();
 
         if self.books.contains_key(&id) {
@@ -76,11 +64,7 @@ impl BookManager {
             return Err(BookError::InstrumentCapacityExceeded);
         }
 
-        let book = OrderBook::new(
-            instrument,
-            feed,
-            self.config,
-        )?;
+        let book = OrderBook::new(instrument, feed, self.config)?;
 
         self.books.insert(id, book);
 
@@ -100,18 +84,17 @@ impl BookManager {
     /// Routes a sequenced update to its instrument.
     #[inline]
     pub fn apply(&mut self, update: BookUpdate) -> BookResult<()> {
-        let book = self.books
+        let book = self
+            .books
             .get_mut(&update.instrument_id)
             .ok_or(BookError::UnknownInstrument(update.instrument_id))?;
 
         book.apply(update)
     }
 
-    pub fn require_recovery(
-        &mut self,
-        id: InstrumentId,
-    ) -> BookResult<()> {
-        let book = self.books
+    pub fn require_recovery(&mut self, id: InstrumentId) -> BookResult<()> {
+        let book = self
+            .books
             .get_mut(&id)
             .ok_or(BookError::UnknownInstrument(id))?;
 
@@ -132,24 +115,20 @@ impl BookManager {
         }
     }
 
-    pub fn capture_snapshot(
-        &self,
-        id: InstrumentId,
-    ) -> BookResult<BookSnapshot> {
-        let book = self.books
+    pub fn capture_snapshot(&self, id: InstrumentId) -> BookResult<BookSnapshot> {
+        let book = self
+            .books
             .get(&id)
             .ok_or(BookError::UnknownInstrument(id))?;
 
         BookSnapshot::capture(book)
     }
 
-    pub fn install_snapshot(
-        &mut self,
-        snapshot: &BookSnapshot,
-    ) -> BookResult<()> {
+    pub fn install_snapshot(&mut self, snapshot: &BookSnapshot) -> BookResult<()> {
         let id = snapshot.instrument.id();
 
-        let book = self.books
+        let book = self
+            .books
             .get_mut(&id)
             .ok_or(BookError::UnknownInstrument(id))?;
 
@@ -160,19 +139,15 @@ impl BookManager {
     ///
     /// The caller must authenticate the new session and
     /// coordinate the transition with the sequencer.
-    pub fn install_new_session(
-        &mut self,
-        snapshot: &BookSnapshot,
-    ) -> BookResult<()> {
+    pub fn install_new_session(&mut self, snapshot: &BookSnapshot) -> BookResult<()> {
         let id = snapshot.instrument.id();
 
-        let current = self.books
+        let current = self
+            .books
             .get_mut(&id)
             .ok_or(BookError::UnknownInstrument(id))?;
 
-        if snapshot.instrument != *current.instrument()
-            || snapshot.feed == current.feed()
-        {
+        if snapshot.instrument != *current.instrument() || snapshot.feed == current.feed() {
             return Err(BookError::InvalidSnapshot);
         }
 
@@ -187,4 +162,3 @@ impl BookManager {
         self.books.values()
     }
 }
-

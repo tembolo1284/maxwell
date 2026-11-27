@@ -1,4 +1,3 @@
-
 //! Stateless sequence classification.
 //!
 //! Previously delivered sequence numbers are classified
@@ -20,10 +19,7 @@ pub enum SequenceDisposition {
 impl SequenceDisposition {
     #[must_use]
     #[inline]
-    pub const fn classify(
-        expected: Option<SequenceNumber>,
-        received: SequenceNumber,
-    ) -> Self {
+    pub const fn classify(expected: Option<SequenceNumber>, received: SequenceNumber) -> Self {
         let Some(expected) = expected else {
             return Self::Exhausted;
         };
@@ -72,10 +68,7 @@ mod tests {
     #[test]
     fn expected_sequence() {
         assert_eq!(
-            SequenceDisposition::classify(
-                Some(seq(100)),
-                seq(100),
-            ),
+            SequenceDisposition::classify(Some(seq(100)), seq(100),),
             SequenceDisposition::Expected,
         );
     }
@@ -83,10 +76,7 @@ mod tests {
     #[test]
     fn previously_delivered_sequence() {
         assert_eq!(
-            SequenceDisposition::classify(
-                Some(seq(100)),
-                seq(99),
-            ),
+            SequenceDisposition::classify(Some(seq(100)), seq(99),),
             SequenceDisposition::PreviouslyDelivered,
         );
     }
@@ -94,10 +84,7 @@ mod tests {
     #[test]
     fn future_sequence() {
         assert_eq!(
-            SequenceDisposition::classify(
-                Some(seq(100)),
-                seq(105),
-            ),
+            SequenceDisposition::classify(Some(seq(100)), seq(105),),
             SequenceDisposition::Future { distance: 5 },
         );
     }
@@ -113,14 +100,8 @@ mod tests {
     #[test]
     fn maximum_distance() {
         assert_eq!(
-            SequenceDisposition::classify(
-                Some(seq(0)),
-                seq(u64::MAX),
-            ),
-            SequenceDisposition::Future {
-                distance: u64::MAX,
-            },
+            SequenceDisposition::classify(Some(seq(0)), seq(u64::MAX),),
+            SequenceDisposition::Future { distance: u64::MAX },
         );
     }
 }
-

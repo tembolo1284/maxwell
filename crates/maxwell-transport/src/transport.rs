@@ -1,4 +1,3 @@
-
 //! Common transport interfaces and I/O outcomes.
 
 use std::net::SocketAddr;
@@ -48,10 +47,7 @@ pub trait DatagramReceiver {
     ///
     /// Implementations must reject oversized datagrams
     /// rather than expose truncated data to the decoder.
-    fn receive(
-        &mut self,
-        buffer: &mut [u8],
-    ) -> TransportResult<Option<ReceivedDatagram>>;
+    fn receive(&mut self, buffer: &mut [u8]) -> TransportResult<Option<ReceivedDatagram>>;
 
     fn local_addr(&self) -> TransportResult<SocketAddr>;
 }
@@ -60,10 +56,6 @@ pub trait DatagramSender {
     /// Sends one complete datagram.
     ///
     /// Datagram writes must not be resumed from an offset.
-    fn send_to(
-        &mut self,
-        payload: &[u8],
-        destination: SocketAddr,
-    ) -> TransportResult<WriteOutcome>;
+    fn send_to(&mut self, payload: &[u8], destination: SocketAddr)
+    -> TransportResult<WriteOutcome>;
 }
-

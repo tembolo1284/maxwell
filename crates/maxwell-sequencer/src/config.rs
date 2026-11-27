@@ -1,4 +1,3 @@
-
 //! Sequencer configuration and resource limits.
 
 use crate::error::{SequencerError, SequencerResult};
@@ -20,10 +19,7 @@ pub struct SequencerConfig {
 
 impl SequencerConfig {
     #[must_use]
-    pub const fn new(
-        reorder_capacity: usize,
-        max_streams: usize,
-    ) -> Self {
+    pub const fn new(reorder_capacity: usize, max_streams: usize) -> Self {
         Self {
             reorder_capacity,
             max_streams,
@@ -40,21 +36,13 @@ impl SequencerConfig {
             || self.reorder_capacity > MAX_REORDER_CAPACITY
             || !self.reorder_capacity.is_power_of_two()
         {
-            return Err(
-                SequencerError::InvalidReorderCapacity(
-                    self.reorder_capacity,
-                ),
-            );
+            return Err(SequencerError::InvalidReorderCapacity(
+                self.reorder_capacity,
+            ));
         }
 
-        if self.max_streams == 0
-            || self.max_streams > MAX_STREAMS
-        {
-            return Err(
-                SequencerError::InvalidStreamCapacity(
-                    self.max_streams,
-                ),
-            );
+        if self.max_streams == 0 || self.max_streams > MAX_STREAMS {
+            return Err(SequencerError::InvalidStreamCapacity(self.max_streams));
         }
 
         Ok(())
@@ -92,12 +80,9 @@ mod tests {
     #[test]
     fn excessive_capacity_rejected() {
         assert!(
-            SequencerConfig::new(
-                MAX_REORDER_CAPACITY * 2,
-                1,
-            )
-            .validate()
-            .is_err()
+            SequencerConfig::new(MAX_REORDER_CAPACITY * 2, 1,)
+                .validate()
+                .is_err()
         );
     }
 
@@ -111,4 +96,3 @@ mod tests {
         assert!(SequencerConfig::new(1, 1).validate().is_ok());
     }
 }
-

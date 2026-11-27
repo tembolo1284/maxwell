@@ -1,4 +1,3 @@
-
 //! Order book configuration and resource limits.
 
 use crate::error::{BookError, BookResult};
@@ -25,11 +24,7 @@ pub struct BookConfig {
 
 impl BookConfig {
     #[must_use]
-    pub const fn new(
-        max_price_levels: usize,
-        max_orders: usize,
-        max_instruments: usize,
-    ) -> Self {
+    pub const fn new(max_price_levels: usize, max_orders: usize, max_instruments: usize) -> Self {
         Self {
             max_price_levels,
             max_orders,
@@ -38,28 +33,16 @@ impl BookConfig {
     }
 
     pub const fn validate(self) -> BookResult<()> {
-        if self.max_price_levels == 0
-            || self.max_price_levels > MAX_PRICE_LEVELS
-        {
-            return Err(BookError::InvalidPriceLevelCapacity(
-                self.max_price_levels,
-            ));
+        if self.max_price_levels == 0 || self.max_price_levels > MAX_PRICE_LEVELS {
+            return Err(BookError::InvalidPriceLevelCapacity(self.max_price_levels));
         }
 
-        if self.max_orders == 0
-            || self.max_orders > MAX_ORDERS
-        {
-            return Err(BookError::InvalidOrderCapacity(
-                self.max_orders,
-            ));
+        if self.max_orders == 0 || self.max_orders > MAX_ORDERS {
+            return Err(BookError::InvalidOrderCapacity(self.max_orders));
         }
 
-        if self.max_instruments == 0
-            || self.max_instruments > MAX_INSTRUMENTS
-        {
-            return Err(BookError::InvalidInstrumentCapacity(
-                self.max_instruments,
-            ));
+        if self.max_instruments == 0 || self.max_instruments > MAX_INSTRUMENTS {
+            return Err(BookError::InvalidInstrumentCapacity(self.max_instruments));
         }
 
         Ok(())
@@ -109,4 +92,3 @@ mod tests {
         );
     }
 }
-

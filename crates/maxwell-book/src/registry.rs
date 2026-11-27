@@ -1,4 +1,3 @@
-
 //! Bounded resting order registry.
 //!
 //! Order identifiers are scoped to the owning instrument
@@ -33,10 +32,7 @@ impl OrderRegistry {
             .try_reserve(max_orders)
             .map_err(|_| BookError::AllocationFailed)?;
 
-        Ok(Self {
-            orders,
-            max_orders,
-        })
+        Ok(Self { orders, max_orders })
     }
 
     #[must_use]
@@ -77,10 +73,7 @@ impl OrderRegistry {
 
     /// Validates insertion without changing the registry.
     #[inline]
-    pub(crate) fn validate_insert(
-        &self,
-        order_id: OrderId,
-    ) -> BookResult<()> {
+    pub(crate) fn validate_insert(&self, order_id: OrderId) -> BookResult<()> {
         if self.contains(order_id) {
             return Err(BookError::DuplicateOrder(order_id));
         }
@@ -93,10 +86,7 @@ impl OrderRegistry {
     }
 
     #[inline]
-    pub(crate) fn insert(
-        &mut self,
-        order: RestingOrder,
-    ) -> BookResult<()> {
+    pub(crate) fn insert(&mut self, order: RestingOrder) -> BookResult<()> {
         self.validate_insert(order.order_id())?;
 
         // HashMap capacity can decrease as entries are
@@ -112,21 +102,16 @@ impl OrderRegistry {
     }
 
     #[inline]
-    pub(crate) fn remove(
-        &mut self,
-        order_id: OrderId,
-    ) -> BookResult<RestingOrder> {
+    pub(crate) fn remove(&mut self, order_id: OrderId) -> BookResult<RestingOrder> {
         self.orders
             .remove(&order_id)
             .ok_or(BookError::UnknownOrder(order_id))
     }
 
     #[inline]
-    pub(crate) fn update(
-        &mut self,
-        order: RestingOrder,
-    ) -> BookResult<()> {
-        let current = self.orders
+    pub(crate) fn update(&mut self, order: RestingOrder) -> BookResult<()> {
+        let current = self
+            .orders
             .get_mut(&order.order_id())
             .ok_or(BookError::UnknownOrder(order.order_id()))?;
 
@@ -152,12 +137,7 @@ impl OrderRegistry {
 mod tests {
     use super::*;
 
-    use maxwell_core::{
-        Price,
-        Quantity,
-        SequenceNumber,
-        Side,
-    };
+    use maxwell_core::{Price, Quantity, SequenceNumber, Side};
 
     fn order(id: u64) -> RestingOrder {
         RestingOrder::new(
@@ -209,10 +189,7 @@ mod tests {
 
         registry.insert(order(1)).unwrap();
 
-        assert_eq!(
-            registry.remove(OrderId::new(1)),
-            Ok(order(1)),
-        );
+        assert_eq!(registry.remove(OrderId::new(1)), Ok(order(1)),);
 
         assert!(registry.is_empty());
     }
@@ -223,9 +200,7 @@ mod tests {
 
         registry.insert(order(1)).unwrap();
 
-        let reduced = order(1)
-            .reduced(Quantity::new(200))
-            .unwrap();
+        let reduced = order(1).reduced(Quantity::new(200)).unwrap();
 
         registry.update(reduced).unwrap();
 
@@ -246,4 +221,3 @@ mod tests {
         assert_eq!(registry.capacity(), 16);
     }
 }
-

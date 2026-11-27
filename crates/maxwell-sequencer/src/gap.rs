@@ -19,10 +19,7 @@ impl SequenceGap {
     ///
     /// Returns InvalidGap when start exceeds end.
     #[inline]
-    pub const fn new(
-        start: SequenceNumber,
-        end: SequenceNumber,
-    ) -> SequencerResult<Self> {
+    pub const fn new(start: SequenceNumber, end: SequenceNumber) -> SequencerResult<Self> {
         if start.raw() > end.raw() {
             return Err(SequencerError::InvalidGap);
         }
@@ -34,10 +31,7 @@ impl SequenceGap {
     /// future sequence number.
     #[must_use]
     #[inline]
-    pub const fn between(
-        expected: SequenceNumber,
-        received: SequenceNumber,
-    ) -> Option<Self> {
+    pub const fn between(expected: SequenceNumber, received: SequenceNumber) -> Option<Self> {
         if received.raw() <= expected.raw() {
             return None;
         }
@@ -65,16 +59,13 @@ impl SequenceGap {
     #[must_use]
     #[inline]
     pub const fn missing_count(self) -> u128 {
-        self.end.raw() as u128
-            - self.start.raw() as u128
-            + 1
+        self.end.raw() as u128 - self.start.raw() as u128 + 1
     }
 
     #[must_use]
     #[inline]
     pub const fn contains(self, sequence: SequenceNumber) -> bool {
-        sequence.raw() >= self.start.raw()
-            && sequence.raw() <= self.end.raw()
+        sequence.raw() >= self.start.raw() && sequence.raw() <= self.end.raw()
     }
 
     #[must_use]
@@ -86,8 +77,7 @@ impl SequenceGap {
     #[must_use]
     #[inline]
     pub const fn overlaps(self, other: Self) -> bool {
-        self.start.raw() <= other.end.raw()
-            && other.start.raw() <= self.end.raw()
+        self.start.raw() <= other.end.raw() && other.start.raw() <= self.end.raw()
     }
 
     /// Merges overlapping or adjacent gaps.
@@ -100,11 +90,8 @@ impl SequenceGap {
     #[must_use]
     #[inline]
     pub const fn merge(self, other: Self) -> Option<Self> {
-        let adjacent =
-            (self.end.raw() != u64::MAX
-                && self.end.raw() + 1 == other.start.raw())
-            || (other.end.raw() != u64::MAX
-                && other.end.raw() + 1 == self.start.raw());
+        let adjacent = (self.end.raw() != u64::MAX && self.end.raw() + 1 == other.start.raw())
+            || (other.end.raw() != u64::MAX && other.end.raw() + 1 == self.start.raw());
 
         if !self.overlaps(other) && !adjacent {
             return None;
@@ -167,11 +154,7 @@ mod tests {
 
     #[test]
     fn full_sequence_space() {
-        let gap = SequenceGap::new(
-            seq(0),
-            seq(u64::MAX),
-        )
-        .unwrap();
+        let gap = SequenceGap::new(seq(0), seq(u64::MAX)).unwrap();
 
         assert_eq!(gap.missing_count(), 1_u128 << 64);
     }
@@ -181,10 +164,7 @@ mod tests {
         let first = SequenceGap::new(seq(1), seq(5)).unwrap();
         let second = SequenceGap::new(seq(6), seq(10)).unwrap();
 
-        assert_eq!(
-            first.merge(second).unwrap().missing_count(),
-            10,
-        );
+        assert_eq!(first.merge(second).unwrap().missing_count(), 10,);
     }
 
     #[test]
@@ -197,17 +177,9 @@ mod tests {
 
     #[test]
     fn adjacent_gaps_merge_at_max() {
-        let first = SequenceGap::new(
-            seq(u64::MAX - 5),
-            seq(u64::MAX - 1),
-        )
-        .unwrap();
+        let first = SequenceGap::new(seq(u64::MAX - 5), seq(u64::MAX - 1)).unwrap();
 
-        let second = SequenceGap::new(
-            seq(u64::MAX),
-            seq(u64::MAX),
-        )
-        .unwrap();
+        let second = SequenceGap::new(seq(u64::MAX), seq(u64::MAX)).unwrap();
 
         let merged = first.merge(second).unwrap();
 
@@ -218,11 +190,7 @@ mod tests {
 
     #[test]
     fn gaps_do_not_wrap_around() {
-        let first = SequenceGap::new(
-            seq(u64::MAX - 5),
-            seq(u64::MAX),
-        )
-        .unwrap();
+        let first = SequenceGap::new(seq(u64::MAX - 5), seq(u64::MAX)).unwrap();
 
         let second = SequenceGap::new(seq(0), seq(5)).unwrap();
 

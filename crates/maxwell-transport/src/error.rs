@@ -1,4 +1,3 @@
-
 //! Transport-level error representation.
 
 use core::fmt;
@@ -18,20 +17,11 @@ pub enum TransportError {
 
     AddressFamilyMismatch,
 
-    BufferTooSmall {
-        required: usize,
-        available: usize,
-    },
+    BufferTooSmall { required: usize, available: usize },
 
-    DatagramTooLarge {
-        actual: usize,
-        maximum: usize,
-    },
+    DatagramTooLarge { actual: usize, maximum: usize },
 
-    FrameTooLarge {
-        actual: usize,
-        maximum: usize,
-    },
+    FrameTooLarge { actual: usize, maximum: usize },
 
     EmptyFrame,
 
@@ -45,10 +35,7 @@ pub enum TransportError {
 
     ConnectionClosed,
 
-    PartialDatagramWrite {
-        expected: usize,
-        actual: usize,
-    },
+    PartialDatagramWrite { expected: usize, actual: usize },
 }
 
 impl TransportError {
@@ -95,17 +82,11 @@ impl fmt::Display for TransportError {
                 write!(f, "invalid transport configuration: {message}")
             }
 
-            Self::AllocationFailed => {
-                f.write_str("transport buffer allocation failed")
-            }
+            Self::AllocationFailed => f.write_str("transport buffer allocation failed"),
 
-            Self::InvalidMulticastAddress => {
-                f.write_str("invalid multicast group address")
-            }
+            Self::InvalidMulticastAddress => f.write_str("invalid multicast group address"),
 
-            Self::AddressFamilyMismatch => {
-                f.write_str("socket address family mismatch")
-            }
+            Self::AddressFamilyMismatch => f.write_str("socket address family mismatch"),
 
             Self::BufferTooSmall {
                 required,
@@ -134,34 +115,19 @@ impl fmt::Display for TransportError {
                 )
             }
 
-            Self::EmptyFrame => {
-                f.write_str("empty TCP frame is not permitted")
-            }
+            Self::EmptyFrame => f.write_str("empty TCP frame is not permitted"),
 
-            Self::TruncatedFrame => {
-                f.write_str("connection ended during a TCP frame")
-            }
+            Self::TruncatedFrame => f.write_str("connection ended during a TCP frame"),
 
-            Self::DecoderPoisoned => {
-                f.write_str("frame decoder requires reset")
-            }
+            Self::DecoderPoisoned => f.write_str("frame decoder requires reset"),
 
-            Self::EncoderBusy => {
-                f.write_str("previous TCP frame is still pending")
-            }
+            Self::EncoderBusy => f.write_str("previous TCP frame is still pending"),
 
-            Self::InvalidWriteProgress => {
-                f.write_str("invalid TCP write progress")
-            }
+            Self::InvalidWriteProgress => f.write_str("invalid TCP write progress"),
 
-            Self::ConnectionClosed => {
-                f.write_str("transport connection closed")
-            }
+            Self::ConnectionClosed => f.write_str("transport connection closed"),
 
-            Self::PartialDatagramWrite {
-                expected,
-                actual,
-            } => {
+            Self::PartialDatagramWrite { expected, actual } => {
                 write!(
                     f,
                     "partial datagram write: expected {expected}, \
@@ -194,28 +160,20 @@ mod tests {
 
     #[test]
     fn io_error_conversion() {
-        let error = TransportError::from(
-            io::Error::from(io::ErrorKind::WouldBlock)
-        );
+        let error = TransportError::from(io::Error::from(io::ErrorKind::WouldBlock));
 
         assert!(error.is_would_block());
     }
 
     #[test]
     fn connection_reset_classification() {
-        let error = TransportError::from(
-            io::Error::from(io::ErrorKind::ConnectionReset)
-        );
+        let error = TransportError::from(io::Error::from(io::ErrorKind::ConnectionReset));
 
         assert!(error.is_connection_closed());
     }
 
     #[test]
     fn explicit_connection_closed() {
-        assert!(
-            TransportError::ConnectionClosed
-                .is_connection_closed()
-        );
+        assert!(TransportError::ConnectionClosed.is_connection_closed());
     }
 }
-

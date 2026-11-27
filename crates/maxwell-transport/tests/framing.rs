@@ -1,14 +1,8 @@
-
 //! TCP framing correctness and fragmentation tests.
 //!
 //! These tests do not require network sockets.
 
-use maxwell_transport::{
-    FrameDecoder,
-    FrameEncoder,
-    FramingConfig,
-    TransportError,
-};
+use maxwell_transport::{FrameDecoder, FrameEncoder, FramingConfig, TransportError};
 
 fn config() -> FramingConfig {
     FramingConfig {
@@ -25,11 +19,7 @@ fn encode(payload: &[u8]) -> Vec<u8> {
     encoder.pending_bytes().to_vec()
 }
 
-fn consume(
-    decoder: &mut FrameDecoder,
-    input: &[u8],
-    output: &mut Vec<Vec<u8>>,
-) {
+fn consume(decoder: &mut FrameDecoder, input: &[u8], output: &mut Vec<Vec<u8>>) {
     let mut offset = 0;
 
     while offset < input.len() {
@@ -57,17 +47,9 @@ fn every_possible_two_part_split() {
 
         let mut output = Vec::new();
 
-        consume(
-            &mut decoder,
-            &encoded[..split],
-            &mut output,
-        );
+        consume(&mut decoder, &encoded[..split], &mut output);
 
-        consume(
-            &mut decoder,
-            &encoded[split..],
-            &mut output,
-        );
+        consume(&mut decoder, &encoded[split..], &mut output);
 
         assert_eq!(
             output,
@@ -96,11 +78,7 @@ fn one_byte_at_a_time() {
 
 #[test]
 fn multiple_frames_in_one_read() {
-    let messages: [&[u8]; 3] = [
-        b"first",
-        b"second",
-        b"third",
-    ];
+    let messages: [&[u8]; 3] = [b"first", b"second", b"third"];
 
     let mut stream = Vec::new();
 
@@ -115,7 +93,8 @@ fn multiple_frames_in_one_read() {
 
     assert_eq!(
         output,
-        messages.iter()
+        messages
+            .iter()
             .map(|message| message.to_vec())
             .collect::<Vec<_>>(),
     );
@@ -136,18 +115,14 @@ fn ready_frame_preserves_unconsumed_input() {
     assert!(status.is_ready());
     assert_eq!(status.consumed(), first.len());
 
-    let next = decoder
-        .push(&stream[first.len()..])
-        .unwrap();
+    let next = decoder.push(&stream[first.len()..]).unwrap();
 
     assert_eq!(next.consumed(), 0);
     assert_eq!(decoder.frame(), Some(&b"first"[..]));
 
     decoder.release();
 
-    let status = decoder
-        .push(&stream[first.len()..])
-        .unwrap();
+    let status = decoder.push(&stream[first.len()..]).unwrap();
 
     assert!(status.is_ready());
     assert_eq!(decoder.frame(), Some(&b"second"[..]));
@@ -162,10 +137,7 @@ fn maximum_frame_size() {
 
     assert!(decoder.push(&encoded).unwrap().is_ready());
 
-    assert_eq!(
-        decoder.frame(),
-        Some(payload.as_slice()),
-    );
+    assert_eq!(decoder.frame(), Some(payload.as_slice()),);
 }
 
 #[test]
@@ -194,10 +166,7 @@ fn poisoned_decoder_can_reset_for_new_connection() {
 
     assert!(decoder.push(&frame).unwrap().is_ready());
 
-    assert_eq!(
-        decoder.frame(),
-        Some(&b"new connection"[..]),
-    );
+    assert_eq!(decoder.frame(), Some(&b"new connection"[..]),);
 }
 
 #[test]
@@ -209,15 +178,9 @@ fn repeated_encoder_reuse() {
 
         encoder.prepare(&payload).unwrap();
 
-        assert_eq!(
-            &encoder.pending_bytes()[..4],
-            &8_u32.to_be_bytes(),
-        );
+        assert_eq!(&encoder.pending_bytes()[..4], &8_u32.to_be_bytes(),);
 
-        assert_eq!(
-            &encoder.pending_bytes()[4..],
-            &payload,
-        );
+        assert_eq!(&encoder.pending_bytes()[4..], &payload,);
 
         encoder.advance(12).unwrap();
 
@@ -263,15 +226,11 @@ fn randomized_fragmentation() {
     for _ in 0..MESSAGES {
         let length = (rng.next() % 512 + 1) as usize;
 
-        let payload: Vec<u8> = (0..length)
-            .map(|_| rng.next() as u8)
-            .collect();
+        let payload: Vec<u8> = (0..length).map(|_| rng.next() as u8).collect();
 
         encoder.prepare(&payload).unwrap();
 
-        stream.extend_from_slice(
-            encoder.pending_bytes()
-        );
+        stream.extend_from_slice(encoder.pending_bytes());
 
         encoder.advance(encoder.remaining()).unwrap();
 
@@ -288,11 +247,7 @@ fn randomized_fragmentation() {
 
         let end = (offset + chunk_size).min(stream.len());
 
-        consume(
-            &mut decoder,
-            &stream[offset..end],
-            &mut actual,
-        );
+        consume(&mut decoder, &stream[offset..end], &mut actual);
 
         offset = end;
     }
@@ -317,17 +272,12 @@ fn one_million_frames() {
 
         encoder.prepare(&payload).unwrap();
 
-        let status = decoder
-            .push(encoder.pending_bytes())
-            .unwrap();
+        let status = decoder.push(encoder.pending_bytes()).unwrap();
 
         assert!(status.is_ready());
         assert_eq!(status.consumed(), 12);
 
-        assert_eq!(
-            decoder.frame(),
-            Some(&payload[..]),
-        );
+        assert_eq!(decoder.frame(), Some(&payload[..]),);
 
         decoder.release();
 
@@ -336,4 +286,3 @@ fn one_million_frames() {
 
     assert!(decoder.finish().is_ok());
 }
-

@@ -1,24 +1,13 @@
-
 //! TCP loopback integration tests.
 
-use std::net::{
-    Shutdown,
-    SocketAddr,
-};
+use std::net::{Shutdown, SocketAddr};
 
 use std::thread;
 use std::time::{Duration, Instant};
 
 use maxwell_transport::{
-    FrameDecoder,
-    FrameEncoder,
-    FramingConfig,
-    ReadOutcome,
-    TcpAcceptor,
-    TcpConfig,
-    TcpConnection,
-    TransportError,
-    WriteOutcome,
+    FrameDecoder, FrameEncoder, FramingConfig, ReadOutcome, TcpAcceptor, TcpConfig, TcpConnection,
+    TransportError, WriteOutcome,
 };
 
 const TIMEOUT: Duration = Duration::from_secs(5);
@@ -30,14 +19,9 @@ fn address() -> SocketAddr {
 fn connection_pair() -> (TcpConnection, TcpConnection) {
     let config = TcpConfig::default();
 
-    let mut listener =
-        TcpAcceptor::bind(address(), config).unwrap();
+    let mut listener = TcpAcceptor::bind(address(), config).unwrap();
 
-    let client = TcpConnection::connect(
-        listener.local_addr().unwrap(),
-        config,
-    )
-    .unwrap();
+    let client = TcpConnection::connect(listener.local_addr().unwrap(), config).unwrap();
 
     let deadline = Instant::now() + TIMEOUT;
 
@@ -46,19 +30,13 @@ fn connection_pair() -> (TcpConnection, TcpConnection) {
             return (client, server);
         }
 
-        assert!(
-            Instant::now() < deadline,
-            "TCP accept timed out",
-        );
+        assert!(Instant::now() < deadline, "TCP accept timed out",);
 
         thread::yield_now();
     }
 }
 
-fn write_all(
-    connection: &mut TcpConnection,
-    payload: &[u8],
-) {
+fn write_all(connection: &mut TcpConnection, payload: &[u8]) {
     let mut offset = 0;
     let deadline = Instant::now() + TIMEOUT;
 
@@ -77,10 +55,7 @@ fn write_all(
     }
 }
 
-fn read_exact(
-    connection: &mut TcpConnection,
-    output: &mut [u8],
-) {
+fn read_exact(connection: &mut TcpConnection, output: &mut [u8]) {
     let mut offset = 0;
     let deadline = Instant::now() + TIMEOUT;
 
@@ -107,24 +82,14 @@ fn read_exact(
 fn connection_establishment() {
     let (client, server) = connection_pair();
 
-    assert_eq!(
-        client.peer_addr().unwrap(),
-        server.local_addr().unwrap(),
-    );
+    assert_eq!(client.peer_addr().unwrap(), server.local_addr().unwrap(),);
 
-    assert_eq!(
-        server.peer_addr().unwrap(),
-        client.local_addr().unwrap(),
-    );
+    assert_eq!(server.peer_addr().unwrap(), client.local_addr().unwrap(),);
 }
 
 #[test]
 fn no_pending_connection() {
-    let mut listener = TcpAcceptor::bind(
-        address(),
-        TcpConfig::default(),
-    )
-    .unwrap();
+    let mut listener = TcpAcceptor::bind(address(), TcpConfig::default()).unwrap();
 
     assert!(listener.accept().unwrap().is_none());
 }
@@ -173,10 +138,7 @@ fn idle_connection_returns_would_block() {
 
     let mut buffer = [0; 128];
 
-    assert_eq!(
-        server.read(&mut buffer).unwrap(),
-        ReadOutcome::WouldBlock,
-    );
+    assert_eq!(server.read(&mut buffer).unwrap(), ReadOutcome::WouldBlock,);
 }
 
 #[test]
@@ -266,8 +228,7 @@ fn framed_message_roundtrip() {
     while !decoder.is_ready() {
         match server.read(&mut buffer).unwrap() {
             ReadOutcome::Data(length) => {
-                let status =
-                    decoder.push(&buffer[..length]).unwrap();
+                let status = decoder.push(&buffer[..length]).unwrap();
 
                 assert_eq!(status.consumed(), length);
             }
@@ -284,10 +245,7 @@ fn framed_message_roundtrip() {
         assert!(Instant::now() < deadline);
     }
 
-    assert_eq!(
-        decoder.frame(),
-        Some(&b"maxwell snapshot request"[..]),
-    );
+    assert_eq!(decoder.frame(), Some(&b"maxwell snapshot request"[..]),);
 }
 
 #[test]
@@ -296,9 +254,7 @@ fn transfer_large_payload() {
 
     let (mut client, mut server) = connection_pair();
 
-    let payload: Vec<u8> = (0..SIZE)
-        .map(|index| (index % 251) as u8)
-        .collect();
+    let payload: Vec<u8> = (0..SIZE).map(|index| (index % 251) as u8).collect();
 
     let expected = payload.clone();
 
@@ -313,14 +269,7 @@ fn transfer_large_payload() {
 
     assert_eq!(received, expected);
 
-    assert_eq!(
-        sender.join().unwrap(),
-        SIZE as u64,
-    );
+    assert_eq!(sender.join().unwrap(), SIZE as u64,);
 
-    assert_eq!(
-        server.stats().bytes_received,
-        SIZE as u64,
-    );
+    assert_eq!(server.stats().bytes_received, SIZE as u64,);
 }
-

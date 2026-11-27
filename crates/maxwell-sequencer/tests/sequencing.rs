@@ -1,15 +1,9 @@
-
 //! End-to-end sequencing and stream isolation tests.
 
 use maxwell_core::*;
 
 use maxwell_sequencer::{
-    IngestOutcome,
-    Sequencer,
-    SequencerConfig,
-    SequencerError,
-    SequencerState,
-    StreamSequencer,
+    IngestOutcome, Sequencer, SequencerConfig, SequencerError, SequencerState, StreamSequencer,
 };
 
 fn seq(value: u64) -> SequenceNumber {
@@ -17,23 +11,13 @@ fn seq(value: u64) -> SequenceNumber {
 }
 
 fn feed(stream: u32, session: u64) -> FeedId {
-    FeedId::new(
-        StreamId::new(stream),
-        SessionId::new(session),
-    )
+    FeedId::new(StreamId::new(stream), SessionId::new(session))
 }
 
-fn event(
-    stream: u32,
-    session: u64,
-    sequence: u64,
-) -> EventEnvelope {
+fn event(stream: u32, session: u64, sequence: u64) -> EventEnvelope {
     EventEnvelope::new(
         EventHeader::new(
-            EventId::new(
-                feed(stream, session),
-                seq(sequence),
-            ),
+            EventId::new(feed(stream, session), seq(sequence)),
             InstrumentId::new(42),
             None,
         ),
@@ -47,12 +31,7 @@ fn event(
 }
 
 fn stream(expected: u64) -> StreamSequencer {
-    StreamSequencer::new(
-        feed(1, 1),
-        seq(expected),
-        SequencerConfig::new(16, 4),
-    )
-    .unwrap()
+    StreamSequencer::new(feed(1, 1), seq(expected), SequencerConfig::new(16, 4)).unwrap()
 }
 
 // ============================================================
@@ -71,16 +50,10 @@ fn contiguous_events_delivered_immediately() {
             })
             .unwrap();
 
-        assert_eq!(
-            outcome,
-            IngestOutcome::Delivered { count: 1 },
-        );
+        assert_eq!(outcome, IngestOutcome::Delivered { count: 1 },);
     }
 
-    assert_eq!(
-        delivered,
-        (100..110).collect::<Vec<_>>(),
-    );
+    assert_eq!(delivered, (100..110).collect::<Vec<_>>(),);
 
     assert_eq!(sequencer.expected(), Some(seq(110)));
     assert_eq!(sequencer.state(), SequencerState::Live);
@@ -143,9 +116,7 @@ fn filling_gap_drains_contiguous_buffer() {
     let mut sequencer = stream(100);
 
     for sequence in [101, 102, 103] {
-        sequencer
-            .ingest(event(1, 1, sequence), |_| {})
-            .unwrap();
+        sequencer.ingest(event(1, 1, sequence), |_| {}).unwrap();
     }
 
     let mut delivered = Vec::new();
@@ -156,10 +127,7 @@ fn filling_gap_drains_contiguous_buffer() {
         })
         .unwrap();
 
-    assert_eq!(
-        outcome,
-        IngestOutcome::Delivered { count: 4 },
-    );
+    assert_eq!(outcome, IngestOutcome::Delivered { count: 4 },);
 
     assert_eq!(delivered, vec![100, 101, 102, 103]);
 }
@@ -227,10 +195,7 @@ fn buffered_duplicate_suppressed() {
 
 #[test]
 fn streams_have_independent_watermarks() {
-    let mut sequencer = Sequencer::new(
-        SequencerConfig::new(16, 4),
-    )
-    .unwrap();
+    let mut sequencer = Sequencer::new(SequencerConfig::new(16, 4)).unwrap();
 
     sequencer
         .register(StreamId::new(1), feed(1, 1), seq(100))
@@ -256,10 +221,7 @@ fn streams_have_independent_watermarks() {
 
 #[test]
 fn unknown_stream_rejected() {
-    let mut sequencer = Sequencer::new(
-        SequencerConfig::default(),
-    )
-    .unwrap();
+    let mut sequencer = Sequencer::new(SequencerConfig::default()).unwrap();
 
     assert_eq!(
         sequencer.ingest(event(1, 1, 100), |_| {}),
@@ -269,47 +231,28 @@ fn unknown_stream_rejected() {
 
 #[test]
 fn duplicate_registration_rejected() {
-    let mut sequencer = Sequencer::new(
-        SequencerConfig::default(),
-    )
-    .unwrap();
+    let mut sequencer = Sequencer::new(SequencerConfig::default()).unwrap();
 
     sequencer
         .register(StreamId::new(1), feed(1, 1), seq(100))
         .unwrap();
 
     assert_eq!(
-        sequencer.register(
-            StreamId::new(1),
-            feed(1, 1),
-            seq(100),
-        ),
-        Err(
-            SequencerError::StreamAlreadyRegistered(
-                StreamId::new(1),
-            ),
-        ),
+        sequencer.register(StreamId::new(1), feed(1, 1), seq(100),),
+        Err(SequencerError::StreamAlreadyRegistered(StreamId::new(1),),),
     );
 }
 
 #[test]
 fn stream_capacity_enforced() {
-    let mut sequencer = Sequencer::new(
-        SequencerConfig::new(8, 1),
-    )
-    .unwrap();
+    let mut sequencer = Sequencer::new(SequencerConfig::new(8, 1)).unwrap();
 
     sequencer
         .register(StreamId::new(1), feed(1, 1), seq(100))
         .unwrap();
 
     assert_eq!(
-        sequencer.register(
-            StreamId::new(2),
-            feed(2, 1),
-            seq(100),
-        ),
+        sequencer.register(StreamId::new(2), feed(2, 1), seq(100),),
         Err(SequencerError::StreamCapacityExceeded),
     );
 }
-

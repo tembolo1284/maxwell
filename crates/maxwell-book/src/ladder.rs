@@ -1,4 +1,3 @@
-
 //! Preallocated, bitmap-indexed price ladder.
 //!
 //! Each side owns a contiguous array of price levels.
@@ -7,11 +6,7 @@
 //! Bids are traversed from highest to lowest price.
 //! Asks are traversed from lowest to highest price.
 
-use maxwell_core::{
-    Instrument,
-    Price,
-    Side,
-};
+use maxwell_core::{Instrument, Price, Side};
 
 use crate::error::{BookError, BookResult};
 use crate::level::PriceLevel;
@@ -29,17 +24,12 @@ pub struct PriceLadder {
 }
 
 impl PriceLadder {
-    pub fn new(
-        instrument: Instrument,
-        side: Side,
-        max_levels: usize,
-    ) -> BookResult<Self> {
+    pub fn new(instrument: Instrument, side: Side, max_levels: usize) -> BookResult<Self> {
         let count = instrument
             .price_level_count()
             .ok_or(BookError::PriceLevelCapacityExceeded)?;
 
-        let count = usize::try_from(count)
-            .map_err(|_| BookError::PriceLevelCapacityExceeded)?;
+        let count = usize::try_from(count).map_err(|_| BookError::PriceLevelCapacityExceeded)?;
 
         if count == 0 || count > max_levels {
             return Err(BookError::PriceLevelCapacityExceeded);
@@ -141,10 +131,7 @@ impl PriceLadder {
     pub fn best_level(&self) -> Option<(Price, PriceLevel)> {
         let index = self.best_index?;
 
-        Some((
-            self.price_at(index)?,
-            self.levels[index],
-        ))
+        Some((self.price_at(index)?, self.levels[index]))
     }
 
     /// Installs an already validated aggregate level.
@@ -152,13 +139,8 @@ impl PriceLadder {
     /// Restricted to the crate so callers cannot mutate
     /// aggregate depth independently of the order registry.
     #[inline]
-    pub(crate) fn set_level(
-        &mut self,
-        price: Price,
-        level: PriceLevel,
-    ) -> BookResult<()> {
-        let index = self.index_of(price)
-            .ok_or(BookError::InvalidPrice(price))?;
+    pub(crate) fn set_level(&mut self, price: Price, level: PriceLevel) -> BookResult<()> {
+        let index = self.index_of(price).ok_or(BookError::InvalidPrice(price))?;
 
         self.set_level_at(index, level);
 
@@ -166,11 +148,7 @@ impl PriceLadder {
     }
 
     #[inline]
-    pub(crate) fn set_level_at(
-        &mut self,
-        index: usize,
-        level: PriceLevel,
-    ) {
+    pub(crate) fn set_level_at(&mut self, index: usize, level: PriceLevel) {
         let was_empty = self.levels[index].is_empty();
         let now_empty = level.is_empty();
 
@@ -263,10 +241,7 @@ impl PriceLadder {
 
     /// Finds the first occupied index at or below `start`.
     #[must_use]
-    pub fn previous_occupied(
-        &self,
-        start: usize,
-    ) -> Option<usize> {
+    pub fn previous_occupied(&self, start: usize) -> Option<usize> {
         if start >= self.capacity() {
             return None;
         }
@@ -329,10 +304,7 @@ impl Iterator for LadderIter<'_> {
                 .and_then(|i| self.ladder.next_occupied(i)),
         };
 
-        Some((
-            self.ladder.price_at(index)?,
-            self.ladder.levels[index],
-        ))
+        Some((self.ladder.price_at(index)?, self.ladder.levels[index]))
     }
 }
 
@@ -342,11 +314,7 @@ impl core::iter::FusedIterator for LadderIter<'_> {}
 mod tests {
     use super::*;
 
-    use maxwell_core::{
-        InstrumentConfig,
-        InstrumentId,
-        Quantity,
-    };
+    use maxwell_core::{InstrumentConfig, InstrumentId, Quantity};
 
     fn instrument() -> Instrument {
         Instrument::new(InstrumentConfig {
@@ -369,8 +337,7 @@ mod tests {
 
     #[test]
     fn bid_priority() {
-        let mut ladder =
-            PriceLadder::new(instrument(), Side::Buy, 256).unwrap();
+        let mut ladder = PriceLadder::new(instrument(), Side::Buy, 256).unwrap();
 
         ladder.set_level(Price::new(100), level()).unwrap();
         ladder.set_level(Price::new(200), level()).unwrap();
@@ -380,8 +347,7 @@ mod tests {
 
     #[test]
     fn ask_priority() {
-        let mut ladder =
-            PriceLadder::new(instrument(), Side::Sell, 256).unwrap();
+        let mut ladder = PriceLadder::new(instrument(), Side::Sell, 256).unwrap();
 
         ladder.set_level(Price::new(100), level()).unwrap();
         ladder.set_level(Price::new(200), level()).unwrap();
@@ -391,8 +357,7 @@ mod tests {
 
     #[test]
     fn best_level_removal() {
-        let mut ladder =
-            PriceLadder::new(instrument(), Side::Buy, 256).unwrap();
+        let mut ladder = PriceLadder::new(instrument(), Side::Buy, 256).unwrap();
 
         ladder.set_level(Price::new(100), level()).unwrap();
         ladder.set_level(Price::new(200), level()).unwrap();
@@ -407,50 +372,38 @@ mod tests {
 
     #[test]
     fn bitmap_word_boundaries() {
-        let mut ladder =
-            PriceLadder::new(instrument(), Side::Sell, 256).unwrap();
+        let mut ladder = PriceLadder::new(instrument(), Side::Sell, 256).unwrap();
 
         for price in [0, 63, 64, 127, 128, 255] {
             ladder.set_level(Price::new(price), level()).unwrap();
         }
 
-        let prices: Vec<_> = ladder
-            .iter()
-            .map(|(price, _)| price.raw())
-            .collect();
+        let prices: Vec<_> = ladder.iter().map(|(price, _)| price.raw()).collect();
 
         assert_eq!(prices, vec![0, 63, 64, 127, 128, 255]);
     }
 
     #[test]
     fn reverse_bitmap_traversal() {
-        let mut ladder =
-            PriceLadder::new(instrument(), Side::Buy, 256).unwrap();
+        let mut ladder = PriceLadder::new(instrument(), Side::Buy, 256).unwrap();
 
         for price in [0, 63, 64, 127, 128, 255] {
             ladder.set_level(Price::new(price), level()).unwrap();
         }
 
-        let prices: Vec<_> = ladder
-            .iter()
-            .map(|(price, _)| price.raw())
-            .collect();
+        let prices: Vec<_> = ladder.iter().map(|(price, _)| price.raw()).collect();
 
         assert_eq!(prices, vec![255, 128, 127, 64, 63, 0]);
     }
 
     #[test]
     fn capacity_enforced() {
-        assert!(
-            PriceLadder::new(instrument(), Side::Buy, 128)
-                .is_err()
-        );
+        assert!(PriceLadder::new(instrument(), Side::Buy, 128).is_err());
     }
 
     #[test]
     fn clear_preserves_allocation() {
-        let mut ladder =
-            PriceLadder::new(instrument(), Side::Buy, 256).unwrap();
+        let mut ladder = PriceLadder::new(instrument(), Side::Buy, 256).unwrap();
 
         ladder.set_level(Price::new(100), level()).unwrap();
         ladder.clear();
@@ -460,4 +413,3 @@ mod tests {
         assert_eq!(ladder.capacity(), 256);
     }
 }
-

@@ -1,4 +1,3 @@
-
 //! IPv4 UDP multicast transport.
 //!
 //! The initial implementation supports one multicast
@@ -7,18 +6,9 @@
 //! Interface selection is explicit. An unspecified
 //! interface allows the operating system to choose.
 
-use std::net::{
-    IpAddr,
-    Ipv4Addr,
-    SocketAddr,
-    SocketAddrV4,
-    UdpSocket,
-};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket};
 
-use socket2::{
-    SockAddr,
-    SockRef,
-};
+use socket2::{SockAddr, SockRef};
 
 use crate::buffer::ReceiveBuffer;
 use crate::config::UdpConfig;
@@ -27,17 +17,10 @@ use crate::socket::{self, SocketBufferSizes};
 use crate::stats::TransportStats;
 
 use crate::transport::{
-    DatagramReceiver,
-    DatagramSender,
-    ReceivedDatagram,
-    TransportKind,
-    WriteOutcome,
+    DatagramReceiver, DatagramSender, ReceivedDatagram, TransportKind, WriteOutcome,
 };
 
-use super::{
-    receive_datagram,
-    send_datagram,
-};
+use super::{receive_datagram, send_datagram};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MulticastConfig {
@@ -76,9 +59,7 @@ impl MulticastConfig {
 
     #[must_use]
     pub const fn destination(self) -> SocketAddr {
-        SocketAddr::V4(
-            SocketAddrV4::new(self.group, self.port)
-        )
+        SocketAddr::V4(SocketAddrV4::new(self.group, self.port))
     }
 }
 
@@ -105,25 +86,15 @@ pub struct UdpMulticast {
 
 impl UdpMulticast {
     /// Creates a receiving socket and joins the group.
-    pub fn subscribe(
-        mut config: MulticastConfig,
-    ) -> TransportResult<Self> {
+    pub fn subscribe(mut config: MulticastConfig) -> TransportResult<Self> {
         config.validate()?;
 
         // Multiple subscribers may bind the same port.
         config.udp.socket.reuse_address = true;
 
-        let address = SocketAddr::V4(
-            SocketAddrV4::new(
-                Ipv4Addr::UNSPECIFIED,
-                config.port,
-            )
-        );
+        let address = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, config.port));
 
-        let socket = socket::create_udp_socket(
-            address,
-            config.udp.socket,
-        )?;
+        let socket = socket::create_udp_socket(address, config.udp.socket)?;
 
         socket.bind(&SockAddr::from(address))?;
 
@@ -131,10 +102,7 @@ impl UdpMulticast {
         socket.set_multicast_ttl_v4(config.multicast_ttl)?;
         socket.set_multicast_loop_v4(config.loopback)?;
 
-        socket.join_multicast_v4(
-            &config.group,
-            &config.interface,
-        )?;
+        socket.join_multicast_v4(&config.group, &config.interface)?;
 
         let socket: UdpSocket = socket.into();
 
@@ -147,19 +115,12 @@ impl UdpMulticast {
     }
 
     /// Creates a publishing socket without joining the group.
-    pub fn publisher(
-        config: MulticastConfig,
-    ) -> TransportResult<Self> {
+    pub fn publisher(config: MulticastConfig) -> TransportResult<Self> {
         config.validate()?;
 
-        let address = SocketAddr::V4(
-            SocketAddrV4::new(config.interface, 0)
-        );
+        let address = SocketAddr::V4(SocketAddrV4::new(config.interface, 0));
 
-        let socket = socket::create_udp_socket(
-            address,
-            config.udp.socket,
-        )?;
+        let socket = socket::create_udp_socket(address, config.udp.socket)?;
 
         socket.bind(&SockAddr::from(address))?;
 
@@ -207,17 +168,13 @@ impl UdpMulticast {
     }
 
     pub fn create_receive_buffer(&self) -> TransportResult<ReceiveBuffer> {
-        ReceiveBuffer::new(
-            self.config.udp.max_datagram_size + 1
-        )
+        ReceiveBuffer::new(self.config.udp.max_datagram_size + 1)
     }
 
     pub fn join(&mut self) -> TransportResult<()> {
         if !self.joined {
-            self.socket.join_multicast_v4(
-                &self.config.group,
-                &self.config.interface,
-            )?;
+            self.socket
+                .join_multicast_v4(&self.config.group, &self.config.interface)?;
 
             self.joined = true;
         }
@@ -227,10 +184,8 @@ impl UdpMulticast {
 
     pub fn leave(&mut self) -> TransportResult<()> {
         if self.joined {
-            self.socket.leave_multicast_v4(
-                &self.config.group,
-                &self.config.interface,
-            )?;
+            self.socket
+                .leave_multicast_v4(&self.config.group, &self.config.interface)?;
 
             self.joined = false;
         }
@@ -239,10 +194,7 @@ impl UdpMulticast {
     }
 
     #[inline]
-    pub fn publish(
-        &mut self,
-        payload: &[u8],
-    ) -> TransportResult<WriteOutcome> {
+    pub fn publish(&mut self, payload: &[u8]) -> TransportResult<WriteOutcome> {
         self.send_to(payload, self.config.destination())
     }
 
@@ -263,10 +215,7 @@ impl UdpMulticast {
 
 impl DatagramReceiver for UdpMulticast {
     #[inline]
-    fn receive(
-        &mut self,
-        buffer: &mut [u8],
-    ) -> TransportResult<Option<ReceivedDatagram>> {
+    fn receive(&mut self, buffer: &mut [u8]) -> TransportResult<Option<ReceivedDatagram>> {
         receive_datagram(
             &self.socket,
             buffer,
@@ -336,4 +285,3 @@ mod tests {
         assert!(config.validate().is_err());
     }
 }
-

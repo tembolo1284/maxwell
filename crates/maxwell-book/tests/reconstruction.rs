@@ -1,28 +1,16 @@
-
 //! Order book reconstruction and market depth tests.
 
 use maxwell_core::*;
 
 use maxwell_book::{
-    BookConfig,
-    BookError,
-    BookManager,
-    BookState,
-    BookUpdate,
-    BookUpdateKind,
-    Level1,
-    Level2,
-    Level3,
-    OrderBook,
+    BookConfig, BookError, BookManager, BookState, BookUpdate, BookUpdateKind, Level1, Level2,
+    Level3, OrderBook,
 };
 
 use maxwell_book::depth::DepthLevel;
 
 fn feed() -> FeedId {
-    FeedId::new(
-        StreamId::new(1),
-        SessionId::new(1),
-    )
+    FeedId::new(StreamId::new(1), SessionId::new(1))
 }
 
 fn instrument(id: u32) -> Instrument {
@@ -57,14 +45,7 @@ fn update(sequence: u64, kind: BookUpdateKind) -> BookUpdate {
     )
 }
 
-fn add(
-    book: &mut OrderBook,
-    sequence: u64,
-    id: u64,
-    side: Side,
-    price: i64,
-    quantity: u64,
-) {
+fn add(book: &mut OrderBook, sequence: u64, id: u64, side: Side, price: i64, quantity: u64) {
     book.apply(update(
         sequence,
         BookUpdateKind::Add {
@@ -140,10 +121,7 @@ fn partial_execution() {
 
     assert_eq!(order.quantity(), Quantity::new(300));
     assert_eq!(book.best_bid().unwrap().1.order_count(), 1);
-    assert_eq!(
-        book.best_bid().unwrap().1.quantity(),
-        Quantity::new(300),
-    );
+    assert_eq!(book.best_bid().unwrap().1.quantity(), Quantity::new(300),);
 
     assert!(book.validate_consistency().is_ok());
 }
@@ -253,10 +231,7 @@ fn duplicate_order_requires_recovery() {
         },
     ));
 
-    assert_eq!(
-        result,
-        Err(BookError::DuplicateOrder(OrderId::new(1))),
-    );
+    assert_eq!(result, Err(BookError::DuplicateOrder(OrderId::new(1))),);
 
     assert_eq!(book.state(), BookState::RecoveryRequired);
     assert_eq!(book.order_count(), 1);
@@ -319,10 +294,7 @@ fn instrument_sequences_need_not_be_contiguous() {
     add(&mut book, 100, 1, Side::Buy, 10_000, 100);
     add(&mut book, 105, 2, Side::Sell, 10_010, 100);
 
-    assert_eq!(
-        book.last_sequence(),
-        Some(SequenceNumber::new(105)),
-    );
+    assert_eq!(book.last_sequence(), Some(SequenceNumber::new(105)),);
 }
 
 #[test]
@@ -379,10 +351,7 @@ fn level3_priority_ordering() {
     let depth = Level3::new(&book);
     let orders = depth.sorted_side(Side::Buy).unwrap();
 
-    let ids: Vec<_> = orders
-        .iter()
-        .map(|order| order.order_id().raw())
-        .collect();
+    let ids: Vec<_> = orders.iter().map(|order| order.order_id().raw()).collect();
 
     assert_eq!(ids, vec![50, 20, 10]);
 }
@@ -394,25 +363,21 @@ fn instrument_isolation() {
     manager.register(instrument(1), feed()).unwrap();
     manager.register(instrument(2), feed()).unwrap();
 
-    manager.apply(update(
-        1,
-        BookUpdateKind::Add {
-            order_id: OrderId::new(1),
-            side: Side::Buy,
-            price: Price::new(10_000),
-            quantity: Quantity::new(100),
-        },
-    ))
-    .unwrap();
+    manager
+        .apply(update(
+            1,
+            BookUpdateKind::Add {
+                order_id: OrderId::new(1),
+                side: Side::Buy,
+                price: Price::new(10_000),
+                quantity: Quantity::new(100),
+            },
+        ))
+        .unwrap();
 
-    assert_eq!(
-        manager.book(InstrumentId::new(1)).unwrap().order_count(),
-        1,
-    );
+    assert_eq!(manager.book(InstrumentId::new(1)).unwrap().order_count(), 1,);
 
-    assert!(
-        manager.book(InstrumentId::new(2)).unwrap().is_empty()
-    );
+    assert!(manager.book(InstrumentId::new(2)).unwrap().is_empty());
 }
 
 #[test]
@@ -428,4 +393,3 @@ fn feed_recovery_invalidates_all_associated_books() {
         assert_eq!(book.state(), BookState::RecoveryRequired);
     }
 }
-

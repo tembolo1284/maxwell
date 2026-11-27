@@ -1,15 +1,7 @@
-
 //! Single-instrument order book reconstruction.
 
 use maxwell_core::{
-    FeedId,
-    Instrument,
-    InstrumentId,
-    OrderId,
-    Price,
-    Quantity,
-    SequenceNumber,
-    Side,
+    FeedId, Instrument, InstrumentId, OrderId, Price, Quantity, SequenceNumber, Side,
 };
 
 use crate::config::BookConfig;
@@ -40,24 +32,12 @@ pub struct OrderBook {
 }
 
 impl OrderBook {
-    pub fn new(
-        instrument: Instrument,
-        feed: FeedId,
-        config: BookConfig,
-    ) -> BookResult<Self> {
+    pub fn new(instrument: Instrument, feed: FeedId, config: BookConfig) -> BookResult<Self> {
         config.validate()?;
 
-        let bids = PriceLadder::new(
-            instrument,
-            Side::Buy,
-            config.max_price_levels,
-        )?;
+        let bids = PriceLadder::new(instrument, Side::Buy, config.max_price_levels)?;
 
-        let asks = PriceLadder::new(
-            instrument,
-            Side::Sell,
-            config.max_price_levels,
-        )?;
+        let asks = PriceLadder::new(instrument, Side::Sell, config.max_price_levels)?;
 
         let orders = OrderRegistry::new(config.max_orders)?;
 
@@ -234,25 +214,13 @@ impl OrderBook {
                 price,
                 quantity,
             } => {
-                let order = RestingOrder::new(
-                    order_id,
-                    side,
-                    price,
-                    quantity,
-                    update.sequence,
-                )?;
+                let order = RestingOrder::new(order_id, side, price, quantity, update.sequence)?;
 
                 self.add_order(order)?;
             }
 
-            BookUpdateKind::Reduce {
-                order_id,
-                quantity,
-            }
-            | BookUpdateKind::Execute {
-                order_id,
-                quantity,
-            } => {
+            BookUpdateKind::Reduce { order_id, quantity }
+            | BookUpdateKind::Execute { order_id, quantity } => {
                 self.reduce_order(order_id, quantity)?;
             }
 
@@ -265,12 +233,7 @@ impl OrderBook {
                 new_price,
                 new_quantity,
             } => {
-                self.replace_order(
-                    order_id,
-                    new_price,
-                    new_quantity,
-                    update.sequence,
-                )?;
+                self.replace_order(order_id, new_price, new_quantity, update.sequence)?;
             }
 
             BookUpdateKind::Observe => {}
@@ -286,10 +249,7 @@ impl OrderBook {
     /// Original order-size minimums are intentionally not
     /// enforced here: partially filled resting orders may
     /// be smaller than the original submission minimum.
-    fn validate_resting_order(
-        &self,
-        order: RestingOrder,
-    ) -> BookResult<()> {
+    fn validate_resting_order(&self, order: RestingOrder) -> BookResult<()> {
         self.instrument.validate_price(order.price())?;
 
         if order.quantity().is_zero() {
@@ -299,21 +259,20 @@ impl OrderBook {
         Ok(())
     }
 
-    pub(crate) fn add_order(
-        &mut self,
-        order: RestingOrder,
-    ) -> BookResult<()> {
+    pub(crate) fn add_order(&mut self, order: RestingOrder) -> BookResult<()> {
         self.validate_resting_order(order)?;
         self.orders.validate_insert(order.order_id())?;
 
         let side = order.side();
         let price = order.price();
 
-        let index = self.ladder(side)
+        let index = self
+            .ladder(side)
             .index_of(price)
             .ok_or(BookError::InvalidPrice(price))?;
 
-        let mut level = self.ladder(side)
+        let mut level = self
+            .ladder(side)
             .level_at(index)
             .ok_or(BookError::InvalidPriceLevel)?;
 
@@ -327,12 +286,9 @@ impl OrderBook {
         Ok(())
     }
 
-    fn reduce_order(
-        &mut self,
-        order_id: OrderId,
-        quantity: Quantity,
-    ) -> BookResult<()> {
-        let order = self.orders
+    fn reduce_order(&mut self, order_id: OrderId, quantity: Quantity) -> BookResult<()> {
+        let order = self
+            .orders
             .get(order_id)
             .ok_or(BookError::UnknownOrder(order_id))?;
 
@@ -347,11 +303,13 @@ impl OrderBook {
         let reduced = order.reduced(quantity)?;
         let side = order.side();
 
-        let index = self.ladder(side)
+        let index = self
+            .ladder(side)
             .index_of(order.price())
             .ok_or(BookError::InvalidPrice(order.price()))?;
 
-        let mut level = self.ladder(side)
+        let mut level = self
+            .ladder(side)
             .level_at(index)
             .ok_or(BookError::InvalidPriceLevel)?;
 
@@ -364,17 +322,20 @@ impl OrderBook {
     }
 
     fn delete_order(&mut self, order_id: OrderId) -> BookResult<()> {
-        let order = self.orders
+        let order = self
+            .orders
             .get(order_id)
             .ok_or(BookError::UnknownOrder(order_id))?;
 
         let side = order.side();
 
-        let index = self.ladder(side)
+        let index = self
+            .ladder(side)
             .index_of(order.price())
             .ok_or(BookError::InvalidPrice(order.price()))?;
 
-        let mut level = self.ladder(side)
+        let mut level = self
+            .ladder(side)
             .level_at(index)
             .ok_or(BookError::InvalidPriceLevel)?;
 
@@ -393,31 +354,29 @@ impl OrderBook {
         new_quantity: Quantity,
         sequence: SequenceNumber,
     ) -> BookResult<()> {
-        let previous = self.orders
+        let previous = self
+            .orders
             .get(order_id)
             .ok_or(BookError::UnknownOrder(order_id))?;
 
         let side = previous.side();
 
-        let replacement = RestingOrder::new(
-            order_id,
-            side,
-            new_price,
-            new_quantity,
-            sequence,
-        )?;
+        let replacement = RestingOrder::new(order_id, side, new_price, new_quantity, sequence)?;
 
         self.validate_resting_order(replacement)?;
 
-        let old_index = self.ladder(side)
+        let old_index = self
+            .ladder(side)
             .index_of(previous.price())
             .ok_or(BookError::InvalidPrice(previous.price()))?;
 
-        let new_index = self.ladder(side)
+        let new_index = self
+            .ladder(side)
             .index_of(new_price)
             .ok_or(BookError::InvalidPrice(new_price))?;
 
-        let mut old_level = self.ladder(side)
+        let mut old_level = self
+            .ladder(side)
             .level_at(old_index)
             .ok_or(BookError::InvalidPriceLevel)?;
 
@@ -428,10 +387,10 @@ impl OrderBook {
 
             self.orders.update(replacement)?;
 
-            self.ladder_mut(side)
-                .set_level_at(old_index, old_level);
+            self.ladder_mut(side).set_level_at(old_index, old_level);
         } else {
-            let mut new_level = self.ladder(side)
+            let mut new_level = self
+                .ladder(side)
                 .level_at(new_index)
                 .ok_or(BookError::InvalidPriceLevel)?;
 
@@ -459,10 +418,7 @@ impl OrderBook {
     ///
     /// The caller must establish that the new session
     /// starts with an empty exchange book.
-    pub fn reset_empty_session(
-        &mut self,
-        feed: FeedId,
-    ) -> BookResult<()> {
+    pub fn reset_empty_session(&mut self, feed: FeedId) -> BookResult<()> {
         if feed == self.feed {
             return Err(BookError::InvalidSnapshot);
         }
@@ -478,10 +434,7 @@ impl OrderBook {
         Ok(())
     }
 
-    pub(crate) fn set_snapshot_watermark(
-        &mut self,
-        sequence: Option<SequenceNumber>,
-    ) {
+    pub(crate) fn set_snapshot_watermark(&mut self, sequence: Option<SequenceNumber>) {
         self.last_sequence = sequence;
     }
 
@@ -507,7 +460,8 @@ impl OrderBook {
         for order in self.orders.iter() {
             self.validate_resting_order(*order)?;
 
-            let index = self.ladder(order.side())
+            let index = self
+                .ladder(order.side())
                 .index_of(order.price())
                 .ok_or(BookError::InconsistentBook)?;
 
@@ -519,10 +473,7 @@ impl OrderBook {
             levels[index].add_order(order.quantity())?;
         }
 
-        for (ladder, expected) in [
-            (&self.bids, &bid_levels),
-            (&self.asks, &ask_levels),
-        ] {
+        for (ladder, expected) in [(&self.bids, &bid_levels), (&self.asks, &ask_levels)] {
             let mut active = 0;
 
             for (index, level) in expected.iter().enumerate() {
@@ -540,15 +491,12 @@ impl OrderBook {
             }
 
             let best = match ladder.side() {
-                Side::Buy => expected.iter()
-                    .rposition(|level| !level.is_empty()),
+                Side::Buy => expected.iter().rposition(|level| !level.is_empty()),
 
-                Side::Sell => expected.iter()
-                    .position(|level| !level.is_empty()),
+                Side::Sell => expected.iter().position(|level| !level.is_empty()),
             };
 
-            let expected_best = best
-                .and_then(|index| ladder.price_at(index));
+            let expected_best = best.and_then(|index| ladder.price_at(index));
 
             if ladder.best_price() != expected_best {
                 return Err(BookError::InconsistentBook);
@@ -556,24 +504,18 @@ impl OrderBook {
 
             let mut actual_indices = ladder.iter();
 
-            let expected_iter: Box<dyn Iterator<Item = usize>> =
-                match ladder.side() {
-                    Side::Buy => Box::new(
-                        (0..expected.len()).rev()
-                    ),
+            let expected_iter: Box<dyn Iterator<Item = usize>> = match ladder.side() {
+                Side::Buy => Box::new((0..expected.len()).rev()),
 
-                    Side::Sell => Box::new(
-                        0..expected.len()
-                    ),
-                };
+                Side::Sell => Box::new(0..expected.len()),
+            };
 
             for index in expected_iter {
                 if expected[index].is_empty() {
                     continue;
                 }
 
-                let price = ladder.price_at(index)
-                    .ok_or(BookError::InconsistentBook)?;
+                let price = ladder.price_at(index).ok_or(BookError::InconsistentBook)?;
 
                 if actual_indices.next() != Some((price, expected[index])) {
                     return Err(BookError::InconsistentBook);
@@ -588,4 +530,3 @@ impl OrderBook {
         Ok(())
     }
 }
-

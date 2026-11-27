@@ -1,4 +1,3 @@
-
 //! Normalized order book updates.
 //!
 //! A protocol adapter translates authoritative market
@@ -7,15 +6,7 @@
 //! Trade reports must not reduce resting quantities if
 //! separate execution events already perform that mutation.
 
-use maxwell_core::{
-    FeedId,
-    InstrumentId,
-    OrderId,
-    Price,
-    Quantity,
-    SequenceNumber,
-    Side,
-};
+use maxwell_core::{FeedId, InstrumentId, OrderId, Price, Quantity, SequenceNumber, Side};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BookUpdateKind {
@@ -37,9 +28,7 @@ pub enum BookUpdateKind {
     },
 
     /// Removes the entire remaining order.
-    Delete {
-        order_id: OrderId,
-    },
+    Delete { order_id: OrderId },
 
     /// Execution against an identified resting order.
     ///
@@ -113,4 +102,3 @@ impl BookUpdate {
         }
     }
 }
-

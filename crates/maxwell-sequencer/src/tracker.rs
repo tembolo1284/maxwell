@@ -1,4 +1,3 @@
-
 //! Constant-time sequence watermark tracking.
 
 use maxwell_core::SequenceNumber;
@@ -45,10 +44,7 @@ impl SequenceTracker {
 
     #[must_use]
     #[inline]
-    pub const fn classify(
-        &self,
-        received: SequenceNumber,
-    ) -> SequenceDisposition {
+    pub const fn classify(&self, received: SequenceNumber) -> SequenceDisposition {
         SequenceDisposition::classify(self.expected, received)
     }
 
@@ -59,26 +55,16 @@ impl SequenceTracker {
     ///
     /// Sequence numbers never wrap silently.
     #[inline]
-    pub fn commit(
-        &mut self,
-        received: SequenceNumber,
-    ) -> SequencerResult<()> {
-        let expected = self.expected
-            .ok_or(SequencerError::SequenceExhausted)?;
+    pub fn commit(&mut self, received: SequenceNumber) -> SequencerResult<()> {
+        let expected = self.expected.ok_or(SequencerError::SequenceExhausted)?;
 
         if received != expected {
-            return Err(SequencerError::SequenceMismatch {
-                expected,
-                received,
-            });
+            return Err(SequencerError::SequenceMismatch { expected, received });
         }
 
         self.last_delivered = Some(received);
 
-        self.expected = received
-            .raw()
-            .checked_add(1)
-            .map(SequenceNumber::new);
+        self.expected = received.raw().checked_add(1).map(SequenceNumber::new);
 
         Ok(())
     }
@@ -160,4 +146,3 @@ mod tests {
         assert_eq!(tracker.last_delivered(), None);
     }
 }
-

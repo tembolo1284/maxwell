@@ -1,4 +1,3 @@
-
 #![forbid(unsafe_code)]
 
 //! Low-latency networking primitives for Maxwell.
@@ -24,34 +23,21 @@
 //! Sequence validation and recovery are responsibilities
 //! of higher-level Maxwell components.
 
+pub mod buffer;
 pub mod config;
 pub mod error;
-pub mod transport;
 pub mod socket;
-pub mod buffer;
 pub mod stats;
-pub mod udp;
 pub mod tcp;
+pub mod transport;
+pub mod udp;
 
-pub use config::{
-    SocketConfig,
-    UdpConfig,
-    TcpConfig,
-    FramingConfig,
-};
+pub use config::{FramingConfig, SocketConfig, TcpConfig, UdpConfig};
 
-pub use error::{
-    TransportError,
-    TransportResult,
-};
+pub use error::{TransportError, TransportResult};
 
 pub use transport::{
-    TransportKind,
-    DatagramReceiver,
-    DatagramSender,
-    ReceivedDatagram,
-    ReadOutcome,
-    WriteOutcome,
+    DatagramReceiver, DatagramSender, ReadOutcome, ReceivedDatagram, TransportKind, WriteOutcome,
 };
 
 pub use buffer::ReceiveBuffer;
@@ -59,17 +45,6 @@ pub use stats::TransportStats;
 
 pub use socket::SocketBufferSizes;
 
-pub use udp::{
-    UdpUnicast,
-    UdpMulticast,
-    MulticastConfig,
-};
+pub use udp::{MulticastConfig, UdpMulticast, UdpUnicast};
 
-pub use tcp::{
-    TcpConnection,
-    TcpAcceptor,
-    FrameDecoder,
-    FrameEncoder,
-    FrameStatus,
-};
-
+pub use tcp::{FrameDecoder, FrameEncoder, FrameStatus, TcpAcceptor, TcpConnection};

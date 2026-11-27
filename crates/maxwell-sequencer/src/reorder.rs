@@ -1,4 +1,3 @@
-
 //! Fixed-capacity circular event reorder buffer.
 //!
 //! Allocation occurs during construction only.
@@ -33,13 +32,8 @@ impl ReorderBuffer {
     /// Returns an error for invalid capacity or allocation
     /// failure.
     pub fn new(capacity: usize) -> SequencerResult<Self> {
-        if capacity == 0
-            || capacity > MAX_REORDER_CAPACITY
-            || !capacity.is_power_of_two()
-        {
-            return Err(
-                SequencerError::InvalidReorderCapacity(capacity),
-            );
+        if capacity == 0 || capacity > MAX_REORDER_CAPACITY || !capacity.is_power_of_two() {
+            return Err(SequencerError::InvalidReorderCapacity(capacity));
         }
 
         let mut slots = Vec::new();
@@ -95,10 +89,7 @@ impl ReorderBuffer {
 
     #[must_use]
     #[inline]
-    pub fn get(
-        &self,
-        sequence: SequenceNumber,
-    ) -> Option<&EventEnvelope> {
+    pub fn get(&self, sequence: SequenceNumber) -> Option<&EventEnvelope> {
         self.slots[self.index(sequence)]
             .as_ref()
             .filter(|event| event.header.sequence() == sequence)
@@ -144,9 +135,7 @@ impl ReorderBuffer {
                 return Ok(InsertOutcome::Duplicate);
             }
 
-            return Err(
-                SequencerError::ConflictingDuplicate(received),
-            );
+            return Err(SequencerError::ConflictingDuplicate(received));
         }
 
         self.slots[index] = Some(event);
@@ -157,17 +146,12 @@ impl ReorderBuffer {
 
     /// Removes the exact requested sequence, if present.
     #[inline]
-    pub fn take(
-        &mut self,
-        sequence: SequenceNumber,
-    ) -> Option<EventEnvelope> {
+    pub fn take(&mut self, sequence: SequenceNumber) -> Option<EventEnvelope> {
         let index = self.index(sequence);
 
         let matches = self.slots[index]
             .as_ref()
-            .is_some_and(|event| {
-                event.header.sequence() == sequence
-            });
+            .is_some_and(|event| event.header.sequence() == sequence);
 
         if !matches {
             return None;
@@ -186,10 +170,7 @@ impl ReorderBuffer {
     /// O(capacity). Intended for recovery diagnostics,
     /// not the steady-state event processing path.
     #[must_use]
-    pub fn lowest_sequence(
-        &self,
-        expected: SequenceNumber,
-    ) -> Option<SequenceNumber> {
+    pub fn lowest_sequence(&self, expected: SequenceNumber) -> Option<SequenceNumber> {
         self.slots
             .iter()
             .flatten()
@@ -210,14 +191,7 @@ mod tests {
     use super::*;
 
     use maxwell_core::{
-        EventHeader,
-        EventId,
-        FeedId,
-        InstrumentId,
-        MarketEvent,
-        OrderDeleted,
-        OrderId,
-        SessionId,
+        EventHeader, EventId, FeedId, InstrumentId, MarketEvent, OrderDeleted, OrderId, SessionId,
         StreamId,
     };
 
@@ -229,10 +203,7 @@ mod tests {
         EventEnvelope::new(
             EventHeader::new(
                 EventId::new(
-                    FeedId::new(
-                        StreamId::new(1),
-                        SessionId::new(1),
-                    ),
+                    FeedId::new(StreamId::new(1), SessionId::new(1)),
                     seq(sequence),
                 ),
                 InstrumentId::new(42),
@@ -281,11 +252,9 @@ mod tests {
 
         let mut conflicting = event(102);
 
-        conflicting.event = MarketEvent::OrderDeleted(
-            OrderDeleted {
-                order_id: OrderId::new(999),
-            },
-        );
+        conflicting.event = MarketEvent::OrderDeleted(OrderDeleted {
+            order_id: OrderId::new(999),
+        });
 
         assert_eq!(
             buffer.insert(seq(100), conflicting),
@@ -337,9 +306,7 @@ mod tests {
     fn maximum_sequence_supported() {
         let mut buffer = ReorderBuffer::new(8).unwrap();
 
-        buffer
-            .insert(seq(u64::MAX - 2), event(u64::MAX))
-            .unwrap();
+        buffer.insert(seq(u64::MAX - 2), event(u64::MAX)).unwrap();
 
         assert!(buffer.take(seq(u64::MAX)).is_some());
     }
@@ -355,4 +322,3 @@ mod tests {
         assert_eq!(buffer.capacity(), 8);
     }
 }
-

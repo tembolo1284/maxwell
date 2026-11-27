@@ -1,13 +1,6 @@
-
 //! Individual resting order representation.
 
-use maxwell_core::{
-    OrderId,
-    Price,
-    Quantity,
-    SequenceNumber,
-    Side,
-};
+use maxwell_core::{OrderId, Price, Quantity, SequenceNumber, Side};
 
 use crate::error::{BookError, BookResult};
 
@@ -85,7 +78,8 @@ impl RestingOrder {
             return Err(BookError::InvalidReduction);
         }
 
-        let remaining = self.quantity
+        let remaining = self
+            .quantity
             .checked_sub(quantity)
             .ok_or(BookError::QuantityUnderflow)?;
 
@@ -117,29 +111,20 @@ mod tests {
 
     #[test]
     fn partial_reduction() {
-        let reduced = order()
-            .reduced(Quantity::new(200))
-            .unwrap();
+        let reduced = order().reduced(Quantity::new(200)).unwrap();
 
         assert_eq!(reduced.quantity(), Quantity::new(300));
-        assert_eq!(
-            reduced.priority_sequence(),
-            SequenceNumber::new(10),
-        );
+        assert_eq!(reduced.priority_sequence(), SequenceNumber::new(10),);
     }
 
     #[test]
     fn full_reduction_rejected() {
-        assert!(
-            order().reduced(Quantity::new(500)).is_err()
-        );
+        assert!(order().reduced(Quantity::new(500)).is_err());
     }
 
     #[test]
     fn excessive_reduction_rejected() {
-        assert!(
-            order().reduced(Quantity::new(501)).is_err()
-        );
+        assert!(order().reduced(Quantity::new(501)).is_err());
     }
 
     #[test]
@@ -161,4 +146,3 @@ mod tests {
         );
     }
 }
-

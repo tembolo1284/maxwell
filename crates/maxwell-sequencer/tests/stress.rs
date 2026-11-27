@@ -1,4 +1,3 @@
-
 //! Deterministic high-volume sequencing stress tests.
 //!
 //! These tests verify correctness under load.
@@ -6,11 +5,7 @@
 
 use maxwell_core::*;
 
-use maxwell_sequencer::{
-    SequencerConfig,
-    SequencerState,
-    StreamSequencer,
-};
+use maxwell_sequencer::{SequencerConfig, SequencerState, StreamSequencer};
 
 const EVENT_COUNT: u64 = 1_000_000;
 
@@ -19,10 +14,7 @@ fn seq(value: u64) -> SequenceNumber {
 }
 
 fn feed() -> FeedId {
-    FeedId::new(
-        StreamId::new(1),
-        SessionId::new(1),
-    )
+    FeedId::new(StreamId::new(1), SessionId::new(1))
 }
 
 fn event(sequence: u64) -> EventEnvelope {
@@ -42,12 +34,7 @@ fn event(sequence: u64) -> EventEnvelope {
 }
 
 fn stream(capacity: usize) -> StreamSequencer {
-    StreamSequencer::new(
-        feed(),
-        seq(1),
-        SequencerConfig::new(capacity, 1),
-    )
-    .unwrap()
+    StreamSequencer::new(feed(), seq(1), SequencerConfig::new(capacity, 1)).unwrap()
 }
 
 // ============================================================
@@ -79,8 +66,7 @@ impl XorShift64 {
 
     fn shuffle<T>(&mut self, values: &mut [T]) {
         for index in (1..values.len()).rev() {
-            let selected =
-                (self.next() % (index as u64 + 1)) as usize;
+            let selected = (self.next() % (index as u64 + 1)) as usize;
 
             values.swap(index, selected);
         }
@@ -99,10 +85,7 @@ fn one_million_contiguous_events() {
     for sequence in 1..=EVENT_COUNT {
         sequencer
             .ingest(event(sequence), |value| {
-                assert_eq!(
-                    value.header.sequence().raw(),
-                    expected,
-                );
+                assert_eq!(value.header.sequence().raw(), expected,);
 
                 expected += 1;
             })
@@ -135,10 +118,7 @@ fn reversed_batches() {
         for sequence in (start..end).rev() {
             sequencer
                 .ingest(event(sequence), |value| {
-                    assert_eq!(
-                        value.header.sequence().raw(),
-                        expected,
-                    );
+                    assert_eq!(value.header.sequence().raw(), expected,);
 
                     expected += 1;
                 })
@@ -149,10 +129,7 @@ fn reversed_batches() {
         assert_eq!(sequencer.state(), SequencerState::Live);
     }
 
-    assert_eq!(
-        sequencer.metrics().delivered,
-        BATCH_COUNT * BATCH_SIZE,
-    );
+    assert_eq!(sequencer.metrics().delivered, BATCH_COUNT * BATCH_SIZE,);
 }
 
 // ============================================================
@@ -184,10 +161,7 @@ fn randomized_batches_with_duplicates() {
         for &sequence in &batch {
             sequencer
                 .ingest(event(sequence), |value| {
-                    assert_eq!(
-                        value.header.sequence().raw(),
-                        expected,
-                    );
+                    assert_eq!(value.header.sequence().raw(), expected,);
 
                     expected += 1;
                 })
@@ -230,18 +204,10 @@ fn repeated_circular_slot_reuse() {
     let mut expected = 1_u64;
 
     for start in (1..100_001).step_by(4) {
-        for sequence in [
-            start + 3,
-            start + 1,
-            start + 2,
-            start,
-        ] {
+        for sequence in [start + 3, start + 1, start + 2, start] {
             sequencer
                 .ingest(event(sequence), |value| {
-                    assert_eq!(
-                        value.header.sequence().raw(),
-                        expected,
-                    );
+                    assert_eq!(value.header.sequence().raw(), expected,);
 
                     expected += 1;
                 })
@@ -265,14 +231,10 @@ fn identical_input_produces_identical_output() {
         let mut sequencer = stream(16);
         let mut delivered = Vec::new();
 
-        for sequence in [
-            3, 2, 1, 2, 6, 5, 4, 6, 8, 7, 10, 9,
-        ] {
+        for sequence in [3, 2, 1, 2, 6, 5, 4, 6, 8, 7, 10, 9] {
             sequencer
                 .ingest(event(sequence), |value| {
-                    delivered.push(
-                        value.header.sequence().raw(),
-                    );
+                    delivered.push(value.header.sequence().raw());
                 })
                 .unwrap();
         }
@@ -283,4 +245,3 @@ fn identical_input_produces_identical_output() {
     assert_eq!(run(), run());
     assert_eq!(run().0, (1..=10).collect::<Vec<_>>());
 }
-
