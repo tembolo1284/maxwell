@@ -16,6 +16,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "maxwell-cli"
+version = "0.1.0"
+dependencies = [
+ "maxwell-core",
+ "maxwell-replay",
+ "maxwell-simulator",
+]
+
+[[package]]
 name = "maxwell-client"
 version = "0.1.0"
 dependencies = [

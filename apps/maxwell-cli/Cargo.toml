@@ -1,0 +1,22 @@
+[package]
+name = "maxwell-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Unified operational command-line interface for Maxwell"
+
+[lib]
+name = "maxwell_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "maxwell"
+path = "src/main.rs"
+
+[dependencies]
+maxwell-core = { path = "../../crates/maxwell-core" }
+maxwell-simulator = { path = "../maxwell-simulator" }
+maxwell-replay = { path = "../maxwell-replay" }
+
+[lints]
+workspace = true
