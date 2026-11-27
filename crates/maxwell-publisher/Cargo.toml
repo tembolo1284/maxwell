@@ -1,0 +1,14 @@
+[package]
+name = "maxwell-publisher"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Deterministic, low-latency market data publication and subscriber fan-out for Maxwell"
+
+[dependencies]
+maxwell-core = { path = "../maxwell-core" }
+maxwell-protocol = { path = "../maxwell-protocol" }
+maxwell-book = { path = "../maxwell-book" }
+
+[lints]
+workspace = true

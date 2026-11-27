@@ -27,6 +27,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "maxwell-publisher"
+version = "0.1.0"
+dependencies = [
+ "maxwell-book",
+ "maxwell-core",
+ "maxwell-protocol",
+]
+
+[[package]]
 name = "maxwell-recovery"
 version = "0.1.0"
 dependencies = [
