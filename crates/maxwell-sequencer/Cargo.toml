@@ -1,0 +1,39 @@
+
+[package]
+name = "maxwell-sequencer"
+version = "0.1.0"
+edition = "2024"
+description = "Deterministic low-latency market data sequencing, gap detection, deduplication, and out-of-order event buffering"
+publish = false
+
+# ============================================================
+# Library configuration
+# ============================================================
+
+[lib]
+name = "maxwell_sequencer"
+path = "src/lib.rs"
+
+# ============================================================
+# Dependencies
+# ============================================================
+
+[dependencies]
+maxwell-core = { path = "../maxwell-core", version = "0.1.0" }
+
+# ============================================================
+# Rust compiler lints
+# ============================================================
+
+[lints.rust]
+unsafe_code = "forbid"
+
+# ============================================================
+# Clippy lints
+# ============================================================
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+
