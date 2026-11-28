@@ -2,7 +2,7 @@
 //!
 //! Wire format:
 //!
-//! [4-byte big-endian payload length][payload]
+//! `[4-byte big-endian payload length][payload]`
 //!
 //! Decoder and encoder storage is preallocated.
 //! No allocation is required for ordinary frame processing.
