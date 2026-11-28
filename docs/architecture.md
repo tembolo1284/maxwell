@@ -2,65 +2,68 @@
 
 ## 1. Introduction
 
-Maxwell is a low-latency market data processing and distribution
-platform written in Rust.
+Maxwell is a low-latency market data processing, distribution,
+simulation, and historical replay platform written in Rust.
 
-It is designed to operate alongside Planck, a C++23 matching
-engine, while maintaining independent responsibilities,
-deployment boundaries, and development lifecycles.
+It is designed to complement Planck, a C++23 matching engine,
+while maintaining independent responsibilities, deployment
+boundaries, and development lifecycles.
 
-This document describes the logical architecture, component
-responsibilities, state ownership, data flow, synchronization
-requirements, and intended application topology.
+Maxwell separates financial domain logic, binary communication,
+state reconstruction, recovery, publication, and operational
+orchestration into independently testable workspace packages.
 
-The foundational library crates have an initial implementation.
-Application-level integration remains under development.
+The initial implementation consists of ten foundational
+library crates and four applications.
 
 ## 2. System Context
-
-Planck is responsible for order execution and matching.
-
-Maxwell is responsible for consuming exchange-generated events,
-reconstructing market data state, and distributing that state
-to downstream consumers.
 
 ```mermaid
 flowchart LR
     TRADERS["Trading Participants"]
     PLANCK["Planck Matching Engine"]
-    MAXWELL["Maxwell Market Data Platform"]
+    SIM["Maxwell Simulator"]
+    MAXWELL["Maxwell Server"]
     CONSUMERS["Market Data Consumers"]
+    STORAGE["Historical Journals"]
     MONITOR["Monitoring Infrastructure"]
 
     TRADERS -->|Orders| PLANCK
     PLANCK -->|Execution Reports| TRADERS
-    PLANCK -->|Market Events| MAXWELL
-    MAXWELL -->|Recovery Requests| PLANCK
-    MAXWELL -->|Market Data| CONSUMERS
-    MAXWELL -->|Telemetry| MONITOR
+
+    PLANCK -.->|Future Live Integration| MAXWELL
+    SIM -->|Synthetic Events| MAXWELL
+
+    MAXWELL -->|Publications| CONSUMERS
+    SIM -->|Recording| STORAGE
+    STORAGE -->|Historical Replay| MAXWELL
+
+    MAXWELL -.->|Future Export| MONITOR
 ```
+
+The diagram includes both implemented logical interfaces and
+planned deployment integrations.
 
 ### 2.1 Planck Responsibilities
 
 - Order acceptance and validation.
-- Order matching.
-- Execution priority.
+- Order matching and execution priority.
 - Trade generation.
 - Authoritative exchange state.
-- Generation of market data events.
+- Market data event generation.
 - Provision of recovery data through agreed interfaces.
 
 ### 2.2 Maxwell Responsibilities
 
-- Market data ingestion.
-- Binary protocol validation.
-- Sequence tracking.
-- Duplicate and gap detection.
-- Order book reconstruction.
+- Market data ingestion and validation.
+- Sequence tracking and gap detection.
+- Deterministic order book reconstruction.
 - Recovery coordination.
 - Market data publication.
 - Subscriber and session management.
 - Client synchronization.
+- Synthetic market generation.
+- Historical event persistence and replay.
 - Operational instrumentation.
 
 ### 2.3 Non-Responsibilities
@@ -82,44 +85,48 @@ These responsibilities belong to separate systems.
 
 | ID | Requirement |
 |----|-------------|
-| FR-01 | Decode and validate incoming market data |
-| FR-02 | Detect missing, duplicate, and out-of-order events |
+| FR-01 | Decode and validate market data messages |
+| FR-02 | Detect missing, duplicate, and reordered events |
 | FR-03 | Reconstruct deterministic order book state |
-| FR-04 | Support retransmission-based recovery |
-| FR-05 | Support snapshot-based recovery |
+| FR-04 | Coordinate retransmission-based recovery |
+| FR-05 | Support snapshot-based synchronization |
 | FR-06 | Distribute filtered market data |
 | FR-07 | Maintain bounded subscriber queues |
 | FR-08 | Coordinate downstream synchronization |
 | FR-09 | Expose operational statistics |
-| FR-10 | Support reproducible simulation and replay |
+| FR-10 | Generate reproducible synthetic workloads |
+| FR-11 | Persist market events in versioned journals |
+| FR-12 | Validate and replay historical market events |
+| FR-13 | Provide operational command-line tooling |
+
+Production transport orchestration and complete remote recovery
+remain integration objectives.
 
 ### 3.2 Non-Functional Requirements
 
-| ID | Requirement |
-|----|-------------|
-| NFR-01 | Predictable memory consumption |
-| NFR-02 | Low processing latency |
-| NFR-03 | High sustained throughput |
-| NFR-04 | Predictable tail latency |
-| NFR-05 | Explicit state ownership |
-| NFR-06 | Minimal critical-path synchronization |
-| NFR-07 | Deterministic logical processing |
-| NFR-08 | Memory-safe implementation |
-| NFR-09 | Independently testable components |
-| NFR-10 | Explicit failure and recovery semantics |
+- Predictable resource consumption.
+- Low processing latency.
+- High sustained throughput.
+- Predictable tail latency.
+- Explicit state ownership.
+- Minimal critical-path synchronization.
+- Deterministic logical processing.
+- Memory-safe implementation.
+- Independently testable components.
+- Explicit failure and recovery semantics.
 
-Quantitative performance requirements will be established
-through reproducible system benchmarks.
+Quantitative performance targets must be established through
+reproducible benchmarks rather than assumed from the design.
 
 ## 4. Architectural Layers
 
 ```mermaid
 flowchart TD
     subgraph APPS["Application Layer"]
-        SERVER["Server"]
-        SIM["Simulator"]
-        REPLAY["Replay"]
-        CLI["CLI"]
+        SERVER["maxwell-server"]
+        SIM["maxwell-simulator"]
+        REPLAY["maxwell-replay"]
+        CLI["maxwell-cli"]
     end
 
     subgraph DIST["Distribution Layer"]
@@ -139,10 +146,7 @@ flowchart TD
         PROTOCOL["Protocol"]
     end
 
-    subgraph FOUNDATION["Foundation Layer"]
-        CORE["Core"]
-    end
-
+    CORE["Core"]
     METRICS["Metrics"]
 
     APPS --> DIST
@@ -152,82 +156,73 @@ flowchart TD
 
     DIST --> STATE
     DIST --> IO
-    STATE --> IO
-    STATE --> FOUNDATION
-    IO --> FOUNDATION
+    STATE --> CORE
+    IO --> CORE
 ```
 
 This diagram represents conceptual layering rather than the
 exact Cargo dependency graph.
 
-Actual crate dependencies are defined by the workspace manifests.
+The workspace manifests define the actual compile-time
+dependencies.
 
 ## 5. Component Boundaries
 
-| Component | Primary Responsibility | Owned State |
-|-----------|------------------------|-------------|
-| Core | Domain primitives | Domain values |
-| Protocol | Wire encoding and decoding | Message representations |
-| Transport | Communication and buffering | Transport state |
-| Sequencer | Sequence validation | Expected sequence |
-| Recovery | Synchronization restoration | Recovery state and buffers |
-| Book | Market state reconstruction | Order book state |
+| Component | Responsibility | Owned State |
+|-----------|----------------|-------------|
+| Core | Domain primitives | Financial values and event representations |
+| Protocol | Binary encoding | Message representations |
+| Transport | Communication | Framing and transport buffers |
+| Sequencer | Sequence validation | Expected sequence and gap state |
+| Recovery | Synchronization | Recovery state and buffered events |
+| Book | Market reconstruction | Instruments, orders, and price levels |
 | Publisher | Filtering and fan-out | Subscribers and publication queues |
-| Gateway | Downstream session coordination | Session state |
-| Client | Consumer synchronization | Local market data state |
-| Metrics | Instrumentation | Counters, gauges, histograms |
+| Gateway | Session coordination | Downstream session state |
+| Client | Market consumption | Local synchronized market state |
+| Metrics | Instrumentation | Counters, gauges, and histograms |
+| Server | Application orchestration | Integrated processing lifecycle |
+| Simulator | Synthetic market generation | Authoritative synthetic market |
+| Replay | Historical persistence | Journal and playback state |
+| CLI | Operational orchestration | Command-specific configuration |
 
-Components should expose narrowly scoped interfaces.
+Components expose narrowly scoped interfaces.
 
-The application layer coordinates interactions that span
-multiple component boundaries.
+Applications coordinate operations spanning multiple
+component boundaries.
+
+See [Crate Reference](crates.md) for additional details.
 
 ## 6. Market Data Processing Pipeline
 
 ```mermaid
 flowchart TD
-    A["Receive Message"]
-    B["Validate Framing"]
-    C["Decode Protocol"]
-    D["Validate Domain Values"]
-    E["Validate Sequence"]
-    F{"Synchronized?"}
-    G["Apply Event"]
-    H["Generate Publication"]
-    I["Filter Subscribers"]
-    J["Queue Deliveries"]
-    K["Deliver to Sessions"]
-    R["Recovery Coordination"]
-    X["Reject and Report"]
+    INPUT["Incoming Event"]
+    DECODE["Protocol Validation"]
+    RECOVERY["Recovery and Sequencing"]
+    CHECK{"Event Eligible?"}
+    APPLY["Apply Market Mutation"]
+    PUB["Construct Publication"]
+    CAPACITY{"Publication Accepted?"}
+    PENDING["Retain Pending Publication"]
+    FANOUT["Subscriber Distribution"]
+    REJECT["Reject, Buffer, or Recover"]
 
-    A --> B
-    B --> C
-    C --> D
-    D --> E
-    E --> F
+    INPUT --> DECODE --> RECOVERY --> CHECK
+    CHECK -->|Yes| APPLY
+    CHECK -->|No| REJECT
 
-    B -. Invalid .-> X
-    C -. Invalid .-> X
-    D -. Invalid .-> X
-
-    F -->|Yes| G
-    F -->|No| R
-    R -->|Synchronization Restored| G
-
-    G --> H
-    H --> I
-    I --> J
-    J --> K
+    APPLY --> PUB --> CAPACITY
+    CAPACITY -->|Yes| FANOUT
+    CAPACITY -->|No| PENDING
+    PENDING --> CAPACITY
 ```
 
 ### 6.1 Ingestion
 
-The transport component receives upstream data.
+The system distinguishes between:
 
-The application must distinguish between:
-
-- Transport-level frames.
-- Protocol-level messages.
+- Transport frames.
+- Binary protocol messages.
 - Logical market data events.
 
 A network read is not necessarily equivalent to one complete
@@ -236,627 +231,583 @@ protocol message.
 Stream transports may produce partial or combined messages.
 Datagram transports may lose, duplicate, or reorder messages.
 
-### 6.2 Validation
+The current integrated server supports in-process event
+ingestion. Production socket orchestration is a separate
+development workstream.
 
-Validation should occur before an event mutates market state.
+### 6.2 Validation
 
 Validation includes:
 
-- Frame boundaries.
-- Message length.
-- Supported message type.
-- Supported protocol version where applicable.
-- Domain value validity.
+- Frame boundaries and message lengths.
+- Protocol version and message type.
+- Financial domain constraints.
+- Feed and instrument identity.
 - Sequence validity.
-- Instrument identity.
-- Event-specific constraints.
+- Event-specific requirements.
 
-Malformed input must not partially mutate the order book.
+Invalid input must not partially mutate market state.
 
-If a malformed message prevents sequence continuity from being
-established, the affected feed must not continue to advertise
-synchronized state.
+### 6.3 Market Mutation
 
-### 6.3 State Mutation
+Eligible events are applied by the owner of the relevant
+market state.
 
-Validated and appropriately ordered events are applied to the
-relevant market data state.
+The mutation path must preserve:
 
-A failed mutation must have documented semantics.
-
-Where transactional mutation is required, failure must leave
-the original state unchanged or explicitly invalidate it.
+- Order identity.
+- Price and quantity validity.
+- Price-level consistency.
+- Instrument boundaries.
+- Applicable sequence invariants.
 
 ### 6.4 Publication
 
-A successful market state transition may produce one or more
-downstream publications.
+Market mutation and downstream publication are distinct
+operations.
 
-The application must preserve the relationship between:
+A market event may already have been applied when downstream
+publication encounters backpressure.
 
-- The applied upstream event.
-- The resulting market state.
-- The corresponding publication.
-- The publication watermark.
+The server retains pending publication state rather than
+applying the original event again.
 
-Publication retries must not cause duplicate book mutations.
+A retry must not duplicate a successful market mutation.
 
 ## 7. Sequence Domains
 
-Maxwell must distinguish independent ordering domains.
+Maxwell distinguishes three independent sequence domains.
 
-| Domain | Scope | Purpose |
-|--------|-------|---------|
-| Upstream sequence | Feed or stream | Exchange event continuity |
-| Recovery watermark | Recovery scope | Restored state boundary |
-| Publication sequence | Publisher instance | Publication ordering |
-| Session sequence | Downstream session | Delivery continuity where supported |
+| Domain | Purpose |
+|--------|---------|
+| Upstream sequence | Ordering authoritative market events |
+| Publication sequence | Ordering generated downstream publications |
+| Connection sequence | Ordering messages within a downstream session |
 
-Sequence numbers from different domains must not be compared
-without an explicitly defined mapping.
+These domains must not be treated as interchangeable.
 
-### 7.1 Upstream Sequencing
+A filtered subscriber may observe gaps in publication
+sequences without experiencing upstream data loss.
 
-The upstream sequence identifies the order in which exchange
-events must be processed.
+A reconnect may establish a new connection sequence without
+resetting authoritative market state.
 
-A sequencing scope must be defined by the upstream protocol.
+The recovery manager owns the upstream sequence cursor.
 
-For example, two independent feeds may both contain an event
-with sequence number 100 without representing the same event.
-
-### 7.2 Publication Sequencing
-
-Publication sequence numbers identify accepted publications
-within a publisher instance.
-
-A filtered subscriber may receive publication sequences:
-
-```text
-100, 103, 107, 108
-```
-
-The missing values do not necessarily indicate packet loss.
-
-They may correspond to publications excluded by the
-subscriber's filter.
-
-### 7.3 Session Sequencing
-
-If the downstream protocol provides session-local delivery
-sequences, those sequences can establish delivery continuity
-independently of publication filtering.
-
-Session sequencing and reconnect semantics must be explicitly
-defined before network interoperability is considered complete.
-
-### 7.4 Sequence Exhaustion
-
-Sequence counters must not silently wrap.
-
-Exhaustion requires an explicit error or a documented stream
-reset procedure.
-
-Stream restarts must distinguish a new sequence epoch from
-duplicate or delayed events belonging to an earlier epoch.
+The journal preserves the original upstream sequence rather
+than assigning a replacement sequence.
 
 ## 8. Order Book Architecture
 
-The order book represents market state derived from
-authoritative upstream events.
+The order book reconstructs market state from validated
+market events.
 
-```mermaid
-flowchart TD
-    EVENT["Validated Market Event"]
-    ROUTER["Instrument Routing"]
+Each instrument maintains its own logical book state.
 
-    EVENT --> ROUTER
+The implementation uses fixed-point financial values and
+bounded logical capacities.
 
-    ROUTER --> A["Instrument A"]
-    ROUTER --> B["Instrument B"]
-    ROUTER --> C["Instrument C"]
+### 8.1 Core Invariants
 
-    A --> AB["Bid Ladder"]
-    A --> AA["Ask Ladder"]
+- An active order identifier must be unique within its scope.
+- Resting quantities must remain valid.
+- Price levels must reconcile with resting orders.
+- Instrument-specific price constraints must be respected.
+- Order counts must reconcile with registry contents.
+- Failed mutations must preserve consistency.
 
-    B --> BB["Bid Ladder"]
-    B --> BA["Ask Ladder"]
+### 8.2 Storage
 
-    C --> CB["Bid Ladder"]
-    C --> CA["Ask Ladder"]
-```
+The book uses dense price-level structures and an order
+registry.
 
-The exact book representation is defined by maxwell-book.
+Dense ladder capacity must accommodate the complete
+configured instrument price band.
 
-### 8.1 Book Invariants
+The logical maximum number of orders is distinct from the
+internal capacity of the underlying hash table.
 
-Applicable invariants include:
+A logical capacity limit does not imply allocation-free
+operation.
 
-- Prices and quantities use validated domain representations.
-- Price levels maintain their required ordering.
-- Bid and ask state remain logically distinct.
-- Quantities do not silently overflow or underflow.
-- Best-price calculations reflect current book state.
-- Duplicate upstream events do not cause duplicate mutations.
-- Invalid events do not silently corrupt state.
-- Snapshots correspond to a defined synchronization boundary.
+Replacing the current order registry with a fixed-capacity
+structure remains a potential optimization.
 
-Crossed or locked markets must be interpreted according to
-the upstream market data contract rather than universally
-treated as invalid.
+### 8.3 Deterministic Comparison
 
-### 8.2 State Ownership
+Canonical market comparisons should include:
 
-A mutable order book must have one logical processing owner.
+- Instrument identifiers and definitions.
+- Upstream sequence cursor.
+- Per-instrument sequence state.
+- Resting order identifiers.
+- Order sides, prices, and quantities.
+- Order counts and price-level consistency.
 
-Partitioning by instrument is possible only when the
-application preserves upstream sequencing, recovery, and
-cross-instrument consistency requirements.
-
-### 8.3 Snapshot Consistency
-
-A snapshot must represent a consistent state boundary.
-
-The snapshot producer must establish:
-
-- The relevant instrument or feed scope.
-- The state represented by the snapshot.
-- The corresponding watermark.
-- The ordering of subsequent incremental updates.
-
-A snapshot must not combine unrelated state versions while
-advertising a single consistent watermark.
+FIFO priority requires additional explicit verification.
 
 ## 9. Recovery Architecture
 
-Recovery restores synchronization after upstream continuity
-has been lost.
-
-The following state machine is conceptual. Actual state
-variants and transition APIs are defined by maxwell-recovery.
+Recovery coordinates the transition between synchronized
+and unsynchronized market state.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Unsynchronized
-
-    Unsynchronized --> SnapshotRecovery
-    SnapshotRecovery --> Replaying: Valid snapshot
-
-    Replaying --> Synchronized: Continuity established
-    Replaying --> SnapshotRecovery: Invalid replay
-
-    Synchronized --> GapDetected: Missing sequence
-    GapDetected --> RetransmissionRecovery: Recoverable range
-    GapDetected --> SnapshotRecovery: Snapshot required
-
-    RetransmissionRecovery --> Replaying: Missing events received
-    RetransmissionRecovery --> SnapshotRecovery: Recovery unavailable
-
-    SnapshotRecovery --> Failed: Recovery cannot continue
-    Failed --> Unsynchronized: Explicit restart
+    [*] --> Initializing
+    Initializing --> Synchronized
+    Synchronized --> GapDetected
+    GapDetected --> Recovering
+    Recovering --> Synchronized
+    Recovering --> SnapshotRequired
+    SnapshotRequired --> Recovering
+    Recovering --> Failed
+    Failed --> Initializing
 ```
 
-### 9.1 Gap Detection
+This is a conceptual lifecycle rather than an exact
+enumeration of Rust implementation variants.
 
-When a sequence gap is detected:
+### 9.1 Retransmission
 
-1. Identify the affected sequencing scope.
-2. Record the expected and observed sequence.
-3. Mark the affected state as unsynchronized.
-4. Buffer eligible subsequent events within configured limits.
-5. Initiate the configured recovery procedure.
-6. Validate recovered data.
-7. Restore continuity.
-8. Resume synchronized processing.
+Retransmission-based recovery requires:
 
-Unaffected independent feeds may continue processing if their
-state and consistency guarantees are genuinely independent.
+- Identification of missing sequence ranges.
+- Bounded buffering of later events.
+- Validation of recovered events.
+- Ordered application of recovered and buffered events.
+- Explicit synchronization restoration.
 
-### 9.2 Retransmission
+The simulator provides retained history for controlled
+retransmission testing.
 
-Retransmission restores missing events from an authoritative
-recovery source.
+Production request-response correlation and transport
+orchestration remain future work.
 
-Recovered events must be validated against:
+### 9.2 Snapshot Recovery
 
-- The requested sequence range.
-- The affected feed.
-- The current recovery state.
-- Existing buffered events.
-- Duplicate and ordering constraints.
+A snapshot must identify the market scope and sequence
+watermark it represents.
 
-### 9.3 Snapshot Recovery
+Buffered events already included in the snapshot must not
+be applied again.
 
-Snapshot recovery establishes a new valid state boundary.
+Eligible subsequent events must be applied in order.
 
-```mermaid
-sequenceDiagram
-    participant U as Upstream
-    participant R as Recovery
-    participant B as Book
+Complete upstream snapshot installation and remote snapshot
+exchange remain integration workstreams.
 
-    U->>R: Incremental event with gap
-    R->>U: Snapshot request
-    U->>R: Subsequent incremental events
-    Note over R: Buffer within configured limits
-    U->>R: Snapshot and watermark
-    R->>R: Validate snapshot
-    R->>B: Restore snapshot state
-    R->>B: Replay eligible increments
-    R->>R: Verify sequence continuity
-    Note over R,B: Synchronized
-```
+### 9.3 Synchronization
 
-Events already represented by the snapshot must not be
-applied again.
+A market must not be advertised as synchronized merely
+because some valid events have been received.
 
-### 9.4 Recovery Buffer Exhaustion
-
-Recovery buffers must remain bounded.
-
-When capacity is exhausted, the system must explicitly
-invalidate or restart recovery according to its policy.
-
-Silently discarding an event and later declaring the feed
-synchronized is prohibited.
-
-### 9.5 Recovery Completion
-
-Recovery completion requires more than receipt of a snapshot
-or retransmission response.
-
-The application must establish that the resulting state is
-consistent with the accepted recovery watermark and all
-required subsequent events.
+Synchronization requires satisfaction of the complete
+initialization or recovery contract.
 
 ## 10. Publication Architecture
 
-The publisher distributes market data to registered
-subscribers.
+The publisher separates market processing from subscriber
+delivery.
 
 ```mermaid
 flowchart LR
-    E["Publication"]
-    F["Subscription Filtering"]
+    EVENT["Publication"]
+    FILTER["Subscription Filtering"]
 
-    E --> F
+    EVENT --> FILTER
+    FILTER --> A["Subscriber A Queue"]
+    FILTER --> B["Subscriber B Queue"]
+    FILTER --> C["Subscriber C Queue"]
 
-    F --> QA["Subscriber A Queue"]
-    F --> QB["Subscriber B Queue"]
-    F --> QC["Subscriber C Queue"]
-
-    QA --> SA["Session A"]
-    QB --> SB["Session B"]
-    QC --> SC["Session C"]
+    A --> SA["Session A"]
+    B --> SB["Session B"]
+    C --> SC["Session C"]
 ```
 
-### 10.1 Subscription Filtering
+Subscriber queues have configured capacity limits.
 
-Subscriptions may select:
+Supported backpressure policies distinguish between:
 
-- All instruments.
-- A bounded set of instruments.
-- Selected event types.
-- Global events where applicable.
+- Rejecting a publication when capacity is unavailable.
+- Invalidating an overloaded subscriber and requiring
+  resynchronization.
 
-Filtering must preserve the relative order of publications
-delivered to each subscriber.
+A rejected publication must not produce partial fan-out
+under an atomic rejection policy.
 
-### 10.2 Subscriber Lifecycle
-
-The publisher defines the following subscriber states:
-
-```mermaid
-stateDiagram-v2
-    [*] --> PendingSnapshot
-    PendingSnapshot --> Active: Valid activation watermark
-    Active --> ResyncRequired: Invalidation or queue overflow
-    ResyncRequired --> Active: Valid resynchronization
-    PendingSnapshot --> [*]: Unsubscribe
-    Active --> [*]: Unsubscribe
-    ResyncRequired --> [*]: Unsubscribe
-```
-
-Pending and invalidated subscribers do not receive ordinary
-incremental publications until correctly activated.
-
-### 10.3 Backpressure Policies
-
-The publisher supports two principal policies.
-
-#### RejectPublication
-
-Reject a publication when a matching active subscriber
-cannot accept it.
-
-Rejection must occur before partial fan-out or advancement
-of the publication sequence.
-
-The application must retain the rejected publication and
-retry it without repeating the underlying book mutation.
-
-#### RequireResync
-
-Invalidate an overloaded subscriber and continue publishing
-to healthy subscribers.
-
-The invalidated subscriber's pending queue is discarded.
-
-The application must ensure that the subscriber receives an
-invalidation notification or is disconnected, even if no
-subsequent market event arrives.
-
-### 10.4 Snapshot Activation
-
-Subscriber activation requires a consistent publication
-watermark.
-
-The publisher does not maintain an unrestricted historical
-publication replay log.
-
-Snapshot creation, delivery ordering, and activation must
-therefore be coordinated by the application and gateway.
-
-A subscriber must receive its snapshot before incremental
-updates belonging to the activated state.
+An invalidated subscriber must not resume ordinary
+incremental delivery until synchronization is restored.
 
 ## 11. Gateway and Client Architecture
 
-The gateway manages downstream session coordination.
+The gateway coordinates downstream sessions and subscription
+activation.
 
-The client maintains the consumer-side synchronization state.
+The client maintains consumer-side market state.
+
+A conceptual downstream lifecycle is:
 
 ```mermaid
-sequenceDiagram
-    participant C as Client
-    participant G as Gateway
-    participant P as Publisher
-    participant B as Book
-
-    C->>G: Establish session
-    C->>G: Subscribe
-    G->>P: Register subscriber
-    G->>B: Request consistent snapshot
-    B-->>G: Snapshot state
-    G-->>C: Snapshot
-    G->>P: Activate at coordinated watermark
-    P-->>G: Incremental publications
-    G-->>C: Incremental updates
+stateDiagram-v2
+    [*] --> Disconnected
+    Disconnected --> Connected
+    Connected --> Synchronizing
+    Synchronizing --> Active
+    Active --> Invalidated
+    Invalidated --> Synchronizing
+    Active --> Disconnected
 ```
 
-This sequence illustrates the intended logical interaction.
+A consistent snapshot watermark establishes the boundary
+between initialization data and subsequent increments.
 
-The exact implementation must account for nonblocking
-delivery, partial writes, queue capacity, and the atomicity
-of the snapshot-to-incremental transition.
+A client must not advertise synchronized market state
+before satisfying that boundary.
 
-### 11.1 Session Isolation
-
-A downstream session must not mutate unrelated session state.
-
-A slow or disconnected consumer must not silently invalidate
-healthy consumers.
-
-### 11.2 Delivery Semantics
-
-Successful acceptance by a publication sink does not
-necessarily mean that a remote client has received the data.
-
-The transport contract must distinguish:
-
-- Accepted for local delivery.
-- Buffered for transmission.
-- Written to the transport.
-- Received by the remote endpoint.
-- Acknowledged by the remote application, if supported.
-
-Exactly-once network delivery is not assumed.
-
-### 11.3 Client Synchronization
-
-Clients must not advertise their local state as synchronized
-until the required initial snapshot and continuity checks
-have completed.
-
-On invalidation, the client must either discard affected
-state or explicitly mark it stale until recovery completes.
+Complete downstream socket framing, session orchestration,
+and remote integration remain Phase III objectives.
 
 ## 12. Application Architecture
 
-### 12.1 Server
+### 12.1 maxwell-server
 
-The server is the composition root of the system.
+The server integrates the foundational processing components.
 
-It is responsible for:
+Responsibilities include:
 
-- Constructing and configuring components.
-- Establishing transport connections.
-- Defining processing ownership.
-- Coordinating event processing.
-- Managing recovery requests.
-- Coordinating publication retries.
-- Managing downstream sessions.
-- Collecting operational telemetry.
-- Handling shutdown and fatal errors.
+- Server configuration and lifecycle management.
+- Instrument registration.
+- Upstream event ingestion.
+- Recovery coordination.
+- Order book mutation.
+- Publication generation.
+- Subscriber coordination.
+- Operational status and metrics.
 
-Business logic should remain in reusable library crates
-where practical.
+The initial server uses a single-owner processing model.
 
-### 12.2 Simulator
+The application exposes in-process ingestion and downstream
+interfaces suitable for deterministic integration testing.
 
-The simulator generates controlled market data workloads.
+### 12.2 maxwell-simulator
 
-It should support deterministic seeds, configurable event
-rates, bursts, and explicit failure scenarios.
+The simulator generates reproducible synthetic market data.
 
-The simulator should use the same protocol representations
-as the production ingestion path.
-
-### 12.3 Replay
-
-The replay application reconstructs historical processing
-behavior from recorded inputs.
-
-It should support:
-
-- Original event ordering.
-- Configurable pacing.
-- Maximum-throughput replay.
-- State reconciliation.
-- Deterministic regression validation.
-
-### 12.4 CLI
-
-The CLI provides a human-facing interface for market data
-inspection, subscription management, and diagnostics.
-
-Human-readable formatting belongs outside the critical
-market data processing path.
-
-## 13. Deployment Topologies
-
-### 13.1 Single-Threaded Baseline
-
-```mermaid
-flowchart LR
-    INPUT["Input"]
-
-    subgraph OWNER["Single Processing Owner"]
-        D["Decode"]
-        S["Sequence"]
-        R["Recover"]
-        B["Book"]
-        P["Publish"]
-
-        D --> S --> R --> B --> P
-    end
-
-    INPUT --> D
-    P --> OUTPUT["Output"]
-```
-
-A single-threaded baseline simplifies correctness validation
-and provides a useful performance reference.
-
-### 13.2 Partitioned Processing
+It maintains an independent authoritative market rather than
+using the server's order book as its source of truth.
 
 ```mermaid
 flowchart TD
-    I["Ingestion"]
-    R["Feed Routing"]
+    SEED["Seed and Scenario"]
+    MARKET["Authoritative Synthetic Market"]
+    EVENTS["Generated Events"]
+    HISTORY["Retained History"]
+    FAULTS["Delivery Fault Injection"]
+    SINK["Event Sink"]
 
-    I --> R
-
-    R --> A["Processing Owner A"]
-    R --> B["Processing Owner B"]
-
-    A --> G["Downstream Distribution"]
-    B --> G
+    SEED --> MARKET --> EVENTS
+    EVENTS --> HISTORY
+    EVENTS --> FAULTS --> SINK
 ```
 
-Partitioned processing may improve throughput when feed
-scopes can be processed independently.
+Capabilities include:
 
-Partitioning must not introduce nondeterministic ordering
-into a publication domain that requires a total order.
+- Seeded deterministic generation.
+- Multiple instruments.
+- Order addition, modification, cancellation, deletion,
+  and execution.
+- Independent market and fault randomness.
+- Configurable event loss, duplication, and reordering.
+- Bounded delivery queues.
+- Retained event history.
+- Snapshot generation.
+- Virtual, unbounded, and real-time pacing.
+- Workload statistics.
 
-### 13.3 Topology Selection
+The independent market enables comparison against the
+server's reconstructed state.
 
-The initial server should favor the simplest topology that
-satisfies correctness and operational requirements.
+### 12.3 maxwell-replay
 
-Additional threads, partitions, and communication channels
-should be introduced based on profiling and measured needs.
-
-## 14. Observability Architecture
-
-Processing owners maintain local instrumentation.
-
-Telemetry collection should occur outside the critical path
-where practical.
+The replay application provides historical persistence and
+playback.
 
 ```mermaid
 flowchart LR
-    A["Ingestion Owner"]
-    B["Processing Owner"]
-    C["Session Owner"]
+    SOURCE["Event Source"]
+    REC["Recorder"]
+    WRITER["Journal Writer"]
+    FILE["Binary Journal"]
+    READER["Journal Reader"]
+    INDEX["Sparse Index"]
+    ENGINE["Replay Engine"]
+    SINK["Replay Sink"]
 
-    A --> M["Metrics Collector"]
-    B --> M
-    C --> M
-
-    M --> E["Prometheus Export"]
-    E --> O["Monitoring"]
+    SOURCE --> REC --> WRITER --> FILE
+    FILE --> READER --> ENGINE --> SINK
+    READER --> INDEX
+    INDEX --> ENGINE
 ```
 
-Telemetry collection must not introduce data races or
-unbounded queues.
+Two journal modes are supported.
 
-Timing measurements must not influence deterministic
-market state transitions.
+| Mode | Semantics |
+|------|-----------|
+| Authoritative | Contiguous upstream event sequence |
+| RawCapture | Original arrival order, including delivery faults |
 
-## 15. Security and Trust Boundaries
+The journal is append-only during a recording session.
 
-All network input must be treated as untrusted.
+Records contain:
 
-Required considerations include:
+- Original upstream sequence.
+- Relative recording timestamp.
+- Encoded Maxwell protocol message.
+- CRC32C integrity checksum.
 
-- Frame length validation.
-- Message type validation.
-- Bounded resource allocation.
-- Session and subscription limits.
-- Malformed message handling.
-- Connection lifecycle management.
-- Authentication and authorization where required.
-- Network isolation.
-- Protection against resource exhaustion.
+Replay supports:
 
-Authentication, encryption, and production network security
-policies remain application-level design requirements.
+- Sequential validation.
+- Sparse indexing.
+- Sequence and timestamp seeking.
+- Instrument and event filtering.
+- Unbounded playback.
+- Virtual playback.
+- Real-time and scaled playback.
+- Explicit sink backpressure.
+- Replay statistics.
 
-Memory safety alone does not establish system security.
+A filtered or seeked stream is not automatically suitable
+for authoritative market reconstruction.
 
-## 16. Architectural Invariants
+Reconstruction requires an appropriate initial state and
+complete subsequent events.
 
-The following invariants must be preserved across components:
+### 12.4 maxwell-cli
 
-1. Authoritative market state originates from upstream events.
-2. Invalid messages cannot silently corrupt synchronized state.
-3. An upstream event cannot be applied twice due to retry.
-4. Sequence domains remain distinct.
-5. Recovery must establish continuity before synchronization.
-6. Snapshot watermarks must correspond to represented state.
-7. Filtered publication gaps are not automatically data loss.
-8. Subscriber overflow must produce an explicit policy outcome.
-9. Mutable state must have a defined owner.
-10. Resource growth must remain bounded.
-11. Delivery acceptance must not be confused with remote receipt.
-12. Performance optimization must preserve correctness.
+The CLI provides a unified local operational interface.
 
-## 17. Engineering Handover
+```mermaid
+flowchart TD
+    CLI["maxwell"]
 
-A developer changing a component should identify:
+    CLI --> SIM["simulate"]
+    CLI --> REC["record"]
+    CLI --> INSPECT["inspect"]
+    CLI --> VALIDATE["validate"]
+    CLI --> REPLAY["replay"]
+    CLI --> BENCH["benchmark"]
 
-- Its upstream and downstream contracts.
-- Its owned state.
-- Its ordering guarantees.
-- Its capacity constraints.
-- Its error semantics.
-- Its recovery behavior.
-- Its concurrency assumptions.
-- Its associated tests.
-- Its performance-sensitive operations.
+    SIM --> SIMLIB["Simulator Library"]
+    REC --> SIMLIB
+    REC --> REPLAYLIB["Replay Library"]
+    INSPECT --> REPLAYLIB
+    VALIDATE --> REPLAYLIB
+    REPLAY --> REPLAYLIB
+    BENCH --> SIMLIB
+```
 
-Changes spanning multiple components require integration
-tests that exercise the affected boundaries.
+The CLI delegates domain processing to existing libraries.
 
-## 18. Related Documentation
+It is responsible for:
+
+- Argument parsing.
+- Configuration construction.
+- Command dispatch.
+- Local application orchestration.
+- Human-readable operational reporting.
+- Process exit codes.
+
+Remote server administration is not part of the initial CLI.
+
+## 13. Historical Reconstruction
+
+Historical reconstruction connects the simulator, server,
+recorder, and replay engine.
+
+```mermaid
+flowchart TD
+    SIM["Independent Simulator Market"]
+    LIVE["Original Server"]
+    REC["Recorder"]
+    FILE["Journal"]
+    REPLAY["Replay Engine"]
+    FRESH["Fresh Server"]
+    COMPARE["Canonical State Comparison"]
+
+    SIM --> LIVE
+    SIM --> REC --> FILE --> REPLAY --> FRESH
+
+    SIM --> COMPARE
+    LIVE --> COMPARE
+    FRESH --> COMPARE
+```
+
+The reconstruction contract requires:
+
+1. Equivalent initial instrument definitions.
+2. Equivalent initial market state.
+3. Complete authoritative event recording.
+4. Preserved upstream sequence ordering.
+5. Exactly-once logical event application.
+6. Equivalent final canonical market state.
+
+Replay pacing and processing batch size must not change
+the resulting logical market state.
+
+The reconstruction test suite is intended to verify these
+properties across independent server instances.
+
+Production transactional coordination between journal
+persistence and market mutation is a separate concern.
+
+## 14. Deployment Topologies
+
+### 14.1 Current Local Topology
+
+```mermaid
+flowchart LR
+    SIM["Simulator"] --> SINK["Local Event Sink"]
+    SINK --> SERVER["Server or Recorder"]
+    SERVER --> STATE["Local State or Journal"]
+```
+
+The current implementation supports local application
+execution and in-process integration.
+
+### 14.2 Planned Distributed Topology
+
+```mermaid
+flowchart LR
+    PRODUCER["Producer Process"]
+    NETWORK["Binary Network Transport"]
+    SERVER["Maxwell Server"]
+    CLIENT["Downstream Client"]
+
+    PRODUCER --> NETWORK --> SERVER --> CLIENT
+```
+
+The first distributed implementation will establish
+producer-to-server communication before introducing more
+complex recovery and deployment requirements.
+
+### 14.3 Planned AWS Topology
+
+```mermaid
+flowchart TD
+    subgraph AWS["AWS"]
+        subgraph VPC["Virtual Private Cloud"]
+            EC2A["EC2: Simulator or Planck"]
+            EC2B["EC2: Maxwell Server"]
+
+            EC2A -->|Market Data| EC2B
+        end
+
+        S3["S3: Historical Journals"]
+        CW["CloudWatch: Logs and Metrics"]
+
+        EC2B --> S3
+        EC2A --> CW
+        EC2B --> CW
+    end
+
+    TF["Terraform"] -.-> AWS
+    CI["GitHub Actions"] -.-> AWS
+```
+
+The initial AWS environment is expected to use:
+
+- Terraform for infrastructure provisioning.
+- Docker for application packaging.
+- EC2 for application execution.
+- S3 for completed journal storage.
+- CloudWatch for operational monitoring.
+- GitHub Actions for automated validation and deployment.
+
+This topology is planned and has not yet been deployed.
+
+## 15. Observability Architecture
+
+Operational instrumentation should distinguish:
+
+- Generated and received events.
+- Accepted and rejected events.
+- Sequence gaps and duplicates.
+- Recovery transitions.
+- Market mutations.
+- Pending publications.
+- Subscriber queue occupancy.
+- Subscriber invalidations.
+- Journal records and bytes.
+- Replay delivery and filtering.
+- Processing latency.
+
+Metrics should be collected without unnecessarily
+synchronizing the critical processing path.
+
+The metrics crate provides foundational instrumentation.
+
+Production monitoring exporters and dashboards remain
+deployment workstreams.
+
+## 16. Security and Trust Boundaries
+
+External market data must be treated as untrusted input.
+
+Validation must occur before market mutation.
+
+Deployment boundaries must address:
+
+- Network access control.
+- Authentication and authorization.
+- Resource exhaustion.
+- Malformed protocol input.
+- Journal corruption.
+- Secret management.
+- Operational auditability.
+
+CRC32C provides accidental corruption detection, not
+cryptographic authentication.
+
+Cloud deployments should use least-privilege IAM roles
+and restricted network access.
+
+## 17. Architectural Invariants
+
+The following invariants apply across the system:
+
+1. Market state has an explicit mutable owner.
+2. Financial arithmetic uses fixed-point representations.
+3. Sequence domains remain independent.
+4. Invalid events must not partially mutate market state.
+5. Publication retries must not duplicate market mutations.
+6. Backpressure must have explicit semantics.
+7. Unsynchronized state must not be advertised as valid.
+8. Subscriber invalidation requires resynchronization.
+9. Journal replay preserves original event identity.
+10. Filtered replay is not implicitly authoritative.
+11. Resource exhaustion must not trigger unrestricted growth.
+12. Performance claims require reproducible measurements.
+
+## 18. Engineering Handover
+
+Before modifying a component:
+
+- Review its public interfaces and invariants.
+- Identify the owner of affected mutable state.
+- Identify affected sequence domains.
+- Review failure and retry semantics.
+- Preserve resource limits.
+- Add relevant regression tests.
+- Update affected documentation.
+
+## 19. Related Documentation
 
 - [Crate Reference](crates.md)
 - [Protocol](protocol.md)
 - [Concurrency](concurrency.md)
-- [Architectural Decisions](decisions.md)
-- [Performance](performance.md)
+- [Design Decisions](decisions.md)
 - [Testing](testing.md)
+- [Performance](performance.md)
 - [Operations](operations.md)
 - [Roadmap](roadmap.md)

@@ -1,738 +1,582 @@
-# Maxwell Performance Engineering
+# Maxwell Performance
 
 ## 1. Purpose
 
 This document defines Maxwell's performance engineering
-methodology, measurement requirements, optimization
-principles, and benchmark reporting standards.
-
-Maxwell is designed for latency-sensitive electronic
-trading infrastructure.
-
-No production throughput or latency guarantees have
-been established.
+principles, benchmark methodology, measurement boundaries,
+and optimization strategy.
 
 Performance claims must be supported by reproducible
 measurements.
 
+Architectural intent alone does not establish achieved
+throughput or latency.
+
 ## 2. Performance Objectives
 
-The principal objectives are:
-
-- Low processing latency.
+- High sustained market data throughput.
+- Low event processing latency.
 - Predictable tail latency.
-- High sustained event throughput.
-- Efficient subscriber fan-out.
 - Bounded memory consumption.
-- Minimal critical-path allocation.
-- Minimal synchronization overhead.
-- Predictable overload behavior.
-- Efficient recovery.
+- Minimal unnecessary synchronization.
+- Efficient binary encoding.
+- Efficient market reconstruction.
+- Predictable behavior under backpressure.
+- Efficient historical persistence and replay.
 
-Correctness remains the primary requirement.
-
-A faster implementation that produces incorrect market
-state is not an acceptable optimization.
+Quantitative targets will be established through measured
+baselines.
 
 ## 3. Performance Terminology
 
-| Term | Definition |
-|------|------------|
+| Term | Meaning |
+|------|---------|
 | Throughput | Completed work per unit of time |
-| Latency | Elapsed time for a defined operation |
-| Service time | Time spent actively processing an operation |
-| Queueing time | Time spent waiting before processing |
-| Tail latency | High-percentile latency behavior |
+| Latency | Time required for an individual operation |
+| Tail latency | High-percentile latency |
 | Jitter | Variation in observed latency |
-| Fan-out | Distribution of one publication to multiple consumers |
-| Saturation | Workload level at which a resource becomes limiting |
+| Saturation | Workload exceeds sustainable capacity |
+| Backpressure | Downstream capacity restricts progress |
+| Goodput | Useful successfully completed work |
+| Allocation rate | Dynamic allocations per unit of work |
 
-Measurements must define the operation being counted.
+Throughput and latency must be reported independently.
 
-An upstream message, logical event, publication, and
-subscriber delivery are not necessarily equivalent.
+High aggregate throughput does not guarantee low
+individual-event latency.
 
 ## 4. Measurement Boundaries
 
-```mermaid
-flowchart LR
-    A["Planck Event"]
-    B["Maxwell Receive"]
-    C["Decode"]
-    D["Sequence and Recover"]
-    E["Book Mutation"]
-    F["Publication"]
-    G["Transport Delivery"]
-    H["Client Receive"]
+A benchmark must define where timing begins and ends.
 
-    A --> B --> C --> D --> E --> F --> G --> H
-```
+Potential measurement boundaries include:
 
-Recommended measurement boundaries:
+| Boundary | Measured Work |
+|----------|---------------|
+| Protocol | Encode or decode |
+| Sequencing | Sequence validation |
+| Book | Market mutation |
+| Server | Integrated event processing |
+| Publisher | Filtering and fan-out |
+| Simulator | Generation and local delivery |
+| Recording | Encoding and journal writing |
+| Validation | Journal reading and verification |
+| Replay | Historical record delivery |
+| Network | Producer-to-consumer communication |
+| End-to-end | Source event through downstream consumption |
 
-| Measurement | Start | End |
-|-------------|-------|-----|
-| Decode latency | Decoder entry | Validated message |
-| Sequencing latency | Sequencer entry | Sequence result |
-| Book latency | Book mutation entry | Mutation completion |
-| Publication latency | Publisher entry | Publication acceptance |
-| Processing latency | Validated event entry | Publication acceptance |
-| Queueing latency | Queue insertion | Queue removal |
-| Server latency | Local message receipt | Defined send boundary |
-| End-to-end latency | Planck event boundary | Client receipt |
-| Recovery latency | Gap detection | Synchronization restored |
-
-Every benchmark must identify its exact measurement
-boundaries.
-
-Local transport acceptance is not equivalent to remote
-client receipt.
+Results from different boundaries must not be presented
+as directly equivalent.
 
 ## 5. Throughput Metrics
 
-Track throughput independently at each stage.
+Basic throughput:
 
-```text
-ingestion_rate = received_messages / elapsed_seconds
+    Throughput = Completed events / Elapsed seconds
 
-processing_rate = processed_events / elapsed_seconds
+Aggregate throughput across multiple measurements:
 
-publication_rate = accepted_publications / elapsed_seconds
+    Aggregate throughput =
+        Sum of completed events / Sum of elapsed seconds
 
-delivery_rate = subscriber_deliveries / elapsed_seconds
-```
+Aggregate throughput is not necessarily equivalent to
+the arithmetic mean of individual throughput rates.
 
-For example, a publisher accepting 100,000 publications
-per second and delivering each to ten subscribers may
-produce 1,000,000 subscriber deliveries per second.
-
-This is an illustrative calculation, not a measured
-Maxwell result.
-
-Report rejected events, discarded deliveries, recovery
-activity, and queue growth alongside throughput.
-
-High throughput is not meaningful if work is silently
-discarded or queues grow without bound.
+Report generated, accepted, and delivered event counts
+separately when delivery faults or backpressure exist.
 
 ## 6. Latency Distributions
 
-Report at least:
+Latency should be reported using distributions rather
+than averages alone.
+
+Recommended measurements:
 
 - Minimum.
-- Mean.
-- Median.
-- P90.
-- P95.
-- P99.
-- P99.9.
-- P99.99 when sample size is sufficient.
+- Median or p50.
+- p90.
+- p95.
+- p99.
+- p99.9.
 - Maximum.
 - Observation count.
 
-The arithmetic mean alone is insufficient for
-latency-sensitive systems.
+Histogram resolution must be appropriate for the expected
+latency range.
 
-### 6.1 Percentile Interpretation
+A histogram-derived percentile is an estimate determined
+by its bucket boundaries.
 
-P99 represents a latency threshold associated with
-approximately 99 percent of observations.
+A throughput benchmark does not establish these latency
+percentiles unless individual latency observations are
+actually collected.
 
-The remaining observations may be substantially slower.
+## 7. Current Benchmark Implementation
 
-High-percentile estimates require sufficient observations.
+The maxwell-cli application includes a simulator
+throughput benchmark.
 
-For example, 10,000 observations provide only about one
-observation in the upper 0.01 percent of the distribution.
+```bash
+cargo build --release -p maxwell-cli
 
-That is not sufficient for a robust characterization of
-P99.99 across repeated workloads.
+./target/release/maxwell benchmark \
+    --scenario high-throughput \
+    --events 1000000 \
+    --seed 42 \
+    --iterations 5 \
+    --warmup 2
+```
 
-### 6.2 Histogram Resolution
+The benchmark uses:
 
-Maxwell's initial histogram implementation uses fixed
-integer bucket bounds.
+- A deterministic scenario.
+- A fixed seed.
+- Independent simulator initialization per iteration.
+- An unbounded pacing mode.
+- A local accepting sink.
+- Configurable warmup iterations.
+- Configurable measured iterations.
 
-Intermediate percentiles are upper-bound estimates based
-on bucket placement, capped at the observed maximum.
+Fault-injection scenarios are rejected for this baseline
+throughput benchmark.
 
-Minimum, maximum, sum, and count are exact for accepted
-observations.
+## 8. Benchmark Measurement Scope
 
-Overflow observations may produce coarse tail estimates.
+The measured interval includes:
 
-Bucket resolution should match the expected latency range.
+- Simulator event generation.
+- Authoritative synthetic market updates.
+- Local delivery processing.
+- Simulator runtime bookkeeping.
 
-### 6.3 Aggregation
+The measured interval excludes:
 
-Do not average independently calculated percentiles.
+- Simulator initialization.
+- Post-run consistency validation.
+- Network communication.
+- Journal persistence.
+- Reporting between iterations.
 
-Aggregate compatible histogram observations first and
-calculate percentiles from the combined distribution.
+The benchmark is not a measurement of:
 
-## 7. Benchmark Categories
+- Planck matching throughput.
+- Maxwell server processing throughput.
+- Network latency.
+- End-to-end exchange latency.
+- Durable journal throughput.
 
-### 7.1 Microbenchmarks
+These require separate benchmarks.
 
-Measure isolated operations such as:
+## 9. Benchmark Reporting
 
-- Fixed-point arithmetic.
-- Protocol encoding.
-- Protocol decoding.
-- Sequence validation.
-- Price-level lookup.
-- Book mutation.
-- Queue insertion and removal.
-- Subscription filtering.
-- Publication fan-out.
-- Histogram recording.
+The CLI reports:
 
-Microbenchmarks help identify local implementation costs.
+- Minimum iteration throughput.
+- Median iteration throughput.
+- Maximum iteration throughput.
+- Arithmetic mean throughput.
+- Aggregate throughput.
+- Total measured events.
+- Total measured execution time.
 
-They do not establish integrated system performance.
+Warmup iterations are excluded from aggregate results.
 
-### 7.2 Component Benchmarks
+The same workload seed is reused across measured
+iterations.
 
-Measure realistic workloads within a complete component.
+This controls workload variation but does not eliminate
+operating-system or hardware variation.
 
-Examples:
+## 10. Workload Design
 
-- Book updates across multiple instruments.
-- Publisher fan-out across subscriber populations.
-- Recovery replay across bounded buffers.
-- Protocol decoding across mixed message types.
+Benchmark workloads should vary:
 
-### 7.3 End-to-End Benchmarks
-
-Measure the integrated application using:
-
-- Simulator-generated market data.
-- Recorded market data.
-- Planck-generated market data.
-- Multiple downstream consumers.
-- Real transport configurations.
-
-### 7.4 Stress Benchmarks
-
-Exercise the system near and beyond its intended capacity.
-
-Measure:
-
-- Queue growth.
-- Rejected operations.
-- Subscriber invalidation.
-- Recovery frequency.
-- Memory consumption.
-- Tail latency.
-- Recovery after overload.
-
-## 8. Workload Design
-
-A benchmark workload should specify:
-
-- Random seed.
 - Instrument count.
-- Event count.
-- Event-type distribution.
-- Book depth.
+- Resting order count.
+- Price-band width.
+- Event distribution.
+- Event rate.
+- Order churn.
 - Subscriber count.
-- Subscription selectivity.
-- Message sizes.
-- Arrival-rate distribution.
-- Burst behavior.
-- Recovery scenarios.
-- Slow-consumer behavior.
+- Subscription overlap.
+- Recovery frequency.
+- Journal durability policy.
 
-### 8.1 Proposed Benchmark Matrix
+Predefined simulator scenarios provide reproducible
+starting points.
 
-The following values are starting test configurations,
-not established system capacity.
+A single workload is insufficient to characterize
+complete system performance.
 
-| Parameter | Proposed Values |
-|-----------|-----------------|
-| Instruments | 1, 100, 1,000 |
-| Price levels per side | 10, 100, 1,000 |
-| Subscribers | 1, 8, 32, 64 |
-| Subscription selectivity | 1%, 10%, 100% |
-| Input rate | 10k, 100k, 1M events/s |
-| Burst multiplier | 2x, 5x, 10x |
-| Queue occupancy | Empty, moderate, near-full |
-| Recovery gaps | Small, medium, large |
+## 11. Build Configuration
 
-Only configurations supported by the component capacity
-limits should be used.
-
-Increase workload size incrementally.
-
-### 8.2 Open-Loop and Closed-Loop Workloads
-
-A closed-loop generator waits for processing progress
-before submitting more work.
-
-An open-loop generator attempts to submit work according
-to an independent arrival schedule.
-
-Closed-loop tests are useful for measuring service cost.
-
-Open-loop tests are important for measuring queueing and
-overload behavior.
-
-### 8.3 Coordinated Omission
-
-A benchmark can underreport latency if it stops generating
-work while the system is stalled.
-
-This is known as coordinated omission.
-
-Arrival schedules and latency measurements should account
-for intended submission times when evaluating realistic
-open-loop behavior.
-
-## 9. Benchmark Environment
-
-Record:
-
-- CPU model.
-- Physical core count.
-- Logical processor count.
-- Cache configuration.
-- NUMA topology.
-- Installed memory.
-- Operating system.
-- Kernel version.
-- Rust compiler version.
-- Cargo version.
-- Build profile.
-- Compiler flags.
-- Git commit.
-- Transport configuration.
-- CPU affinity.
-- Power management settings.
-- Background workload.
-
-Useful Linux commands:
-
-```bash
-uname -a
-
-lscpu
-
-free -h
-
-rustc -Vv
-
-cargo --version
-
-git rev-parse HEAD
-
-git status --short
-```
-
-Additional NUMA information, when the relevant tools
-are installed:
-
-```bash
-numactl --hardware
-```
-
-Benchmarks executed inside virtual machines or WSL2
-should be identified as such.
-
-Their results should not automatically be compared with
-dedicated bare-metal measurements.
-
-## 10. Build Configuration
-
-Use optimized builds for performance measurements.
+Use release builds for performance measurements.
 
 ```bash
 cargo build --workspace --release
 ```
 
-Inspect the existing workspace release profile before
-changing optimization settings.
+Record:
 
-Potential experimental settings include:
+- Rust compiler version.
+- Cargo version.
+- Source commit.
+- Build profile.
+- Compiler flags.
+- Target architecture.
+- Enabled features.
 
-```toml
-[profile.release]
-opt-level = 3
-lto = "thin"
-codegen-units = 1
-```
+Potential future optimization options include:
 
-These settings are candidates for measurement, not
-mandatory configuration changes.
+- Link-time optimization.
+- Code generation unit configuration.
+- Target CPU optimization.
+- Profile-guided optimization.
 
-Link-time optimization and code generation settings
-can affect compilation time, binary size, and runtime
-performance.
+Do not enable architecture-specific compiler flags in
+portable distribution builds without compatibility review.
 
-### 10.1 Native CPU Optimization
+## 12. Benchmark Environment
 
-For local hardware-specific experiments:
+Record:
 
-```bash
-RUSTFLAGS="-C target-cpu=native" \
-    cargo build --release
-```
+- CPU model.
+- Physical and logical core count.
+- Memory capacity.
+- Operating system.
+- Kernel version.
+- Virtualization environment.
+- CPU frequency policy.
+- NUMA topology where relevant.
+- Storage device and filesystem.
+- Network interface where relevant.
 
-Native CPU optimization can produce binaries that are
-incompatible with other processors.
+Avoid comparing results from substantially different
+environments without identifying those differences.
 
-Production builds must target the intended deployment
-hardware.
+Cloud instances may introduce additional scheduling
+and resource variability.
 
-### 10.2 Profiling Symbols
+## 13. Timing Methodology
 
-A profiling build may retain debug information:
+Use monotonic clocks for elapsed-time measurement.
 
-```toml
-[profile.profiling]
-inherits = "release"
-debug = true
-```
+Do not subtract unsynchronized wall-clock timestamps
+from different hosts.
 
-Build using:
+Separate:
 
-```bash
-cargo build --profile profiling
-```
+- Initialization time.
+- Warmup time.
+- Measured execution time.
+- Validation time.
+- Shutdown time.
 
-Record the selected profile when reporting results.
+For paced workloads, distinguish processing time from
+intentional waiting.
 
-## 11. Timing Methodology
+For historical replay, distinguish index construction
+time from playback execution time.
 
-Use a monotonic clock for local elapsed-time measurement.
+## 14. Linux Profiling
 
-```rust
-use std::time::Instant;
-
-let start = Instant::now();
-
-// Execute the measured operation.
-
-let elapsed = start.elapsed();
-
-println!("Elapsed: {} ns", elapsed.as_nanos());
-```
-
-This example illustrates timing boundaries.
-
-It is not a complete benchmarking harness.
-
-### 11.1 Measurement Overhead
-
-Timing calls introduce overhead.
-
-For extremely small operations, measure batches and
-evaluate instrumentation overhead independently.
-
-Avoid subtracting a fixed timing overhead without
-validating the assumptions behind that adjustment.
-
-### 11.2 Compiler Optimization
-
-Microbenchmarks must prevent the compiler from eliminating
-the measured work.
-
-Rust provides std::hint::black_box as a best-effort
-optimization barrier.
-
-```rust
-use std::hint::black_box;
-
-let input = black_box(100u64);
-let result = input.wrapping_mul(42);
-
-black_box(result);
-```
-
-### 11.3 Cross-Host Timing
-
-End-to-end timing across Planck and Maxwell hosts requires
-a defined clock synchronization strategy.
-
-Possible approaches include:
-
-- PTP.
-- Hardware timestamping.
-- Appropriately characterized clock synchronization.
-- Round-trip measurements when suitable.
-
-Round-trip latency divided by two is not necessarily
-accurate one-way latency.
-
-## 12. Linux Profiling
-
-### 12.1 Hardware Performance Counters
-
-After the server application is available:
+Basic hardware counter collection:
 
 ```bash
-perf stat \
-    -e cycles,instructions,cache-misses,branch-misses \
-    -- ./target/release/maxwell-server
+perf stat ./target/release/maxwell benchmark \
+    --scenario high-throughput \
+    --events 1000000 \
+    --iterations 5 \
+    --warmup 1
 ```
 
-Available events depend on processor capabilities,
-kernel configuration, and permissions.
-
-### 12.2 CPU Profiling
+Collect a CPU profile:
 
 ```bash
-perf record -g \
-    -- ./target/release/maxwell-server
+perf record -g ./target/release/maxwell benchmark \
+    --scenario high-throughput \
+    --events 1000000 \
+    --iterations 5
+```
 
+Inspect the profile:
+
+```bash
 perf report
 ```
 
-Profiling quality depends on symbol availability and
-stack unwinding configuration.
-
-### 12.3 System Call Inspection
+Measure process resource usage:
 
 ```bash
-strace -c ./target/release/maxwell-server
+/usr/bin/time -v ./target/release/maxwell benchmark \
+    --scenario high-throughput \
+    --events 1000000 \
+    --iterations 5
 ```
 
-System call tracing can significantly alter timing.
+Potential measurements include:
 
-Use it for diagnostics rather than authoritative latency
-measurement.
+- CPU cycles.
+- Instructions.
+- Cache misses.
+- Branch misses.
+- Context switches.
+- Page faults.
+- Peak resident memory.
 
-### 12.4 Memory Inspection
+Profiler availability and permissions vary by platform.
 
-```bash
-/usr/bin/time -v ./target/release/maxwell-server
-```
+## 15. Optimization Priorities
 
-Useful observations include maximum resident memory,
-page faults, and context switches.
+Recommended optimization order:
 
-Peak resident memory does not directly identify the
-number of heap allocations.
+1. Establish a reproducible baseline.
+2. Identify dominant execution costs.
+3. Verify resource and allocation behavior.
+4. Optimize the measured bottleneck.
+5. Revalidate correctness.
+6. Repeat the benchmark.
+7. Record the result.
 
-## 13. Optimization Priorities
+Avoid optimizing speculative bottlenecks.
 
-### 13.1 Algorithms
+## 16. Order Book Performance
 
-Evaluate algorithmic complexity before applying low-level
-optimizations.
+Potential areas of investigation include:
 
-Examples include:
+- Dense price-level locality.
+- Order registry lookup.
+- Dynamic allocation.
+- Price-level traversal.
+- Best-price maintenance.
+- Order count aggregation.
+- Mutation batching.
 
-- Price-level lookup.
-- Instrument routing.
-- Subscriber lookup.
-- Subscription filtering.
-- Recovery buffer traversal.
+The current logical order capacity does not guarantee
+allocation-free registry operation.
 
-### 13.2 Allocation
+A fixed-capacity order registry is a future candidate.
 
-Reduce avoidable allocation through:
-
-- Preallocated buffers.
-- Bounded queues.
-- Reusable scratch storage.
-- Appropriate ownership transfer.
-- Compact message representations.
-
-### 13.3 Copying
-
-Avoid unnecessary copying of large snapshots or payloads.
-
-Copying small value types may be cheaper than introducing
-shared ownership or additional indirection.
-
-### 13.4 Cache Behavior
-
-Evaluate:
-
-- Data locality.
-- Working-set size.
-- Cache-line contention.
-- Hot and cold field separation.
-- Pointer indirection.
-
-### 13.5 Branching
-
-Measure branch behavior before replacing readable
-conditional logic with complex branchless implementations.
-
-### 13.6 Batching
-
-Batching may improve throughput by amortizing:
-
-- System calls.
-- Queue synchronization.
-- Protocol processing overhead.
-
-Batching can increase latency for individual events.
-
-Batch size and maximum waiting time must be evaluated
-together.
-
-## 14. Publisher Performance
+## 17. Publisher Performance
 
 Publisher cost depends on:
 
 - Subscriber count.
-- Subscription filter size.
-- Filter selectivity.
-- Payload size.
+- Subscription filtering complexity.
+- Publication size.
 - Queue occupancy.
+- Subscription overlap.
 - Backpressure policy.
 
-The initial publisher uses deterministic subscriber
-ordering and sorted instrument filters.
+Benchmarks should distinguish:
 
-Potential future optimizations include:
+- No matching subscribers.
+- One matching subscriber.
+- Multiple matching subscribers.
+- Saturated subscriber queues.
+- Subscriber invalidation.
 
-- Instrument-to-subscriber indexes.
-- Event-type indexes.
-- Specialized wildcard subscription handling.
-- Shared immutable payload representations.
-
-These optimizations require explicit memory bounds and
-deterministic delivery semantics.
-
-## 15. Recovery Performance
+## 18. Recovery Performance
 
 Recovery benchmarks should measure:
 
-- Gap detection latency.
-- Recovery request latency.
-- Time awaiting recovery data.
-- Snapshot application time.
-- Buffered replay throughput.
-- Time to synchronized state.
-- Peak recovery buffer occupancy.
+- Gap detection.
+- Missing-range construction.
+- Buffered event insertion.
+- Retransmission processing.
+- Buffered event application.
+- Synchronization restoration.
+- Snapshot handling.
 
-Normal steady-state performance and recovery performance
-must be reported separately.
+Recovery latency must be reported separately from
+normal synchronized processing latency.
 
-A system that processes ordinary events quickly but
-recovers slowly may still be operationally unsuitable.
+## 19. Recording Performance
 
-## 16. Metrics Overhead
+Journal performance depends on:
 
-Measure processing with instrumentation enabled and
-disabled where a valid comparison is possible.
+- Encoded message size.
+- Encoding cost.
+- CRC32C calculation.
+- Buffer size.
+- Flush frequency.
+- Synchronization frequency.
+- Storage throughput.
+- Filesystem behavior.
 
-Evaluate:
+Compare durability configurations independently.
 
-- Counter recording.
-- Histogram recording.
-- Atomic counter contention.
-- Snapshot generation.
-- Histogram aggregation.
-- Export formatting.
+Example buffered recording:
 
-Metric export must not be performed synchronously for
-every market event.
-
-## 17. Benchmark Procedure
-
-1. Record the environment and Git commit.
-2. Build the selected optimized profile.
-3. Establish the initial market state.
-4. Warm up the relevant processing path.
-5. Run a fixed reproducible workload.
-6. Collect latency and throughput statistics.
-7. Record errors, drops, and queue occupancy.
-8. Repeat the experiment.
-9. Compare variability across runs.
-10. Validate resulting market state.
-11. Save configuration and results.
-
-Warm-up duration, run duration, and repetition count
-must be documented.
-
-## 18. Benchmark Report Template
-
-```text
-Benchmark:
-Date:
-Git commit:
-Hardware:
-Operating system:
-Rust compiler:
-Build profile:
-Compiler flags:
-
-Workload:
-Random seed:
-Instrument count:
-Subscriber count:
-Event distribution:
-Message rate:
-Run duration:
-Warm-up duration:
-Repetitions:
-
-Measurement boundary:
-Clock source:
-
-Received messages:
-Processed events:
-Accepted publications:
-Subscriber deliveries:
-Rejected operations:
-Discarded deliveries:
-Sequence gaps:
-Recovery events:
-
-Throughput:
-Minimum latency:
-Mean latency:
-P50:
-P90:
-P95:
-P99:
-P99.9:
-P99.99:
-Maximum latency:
-
-Peak queue occupancy:
-Peak resident memory:
-CPU utilization:
-Allocation measurements:
-
-State validation result:
-Observations:
-Limitations:
+```bash
+maxwell record \
+    --scenario high-throughput \
+    --events 1000000 \
+    --seed 42 \
+    --output data/buffered.mxj
 ```
 
-## 19. Performance Regression Policy
+Example periodic synchronization:
 
-A performance regression should be investigated when
-repeated measurements show a meaningful degradation
-under equivalent conditions.
+```bash
+maxwell record \
+    --scenario high-throughput \
+    --events 1000000 \
+    --seed 42 \
+    --sync-every 4096 \
+    --durable \
+    --output data/synchronized.mxj
+```
 
-Regression thresholds should be established after
-baseline variability is understood.
+Use distinct output files.
 
-Do not introduce arbitrary hard thresholds before
-collecting reliable baseline measurements.
+A buffered recording result must not be presented as
+durable storage throughput.
 
-Performance comparisons must preserve equivalent:
+## 20. Replay Performance
 
-- Workload.
-- Configuration.
-- Correctness guarantees.
-- Measurement boundaries.
-- Hardware conditions.
+Replay performance depends on:
 
-## 20. Optimization Review Checklist
+- Journal read throughput.
+- Checksum verification.
+- Protocol decoding.
+- Index construction.
+- Filtering.
+- Playback pacing.
+- Sink processing.
+- Backpressure.
 
-- [ ] A measured bottleneck exists.
-- [ ] The benchmark is reproducible.
-- [ ] The optimization has a defined hypothesis.
-- [ ] Correctness tests pass.
-- [ ] Recovery semantics remain correct.
-- [ ] Ordering guarantees remain correct.
-- [ ] Memory consumption remains bounded.
-- [ ] Tail latency is evaluated.
-- [ ] Before-and-after results are recorded.
-- [ ] Operational tradeoffs are documented.
+For sequential unbounded playback:
+
+```bash
+maxwell replay data/buffered.mxj \
+    --speed unbounded \
+    --no-index
+```
+
+For indexed playback:
+
+```bash
+maxwell replay data/buffered.mxj \
+    --speed unbounded
+```
+
+Compare initialization and playback times separately.
+
+Printing individual events introduces substantial
+additional formatting and output costs.
+
+Do not enable event printing for a baseline replay
+throughput measurement.
+
+## 21. Metrics Overhead
+
+Instrumentation must be included in performance review.
+
+Potential costs include:
+
+- Atomic updates.
+- Cache-coherence traffic.
+- Histogram bucket selection.
+- Timestamp collection.
+- Metric snapshot construction.
+- Exporter serialization.
+
+Prefer owner-local instrumentation where practical.
+
+Measure the difference between equivalent workloads
+with different instrumentation configurations.
+
+## 22. Future Network Benchmarks
+
+Phase III should introduce measurements for:
+
+- TCP stream ingestion.
+- UDP datagram ingestion.
+- Binary framing.
+- Partial reads and writes.
+- Producer-to-server throughput.
+- Server-to-client throughput.
+- Recovery under packet loss.
+- Reconnection behavior.
+- Cross-host latency.
+
+Local loopback measurements must be distinguished from
+physical or cloud network measurements.
+
+Cross-host one-way latency requires appropriate clock
+synchronization.
+
+## 23. Benchmark Report Template
+
+    Benchmark:
+    Date:
+    Source commit:
+    Application version:
+    Rust version:
+    Build profile:
+    Operating system:
+    CPU:
+    Memory:
+    Storage:
+    Scenario:
+    Seed:
+    Instrument count:
+    Events per iteration:
+    Warmup iterations:
+    Measured iterations:
+    Measurement boundary:
+
+    Minimum throughput:
+    Median throughput:
+    Maximum throughput:
+    Mean throughput:
+    Aggregate throughput:
+
+    p50 latency:
+    p99 latency:
+    p99.9 latency:
+
+    Peak memory:
+    Error count:
+    Backpressure count:
+
+    Observations:
+    Limitations:
+    Proposed improvements:
+
+Leave unmeasured fields explicitly marked as unavailable.
+
+## 24. Performance Regression Policy
+
+A performance change should:
+
+- Preserve logical correctness.
+- Use an equivalent workload.
+- Use comparable build configuration.
+- Identify the measurement boundary.
+- Report multiple observations.
+- Distinguish measured improvement from speculation.
+
+Do not introduce hard regression thresholds until
+benchmark variability has been characterized.
+
+## 25. Optimization Review Checklist
+
+- Is the bottleneck measured?
+- Is the workload reproducible?
+- Is the measurement boundary documented?
+- Are release builds used?
+- Are resource limits preserved?
+- Are correctness tests still passing?
+- Are allocation claims verified?
+- Are latency claims supported by observations?
+- Are before-and-after results comparable?
+
+## 26. Related Documentation
+
+- [Architecture](architecture.md)
+- [Concurrency](concurrency.md)
+- [Testing](testing.md)
+- [Operations](operations.md)
+- [Roadmap](roadmap.md)

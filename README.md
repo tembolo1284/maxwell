@@ -1,69 +1,76 @@
 # Maxwell
 
-A high-performance, low-latency market data platform written
-in Rust, designed to complement the Planck C++23 matching
-engine.
+A low-latency market data processing, distribution, and historical
+replay platform written in Rust, designed to complement the
+[Planck](https://github.com/tembolo1284/planck) C++23 matching engine.
 
-Maxwell provides market data ingestion, deterministic order
-book reconstruction, sequence validation, recovery, and
-subscriber distribution.
+Maxwell provides deterministic market data processing, order book
+reconstruction, sequence validation, recovery coordination,
+subscriber distribution, synthetic market simulation, and
+historical event persistence.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    A["Planck"] --> B["Transport"]
-    B --> C["Protocol"]
-    C --> D["Sequencer"]
-    D --> E["Book"]
-    D <--> F["Recovery"]
-    E --> G["Publisher"]
-    G --> H["Gateway"]
-    H --> I["Client"]
+    SIM["Simulator"] --> SERVER["Server"]
+    PLANCK["Planck - Planned"] -.-> SERVER
+    SERVER --> PUB["Publisher"]
+    PUB --> GW["Gateway"]
+    GW --> CLIENT["Client"]
+
+    SIM --> REC["Recorder"]
+    REC --> JOURNAL["Historical Journal"]
+    JOURNAL --> REPLAY["Replay"]
+    REPLAY --> SERVER
+
+    CLI["CLI"] --> SIM
+    CLI --> REC
+    CLI --> REPLAY
 ```
 
-For a detailed system design, see the
-[Architecture](docs/architecture.md).
+See [Architecture](docs/architecture.md) for the complete system design.
+
+## Capabilities
+
+- Fixed-point financial primitives and binary protocol encoding.
+- Sequence validation, gap detection, and recovery coordination.
+- Deterministic order book reconstruction.
+- Subscription filtering and bounded publication queues.
+- Downstream session management and client synchronization.
+- Seeded market simulation with configurable delivery faults.
+- Checksummed binary journals and historical replay.
+- Sparse journal indexing, seeking, filtering, and playback pacing.
+- Unified operational CLI and simulator throughput benchmarking.
+- Operational counters, gauges, and latency histograms.
 
 ## Design Principles
 
-- Deterministic event processing.
-- Single-owner concurrency.
+- Safe Rust and minimal external dependencies.
+- Deterministic logical event processing.
+- Single-owner mutable market state.
+- Explicit sequencing and synchronization boundaries.
+- Bounded resources and explicit backpressure.
 - Fixed-point financial arithmetic.
-- Bounded memory consumption.
-- Explicit backpressure and recovery.
-- Minimal external dependencies.
-- Safe Rust.
-- Comprehensive unit and integration testing.
+- Independently testable components.
 
-## Components
+## Workspace
 
-| Crate | Responsibility |
-|-------|----------------|
-| `maxwell-core` | Domain types and financial primitives |
-| `maxwell-protocol` | Binary message encoding and decoding |
-| `maxwell-sequencer` | Sequence validation and gap detection |
-| `maxwell-book` | Order book reconstruction |
-| `maxwell-transport` | Transport, framing, and buffering |
-| `maxwell-recovery` | Retransmission and snapshot recovery |
-| `maxwell-publisher` | Subscription filtering and fan-out |
-| `maxwell-gateway` | Downstream session management |
-| `maxwell-client` | Client-side market data consumption |
-| `maxwell-metrics` | Low-overhead instrumentation |
-
-For component responsibilities and invariants, see the
-[Crate Reference](docs/crates.md).
-
-## Applications
+The workspace contains ten foundational library crates and four
+applications.
 
 | Application | Responsibility |
 |-------------|----------------|
-| `maxwell-server` | Integrated market data server |
-| `maxwell-simulator` | Deterministic market data generation |
-| `maxwell-replay` | Historical market data replay |
-| `maxwell-cli` | Command-line client and diagnostics |
+| `maxwell-server` | Integrated market data processing |
+| `maxwell-simulator` | Deterministic synthetic market generation |
+| `maxwell-replay` | Historical recording and playback |
+| `maxwell-cli` | Operational commands and diagnostics |
 
-## Build and Test
+See the [Crate Reference](docs/crates.md) for all workspace packages.
+
+## Quick Start
+
+Build and validate the workspace:
 
 ```bash
 cargo build --workspace --release
@@ -72,31 +79,58 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-See the [Quick Start](docs/quick_start.md) for developer
-onboarding and environment setup.
+Install the CLI:
+
+```bash
+cargo install --path apps/maxwell-cli
+```
+
+Generate, record, validate, and replay market data:
+
+```bash
+maxwell simulate --scenario smoke --events 10000 --seed 42
+
+mkdir -p data
+
+maxwell record \
+    --scenario smoke \
+    --events 10000 \
+    --seed 42 \
+    --output data/market.mxj
+
+maxwell inspect data/market.mxj
+maxwell validate data/market.mxj
+maxwell replay data/market.mxj --authoritative
+```
+
+See [Quick Start](docs/quick_start.md) for additional examples.
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [Quick Start](docs/quick_start.md) | Developer onboarding |
-| [Architecture](docs/architecture.md) | System design and component interactions |
-| [Architectural Decisions](docs/decisions.md) | Design rationale and tradeoffs |
+| [Quick Start](docs/quick_start.md) | Installation and operational examples |
+| [Architecture](docs/architecture.md) | System design and application topology |
 | [Crate Reference](docs/crates.md) | Component responsibilities and invariants |
-| [Protocol](docs/protocol.md) | Binary protocol and Planck interoperability |
-| [Concurrency](docs/concurrency.md) | Ownership, synchronization, and memory model |
-| [Performance](docs/performance.md) | Benchmarking and optimization |
-| [Testing](docs/testing.md) | Testing and validation strategy |
-| [Operations](docs/operations.md) | Deployment, monitoring, and diagnostics |
+| [Protocol](docs/protocol.md) | Binary messages and historical journal format |
+| [Concurrency](docs/concurrency.md) | Ownership, sequencing, and synchronization |
+| [Operations](docs/operations.md) | Configuration, diagnostics, and deployment |
+| [Testing](docs/testing.md) | Correctness and integration testing |
+| [Performance](docs/performance.md) | Benchmark methodology and optimization |
+| [Design Decisions](docs/decisions.md) | Architectural rationale and tradeoffs |
 | [Roadmap](docs/roadmap.md) | Development milestones and technical debt |
 
 ## Development Status
 
-Maxwell is under active development. Initial implementations
-of all ten foundational library crates have been drafted.
+The foundational crates and initial application implementations
+are available.
 
-Application integration, live Planck interoperability, and
-performance benchmarking are forthcoming.
+The next development phase introduces distributed socket
+orchestration, containerized deployment, AWS infrastructure,
+and live Planck interoperability.
 
-See the [Roadmap](docs/roadmap.md) for current development
-priorities.
+See the [Roadmap](docs/roadmap.md) for implementation priorities.
+
+## License
+
+MIT

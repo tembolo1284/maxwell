@@ -3,843 +3,632 @@
 ## 1. Purpose
 
 This document describes the responsibilities, ownership
-boundaries, invariants, and extension points of Maxwell's
-library crates.
+boundaries, and principal invariants of each Maxwell
+workspace package.
 
-It is intended for engineers maintaining individual
-components or integrating them into applications.
+The workspace contains ten foundational library crates
+and four applications.
 
-Exact public signatures are defined by the source code and
-generated Rust API documentation.
+Public Rust interfaces and Cargo manifests remain the
+authoritative references for exact signatures and
+compile-time dependencies.
 
-```bash
-cargo doc --workspace --no-deps --open
-```
+## 2. Workspace Directory
 
-Actual dependency relationships can be inspected using:
-
-```bash
-cargo tree --workspace
-```
-
-## 2. Component Directory
-
-| Crate | Responsibility | Primary Maintenance Concern |
-|-------|----------------|-----------------------------|
-| maxwell-core | Domain primitives | Numerical correctness |
-| maxwell-protocol | Binary messages | Wire compatibility |
-| maxwell-sequencer | Sequence validation | Ordering correctness |
-| maxwell-book | Market state | State invariants |
-| maxwell-transport | Communication | Delivery semantics |
-| maxwell-recovery | Synchronization | Recovery consistency |
-| maxwell-publisher | Fan-out | Backpressure and ordering |
-| maxwell-gateway | Sessions | Lifecycle coordination |
-| maxwell-client | Consumer state | Synchronization |
-| maxwell-metrics | Telemetry | Instrumentation overhead |
+| Package | Location | Responsibility |
+|---------|----------|----------------|
+| maxwell-core | crates/maxwell-core | Financial domain primitives |
+| maxwell-protocol | crates/maxwell-protocol | Binary protocol |
+| maxwell-sequencer | crates/maxwell-sequencer | Sequence validation |
+| maxwell-book | crates/maxwell-book | Market reconstruction |
+| maxwell-transport | crates/maxwell-transport | Communication primitives |
+| maxwell-recovery | crates/maxwell-recovery | Recovery coordination |
+| maxwell-publisher | crates/maxwell-publisher | Market data distribution |
+| maxwell-gateway | crates/maxwell-gateway | Downstream sessions |
+| maxwell-client | crates/maxwell-client | Consumer market state |
+| maxwell-metrics | crates/maxwell-metrics | Instrumentation |
+| maxwell-server | apps/maxwell-server | Integrated server |
+| maxwell-simulator | apps/maxwell-simulator | Synthetic market generation |
+| maxwell-replay | apps/maxwell-replay | Recording and replay |
+| maxwell-cli | apps/maxwell-cli | Operational CLI |
 
 ## 3. maxwell-core
 
-Location:
-
-```text
-crates/maxwell-core/
-```
-
 ### Responsibility
 
-Define reusable domain types and foundational primitives.
+Defines shared financial and market data domain types.
 
-### Domain Concepts
+### Capabilities
 
-- Instrument identifiers.
-- Price.
-- Quantity.
-- Sequence identifiers.
-- Timestamps.
-- Shared validation and errors.
+- Instrument identifiers and definitions.
+- Order and trade identifiers.
+- Fixed-point prices and quantities.
+- Feed, stream, and session identifiers.
+- Sequence numbers.
+- Exchange and monotonic timestamps.
+- Market event representations.
+- Event envelopes.
 
 ### Invariants
 
-- Financial values retain their defined scale.
-- Invalid domain values are rejected.
-- Arithmetic does not silently overflow.
-- Domain types are not accidentally interchangeable.
-- Wire conversion preserves documented representations.
+- Financial values must preserve domain constraints.
+- Identifier types must not be accidentally interchanged.
+- Arithmetic must handle invalid values and overflow.
+- Domain types must remain independent of networking,
+  persistence, and application orchestration.
 
 ### Ownership
 
-Core values should generally be lightweight value types.
-
-They should not own application-level processing state.
-
-### Performance Considerations
-
-Avoid unnecessary allocation, dynamic dispatch, and
-expensive conversions in foundational types.
-
-### Extension Points
-
-- Additional domain identifiers.
-- Checked financial arithmetic.
-- Explicit unit conversions.
-- Additional validation helpers.
-
-### Maintenance Risks
-
-Changes to price, quantity, timestamp, or sequence
-representations may affect every dependent component.
-
-Such changes require protocol and interoperability review.
-
-### Validation
-
-```bash
-cargo test -p maxwell-core
-```
+Domain values rather than mutable application state.
 
 ## 4. maxwell-protocol
 
-Location:
-
-```text
-crates/maxwell-protocol/
-```
-
 ### Responsibility
 
-Represent, encode, decode, and validate binary market
-data messages.
+Defines Maxwell's native binary message representation.
 
-### Inputs
+### Capabilities
 
-- Valid domain values.
-- Binary message buffers.
-- Protocol metadata.
-
-### Outputs
-
-- Encoded message bytes.
-- Decoded market data messages.
-- Explicit protocol errors.
+- Versioned protocol headers.
+- Message-kind identification.
+- Binary encoding and decoding.
+- Message-length validation.
+- Event payload serialization.
+- Caller-provided encoding buffers.
 
 ### Invariants
 
-- Reads remain within buffer boundaries.
-- Encoded lengths match the documented format.
-- Invalid message types are rejected.
-- Numeric byte ordering is explicit.
-- Financial values retain their wire representation.
-- Unsupported messages do not silently become valid events.
+- Wire representations must be explicit.
+- Rust memory layout must not define the wire format.
+- Unsupported versions and malformed messages must be
+  rejected.
+- Decoding must not read beyond message boundaries.
+- Encoding and decoding must preserve logical event values.
 
 ### Ownership
 
-Protocol components should not own order book state or
-downstream session state.
-
-### Performance Considerations
-
-Prefer caller-provided buffers and bounded decoding.
-
-Avoid unnecessary intermediate representations.
-
-### Extension Points
-
-- New message types.
-- Protocol version support.
-- Additional encoding helpers.
-- Cross-language test vectors.
-
-### Maintenance Risks
-
-Changing message identifiers, field widths, byte ordering,
-or framing can break Planck interoperability.
-
-Any wire-format change requires compatibility review.
-
-### Validation
-
-```bash
-cargo test -p maxwell-protocol
-```
+Protocol message representations and temporary encoding
+or decoding state.
 
 ## 5. maxwell-sequencer
 
-Location:
-
-```text
-crates/maxwell-sequencer/
-```
-
 ### Responsibility
 
-Track sequence continuity within a defined sequencing
-scope.
+Validates event ordering and identifies sequence anomalies.
 
-### Inputs
+### Capabilities
 
-- Incoming event sequence.
-- Current expected sequence.
-- Explicit synchronization or reset operations.
-
-### Outputs
-
-- Continuity result.
-- Duplicate indication.
-- Gap indication.
-- Invalid sequence indication.
-- Updated sequencing state.
+- Expected sequence tracking.
+- Duplicate detection.
+- Gap detection.
+- Missing sequence range representation.
+- Sequence-related state transitions.
 
 ### Invariants
 
-- Accepted events advance sequence state according to
-  the defined contract.
-- Duplicate events do not advance state incorrectly.
-- Missing sequences are identified explicitly.
-- Sequence exhaustion does not silently wrap.
-- Reset behavior is explicit.
+- Sequence advancement must follow the acceptance contract.
+- Duplicates must not advance the expected cursor.
+- Missing ranges must preserve correct boundaries.
+- Sequence arithmetic must not silently wrap.
 
 ### Ownership
 
-Each mutable sequencing state belongs to one processing
-owner.
+Sequence-validation state.
 
-### Extension Points
-
-- Additional feed scopes.
-- Explicit stream epochs.
-- Sequence diagnostics.
-- Additional sequencing policies.
-
-### Maintenance Risks
-
-Changing the interpretation of expected sequence values
-can introduce off-by-one errors throughout recovery.
-
-Review whether a watermark represents the last applied
-sequence or the next expected sequence.
-
-### Validation
-
-```bash
-cargo test -p maxwell-sequencer
-```
+Within the integrated server, upstream sequence ownership
+is coordinated by the recovery manager.
 
 ## 6. maxwell-book
 
-Location:
-
-```text
-crates/maxwell-book/
-```
-
 ### Responsibility
 
-Maintain deterministic market data order book state.
+Reconstructs market state from validated events.
 
-### State
+### Capabilities
 
-- Instrument-specific market state.
-- Bid and ask ladders.
-- Price levels.
-- Quantities.
-- Relevant book statistics.
-
-### Inputs
-
-Validated and appropriately ordered market events.
-
-### Outputs
-
-- Updated market state.
-- Best bid and offer.
-- Price-level information.
-- Snapshots.
-- Explicit book errors.
+- Instrument registration.
+- Resting order storage.
+- Dense price-level structures.
+- Order addition and modification.
+- Cancellation, deletion, and execution.
+- Price-level aggregation.
+- Book consistency validation.
 
 ### Invariants
 
-- Price levels maintain their required ordering.
-- Quantity arithmetic remains valid.
-- Best-price calculations reflect current state.
-- Invalid mutations cannot silently corrupt the book.
-- Duplicate events are prevented by sequencing and
-  application coordination.
-- Snapshot state corresponds to a defined boundary.
+- Order identifiers remain unique within their scope.
+- Resting quantities remain valid.
+- Prices remain within instrument constraints.
+- Price-level aggregates reconcile with resting orders.
+- Failed mutations preserve consistency.
+- Logical order limits remain enforced.
 
 ### Ownership
 
-Each mutable book belongs to one processing owner.
+Mutable instrument and order book state.
 
-Read-only snapshots may be transferred to other owners
-through safe, explicit mechanisms.
+### Engineering Notes
 
-### Performance Considerations
+Dense ladder capacity must accommodate the complete
+instrument price band.
 
-Important operations include:
+The current order registry uses hash-based storage with
+logical capacity enforcement and fallible reservation.
 
-- Price-level lookup.
-- Price-level insertion.
-- Price-level removal.
-- Best-price lookup.
-- Snapshot generation.
-- Instrument routing.
-
-Data structure changes should be evaluated against realistic
-book depth and update distributions.
-
-### Extension Points
-
-- Additional market event handling.
-- Alternative price-ladder representations.
-- Additional snapshot formats.
-- Book reconciliation tools.
-- Instrument-specific configuration.
-
-### Maintenance Risks
-
-Do not expose unrestricted internal mutation merely to
-simplify integration.
-
-Internal methods such as price-level setters should remain
-private or crate-private unless a public contract is
-genuinely required.
-
-### Validation
-
-```bash
-cargo test -p maxwell-book
-```
+A fixed-capacity registry and additional FIFO-priority
+verification remain future improvements.
 
 ## 7. maxwell-transport
 
-Location:
-
-```text
-crates/maxwell-transport/
-```
-
 ### Responsibility
 
-Provide transport abstractions, framing, buffering, and
-communication error handling.
+Provides communication, framing, and buffering primitives.
 
-### Inputs
+### Capabilities
 
-- Incoming transport bytes or frames.
-- Outgoing encoded messages.
-- Transport configuration.
-
-### Outputs
-
-- Received messages or frames.
-- Delivery acceptance results.
-- Backpressure indications.
-- Transport errors.
+- Stream and datagram communication abstractions.
+- Message framing.
+- Bounded buffering.
+- Transport-level error handling.
 
 ### Invariants
 
-- Buffer capacity is respected.
-- Partial reads and writes are handled according to
-  transport semantics.
-- Frame boundaries are validated.
-- Retry behavior does not duplicate accepted bytes.
-- Transport failure is distinguishable from successful
-  delivery.
+- Partial reads must not be treated as complete messages.
+- Partial writes must not silently discard pending data.
+- Frame lengths must be validated.
+- Resource limits must remain explicit.
 
 ### Ownership
 
-Mutable transport state belongs to its designated I/O or
-processing owner.
+Transport state and communication buffers.
 
-### Extension Points
+### Integration Status
 
-- TCP adapters.
-- UDP adapters.
-- Multicast adapters.
-- In-memory transports.
-- Shared-memory transports.
-- Recording and replay adapters.
-
-These are extension possibilities, not a claim that every
-adapter currently exists.
-
-### Maintenance Risks
-
-A successful local send operation does not establish
-remote application receipt.
-
-Nonblocking errors must not be confused with fatal
-connection failures.
-
-### Validation
-
-```bash
-cargo test -p maxwell-transport
-```
+Production server socket orchestration remains Phase III
+work. Transport primitives alone do not constitute a
+complete distributed market data service.
 
 ## 8. maxwell-recovery
 
-Location:
-
-```text
-crates/maxwell-recovery/
-```
-
 ### Responsibility
 
-Restore synchronization following missing or inconsistent
-upstream market data.
+Coordinates restoration of synchronized market state.
 
-### State
+### Capabilities
 
-- Recovery lifecycle state.
-- Affected feed scope.
-- Missing sequence range.
-- Buffered events.
-- Recovery watermark.
-- Replay progress.
-
-### Inputs
-
-- Sequencing results.
-- Subsequent upstream events.
-- Retransmission responses.
-- Snapshot responses.
-- Explicit recovery control operations.
-
-### Outputs
-
-- Recovery requests.
-- Eligible ordered events.
-- Synchronization transitions.
-- Recovery failures.
+- Upstream sequence coordination.
+- Missing-range identification.
+- Bounded event buffering.
+- Retransmission recovery.
+- Snapshot recovery coordination.
+- Recovery lifecycle management.
 
 ### Invariants
 
-- Recovery buffers remain bounded.
-- Recovered events are validated.
-- Snapshot watermarks are validated.
-- Events represented by a snapshot are not replayed twice.
-- Failed recovery does not advertise synchronized state.
-- Replay progress reflects successfully applied events.
+- Recovered events must preserve authoritative ordering.
+- Duplicate events must not be applied twice.
+- Failed application must not advance recovery progress.
+- Synchronization must only be restored after satisfying
+  the recovery contract.
 
 ### Ownership
 
-Recovery state should be coordinated with the corresponding
-sequencer and order book owner.
+Recovery state, upstream sequence cursor, and recovery
+buffers.
 
-### Extension Points
+### Integration Status
 
-- Recovery timeout policies.
-- Retry limits.
-- Recovery source selection.
-- Feed redundancy.
-- Additional recovery diagnostics.
-
-### Maintenance Risks
-
-Recovery callbacks and state transitions must preserve
-transactional consistency.
-
-Advancing a replay cursor before successful state mutation
-can permanently lose an event.
-
-### Validation
-
-```bash
-cargo test -p maxwell-recovery
-```
+Correlated remote recovery requests and complete upstream
+snapshot installation require further application
+integration.
 
 ## 9. maxwell-publisher
 
-Location:
-
-```text
-crates/maxwell-publisher/
-```
-
 ### Responsibility
 
-Filter and distribute accepted publications to bounded
-subscriber queues.
+Distributes market data publications to subscribers.
 
-### Principal Public Types
+### Capabilities
 
-| Type | Purpose |
-|------|---------|
-| Publisher | Owns publication and subscriber state |
-| PublisherConfig | Capacity and backpressure configuration |
-| BackpressurePolicy | Defines overload behavior |
-| Publication | Generic market data publication |
-| EventKind | Publication category |
-| SubscriptionFilter | Instrument and event selection |
-| SubscriberId | Subscriber identity |
-| SubscriberState | Synchronization lifecycle |
-| Subscription | Subscriber state and pending deliveries |
-| BoundedQueue | Fixed logical-capacity FIFO queue |
-| PublicationSink | Nonblocking delivery abstraction |
-| PublishReport | Publication outcome |
-| DrainReport | Delivery progress |
-| PublisherStats | Operational counters |
-
-### Principal Operations
-
-- Construct a publisher.
-- Register and remove subscribers.
-- Activate subscribers at a valid watermark.
-- Publish events.
-- Inspect pending publications.
-- Remove or drain accepted deliveries.
-- Invalidate subscribers.
-- Inspect operational statistics.
-
-### State
-
-Subscribers are maintained in deterministic identifier order.
-
-Each subscriber owns a bounded publication queue and a
-subscription filter.
-
-The publisher maintains a global publication sequence.
-
-### Subscriber States
-
-- PendingSnapshot.
-- Active.
-- ResyncRequired.
-
-### Backpressure
-
-RejectPublication rejects an event before partial fan-out
-when a matching active subscriber lacks capacity.
-
-RequireResync invalidates an overloaded subscriber and
-allows healthy subscribers to continue.
+- Subscription registration.
+- Instrument and event filtering.
+- Bounded subscriber queues.
+- Publication sequence tracking.
+- Subscriber activation.
+- Backpressure policies.
+- Subscriber invalidation.
 
 ### Invariants
 
-- Publication sequence advances only for accepted
-  publications.
-- Matching active subscribers receive publications in
-  relative publication order.
-- Pending or invalidated subscribers do not receive
-  ordinary incremental publications.
-- Failed sink acceptance retains the pending publication.
-- Subscriber queues remain bounded.
-- Activation requires a valid current watermark.
-
-### Complexity
-
-For S subscribers and up to I selected instruments per
-subscription, publication filtering is approximately
-O(S log I) for the initial sorted-vector implementation.
-
-Queue insertion and removal are constant-time operations
-under normal preallocated usage.
-
-### Maintenance Risks
-
-Publication sequence gaps caused by filtering are valid.
-
-The publisher is not a general-purpose historical replay
-store.
-
-Snapshot coordination and rejected-publication retries
-belong to the application.
-
-### Validation
-
-```bash
-cargo test -p maxwell-publisher
-```
-
-## 10. maxwell-gateway
-
-Location:
-
-```text
-crates/maxwell-gateway/
-```
-
-### Responsibility
-
-Coordinate downstream session and subscription lifecycles.
-
-### State
-
-- Session identifiers.
-- Session lifecycle state.
-- Subscription relationships.
-- Pending delivery state.
-- Synchronization status.
-
-### Inputs
-
-- Session control operations.
-- Subscription requests.
-- Snapshots.
-- Publisher deliveries.
-- Transport outcomes.
-
-### Outputs
-
-- Session responses.
-- Downstream market data.
-- Invalidation notifications.
-- Session lifecycle transitions.
-- Gateway errors.
-
-### Invariants
-
-- Session capacity remains bounded.
-- Subscription ownership is unambiguous.
-- Snapshot and incremental delivery ordering is preserved.
-- Invalidated sessions do not silently resume.
-- Disconnection releases associated resources according
-  to the documented lifecycle.
+- Accepted publications preserve their defined ordering.
+- Rejected atomic publications must not partially fan out.
+- Invalidated subscribers require resynchronization.
+- Failed sink delivery must retain pending data.
+- Publication sequences remain independent of upstream
+  and connection sequences.
 
 ### Ownership
 
-Session state must have one logical owner.
+Subscriber definitions, publication queues, and
+publication sequence state.
 
-If the publisher and gateway have different owners, their
-interaction requires a bounded communication contract.
-
-### Extension Points
-
-- Network session adapters.
-- Session authentication.
-- Subscription authorization.
-- Heartbeat scheduling.
-- Session-local delivery sequencing.
-
-### Maintenance Risks
-
-Partial transport writes require explicit retry state.
-
-Session invalidation must not depend on another market
-event arriving.
-
-### Validation
-
-```bash
-cargo test -p maxwell-gateway
-```
-
-## 11. maxwell-client
-
-Location:
-
-```text
-crates/maxwell-client/
-```
+## 10. maxwell-gateway
 
 ### Responsibility
 
-Provide reusable client-side market data consumption and
-synchronization logic.
+Coordinates downstream sessions and subscriber lifecycle.
 
-### State
+### Capabilities
 
-- Connection or session state.
-- Subscription state.
-- Synchronization status.
-- Local market data state.
-- Relevant sequence tracking.
-
-### Inputs
-
-- Session responses.
-- Snapshots.
-- Incremental market data.
-- Invalidation notifications.
-- Transport failures.
-
-### Outputs
-
-- Updated local market state.
-- Client lifecycle transitions.
-- Resynchronization requests.
-- Explicit client errors.
+- Session registration.
+- Subscription coordination.
+- Synchronization state management.
+- Connection sequence tracking.
+- Downstream delivery coordination.
+- Session cleanup.
 
 ### Invariants
 
-- Incremental state is not considered synchronized before
-  initialization completes.
-- Invalidated state is not silently treated as current.
-- Sequence domains are interpreted correctly.
-- Snapshot application establishes a valid state boundary.
-- Reconnect behavior follows the session contract.
+- Session identities must remain unambiguous.
+- Incremental delivery must respect synchronization state.
+- Connection sequences must remain independent of
+  publication and upstream sequences.
+- Invalidated sessions must not resume normal delivery
+  without satisfying their recovery contract.
 
-### Extension Points
+### Ownership
 
-- Trading system adapters.
-- Analytics adapters.
-- Asynchronous client wrappers.
-- Additional subscription policies.
-- Client-side diagnostics.
+Downstream session state.
 
-### Maintenance Risks
-
-Client logic must not interpret filtered global publication
-sequence gaps as definitive message loss.
-
-The exact downstream delivery continuity mechanism must be
-defined by the protocol and gateway contract.
-
-### Validation
-
-```bash
-cargo test -p maxwell-client
-```
-
-## 12. maxwell-metrics
-
-Location:
-
-```text
-crates/maxwell-metrics/
-```
+## 11. maxwell-client
 
 ### Responsibility
 
-Provide bounded, low-overhead telemetry primitives.
+Provides consumer-side market data processing.
 
-### Principal Public Types
+### Capabilities
 
-| Type | Purpose |
+- Downstream message consumption.
+- Client-side sequence validation.
+- Snapshot and incremental coordination.
+- Local market state reconstruction.
+- Synchronization tracking.
+
+### Invariants
+
+- Invalid or missing data must affect synchronization
+  status appropriately.
+- Initialization must establish a valid baseline.
+- Subsequent increments must respect the baseline
+  watermark.
+- Unsynchronized client state must not be advertised
+  as authoritative.
+
+### Ownership
+
+Consumer-side market state and synchronization state.
+
+## 12. maxwell-metrics
+
+### Responsibility
+
+Provides operational instrumentation primitives.
+
+### Capabilities
+
+- Counters.
+- Atomic counters.
+- Gauges.
+- Fixed-capacity latency histograms.
+- Metric registration.
+- Metric snapshots.
+- Prometheus-compatible text representation.
+
+### Invariants
+
+- Counter overflow must follow documented semantics.
+- Histogram bounds must remain consistent.
+- Histogram aggregation requires compatible configurations.
+- Instrumentation must not mutate financial market state.
+
+### Ownership
+
+Metric values and registry state.
+
+Production monitoring endpoints and cloud exporters
+remain separate integration concerns.
+
+## 13. maxwell-server
+
+### Responsibility
+
+Integrates the foundational crates into a coherent
+market data processing application.
+
+### Capabilities
+
+- Configuration and lifecycle management.
+- Instrument registration.
+- Empty-market initialization.
+- Upstream event ingestion.
+- Recovery coordination.
+- Market mutation.
+- Publication generation.
+- Subscriber coordination.
+- Pending publication handling.
+- Operational status reporting.
+
+### Invariants
+
+- The server owns its integrated mutable processing state.
+- The recovery manager owns the upstream sequence cursor.
+- An accepted event must not be applied twice.
+- Publication backpressure must not cause repeated
+  market mutation.
+- Unsynchronized state must not be advertised as valid.
+- Snapshot activation must preserve watermark consistency.
+
+### Ownership
+
+Integrated market processing state and lifecycle.
+
+### Current Boundaries
+
+The initial application supports in-process integration.
+
+Production socket orchestration, remote recovery
+correlation, and complete upstream snapshot installation
+remain future work.
+
+## 14. maxwell-simulator
+
+### Responsibility
+
+Generates deterministic synthetic market workloads.
+
+### Capabilities
+
+- Independent authoritative synthetic market.
+- Seeded random event generation.
+- Configurable event distributions.
+- Multiple instruments.
+- Delivery fault injection.
+- Bounded delivery queues.
+- Retained event history.
+- Snapshot generation.
+- Virtual, unbounded, and real-time pacing.
+- Operational workload statistics.
+
+### Scenarios
+
+| Scenario | Purpose |
+|----------|---------|
+| clean | Baseline ordered workload |
+| smoke | Small correctness workload |
+| high-throughput | Large unpaced workload |
+| packet-loss | Missing event recovery |
+| duplicates | Duplicate event handling |
+| out-of-order | Reordering and sequencing |
+| mixed-faults | Combined delivery faults |
+| recovery-stress | Frequent recovery conditions |
+| order-churn | Frequent insertion and removal |
+| capacity-stress | Resource capacity testing |
+
+### Invariants
+
+- The authoritative market remains independent of the
+  server's reconstructed market.
+- Market and fault randomness remain independent.
+- Identical seeds and configurations produce reproducible
+  logical workloads.
+- Delivery faults must not corrupt the authoritative market.
+- Blocked delivery must retain the pending event.
+- Generated and delivered events must be accounted for.
+
+### Ownership
+
+Synthetic market state, random generator state, retained
+history, delivery queues, and simulation statistics.
+
+## 15. maxwell-replay
+
+### Responsibility
+
+Provides historical market event persistence, validation,
+and playback.
+
+### Principal Components
+
+| Component | Responsibility |
+|-----------|----------------|
+| config | Journal and replay configuration |
+| error | Persistence and playback errors |
+| format | Binary journal representation |
+| record | Journal records and stream validation |
+| writer | Buffered append-only recording |
+| reader | Sequential validation and decoding |
+| index | Sparse sequence and timestamp indexing |
+| clock | Playback timing |
+| filter | Record selection |
+| replay | Playback orchestration |
+| recorder | Recording lifecycle |
+| stats | Recording and replay statistics |
+
+### Capabilities
+
+- Versioned binary journal headers.
+- CRC32C record integrity checks.
+- Authoritative and raw-capture journals.
+- Configurable buffering and durability.
+- Strict and incomplete-tail reading policies.
+- Sparse indexing.
+- Sequence and timestamp seeking.
+- Instrument, event, sequence, and timestamp filtering.
+- Virtual, unbounded, real-time, and scaled playback.
+- Explicit replay sink backpressure.
+
+### Invariants
+
+- Original upstream event identity must be preserved.
+- Authoritative records must remain contiguous.
+- Recording timestamps must not regress.
+- Raw capture preserves arrival order.
+- Corruption must not be silently accepted.
+- Backpressured records remain pending until accepted.
+- Filtered or seeked replay is not automatically
+  authoritative.
+- Failed writer operations may poison the recording session.
+
+### Ownership
+
+Journal file handles, encoding buffers, reader state,
+sparse indexes, playback clocks, and pending records.
+
+### Current Boundaries
+
+- One feed identity per journal.
+- No reopening an existing journal for append.
+- In-memory sparse indexing.
+- No production journal rotation or remote storage.
+- No transactional coupling between market mutation
+  and persistence.
+- No durable checkpoint or snapshot catalog.
+
+## 16. maxwell-cli
+
+### Responsibility
+
+Provides the unified Maxwell operational command line.
+
+The package produces an executable named maxwell.
+
+### Commands
+
+| Command | Responsibility |
+|---------|----------------|
+| help | Display command usage |
+| version | Display application version |
+| scenarios | List predefined workloads |
+| simulate | Execute a local simulation |
+| record | Record simulated market events |
+| inspect | Inspect journal metadata |
+| validate | Validate journal contents |
+| replay | Replay historical events |
+| benchmark | Measure simulator throughput |
+
+### Principal Components
+
+| Component | Responsibility |
+|-----------|----------------|
+| args | Strict command-line parsing |
+| config | Command-specific configuration |
+| error | Unified operational errors |
+| output | Human-readable reporting |
+| commands | Command dispatch and orchestration |
+
+### Invariants
+
+- Domain logic remains in the underlying libraries.
+- Invalid arguments are rejected explicitly.
+- Existing journal files must not be overwritten.
+- Authoritative replay restrictions must be enforced.
+- Benchmark results must identify their measurement scope.
+- Operational failures must return nonzero exit codes.
+
+### Exit Codes
+
+| Code | Meaning |
 |------|---------|
-| Counter | Saturating single-owner counter |
-| Gauge | Signed saturating gauge |
-| AtomicCounter | Cache-line-aligned atomic counter |
-| Histogram | Fixed-capacity integer histogram |
-| HistogramSnapshot | Owned histogram observations |
-| MetricsRegistry | Bounded metric registry |
-| MetricId | Registry-local metric identifier |
-| MetricSnapshot | Owned metric representation |
-| MetricsError | Instrumentation errors |
+| 0 | Success |
+| 1 | Operational failure |
+| 2 | Invalid command or usage |
 
-### Export
+### Current Boundaries
 
-The write_prometheus function writes metric snapshots
-using Prometheus-compatible text exposition.
+The initial CLI is local and human-readable.
 
-The metrics crate does not itself provide an HTTP server.
+Remote administration, structured JSON reporting, and
+distributed operational commands remain future extensions.
 
-### Histogram Semantics
+## 17. Component Ownership Matrix
 
-- Bucket bounds are strictly increasing.
-- Observations above the final bound enter an overflow
-  bucket.
-- Count, sum, minimum, and maximum are exact for accepted
-  observations.
-- Intermediate percentiles are bucket-based estimates.
-- Histograms require matching bounds for aggregation.
-- Count exhaustion rejects additional observations.
-
-### Atomic Semantics
-
-AtomicCounter uses relaxed atomic ordering for telemetry.
-
-It is not an application synchronization primitive.
-
-Saturating addition uses a compare-exchange retry loop.
-
-### Registry Semantics
-
-Metric names are validated at registration.
-
-Metrics receive stable numeric identifiers local to their
-registry.
-
-Recording uses indexed access.
-
-Registration capacity is explicitly bounded.
-
-### Maintenance Risks
-
-Do not introduce a globally shared metrics registry into
-the critical processing path without measurement.
-
-Do not reset cumulative counters during ordinary
-Prometheus collection.
-
-Do not average percentiles across processing owners.
-
-Aggregate compatible histograms before calculating
-combined percentiles.
-
-### Validation
-
-```bash
-cargo test -p maxwell-metrics
-```
-
-## 13. Component Ownership Matrix
-
-| State | Logical Owner |
+| State | Primary Owner |
 |-------|---------------|
-| Receive buffer | Transport owner |
-| Decoding scratch space | Decoder or processing owner |
-| Expected feed sequence | Sequencer owner |
-| Recovery buffer | Recovery owner |
-| Order book | Book owner |
-| Publication sequence | Publisher owner |
-| Subscriber queues | Publisher owner |
-| Session state | Gateway owner |
-| Consumer book | Client owner |
-| Local telemetry | Instrumented owner |
+| Upstream sequence cursor | Recovery manager |
+| Resting market orders | Book |
+| Publication sequence | Publisher |
+| Subscriber queues | Publisher |
+| Connection sequence | Gateway session |
+| Consumer market state | Client |
+| Integrated lifecycle | Server |
+| Synthetic authoritative market | Simulator |
+| Random generator state | Simulator |
+| Journal writer state | Replay writer |
+| Historical read position | Replay reader |
+| Pending replay record | Replay engine |
+| Command configuration | CLI |
 
-A logical owner may manage multiple components within
-one thread.
+Mutable state should not have multiple independent owners.
 
-## 14. Change Impact Matrix
+## 18. Change Impact Matrix
 
-| Changed Component | Additional Review |
-|-------------------|-------------------|
-| Core | All dependent crates |
-| Protocol | Transport, recovery, client, Planck |
-| Sequencer | Recovery, book, replay |
-| Book | Recovery, publisher, client |
-| Transport | Server, gateway, recovery, client |
-| Recovery | Sequencer, book, publisher |
-| Publisher | Gateway, client, server |
-| Gateway | Publisher, transport, client |
-| Client | Gateway, protocol, CLI |
-| Metrics | Instrumented applications |
+| Changed Component | Review Related Components |
+|-------------------|---------------------------|
+| Core | All domain consumers |
+| Protocol | Transport, server, replay, Planck adapter |
+| Sequencer | Recovery, server, client |
+| Book | Server, recovery, reconstruction tests |
+| Transport | Server, gateway, client |
+| Recovery | Server, simulator, client |
+| Publisher | Server, gateway, client |
+| Gateway | Server, publisher, client |
+| Client | Gateway, protocol |
+| Metrics | Server, simulator, operational reporting |
+| Server | Simulator integration, replay reconstruction |
+| Simulator | Server integration, recording, benchmarks |
+| Replay | CLI, reconstruction tests |
+| CLI | Simulator and replay interfaces |
 
-This matrix describes logical integration impact rather
-than exact Cargo dependencies.
+## 19. Adding or Modifying a Component
 
-## 15. Adding a Component
+A component change should identify:
 
-Before introducing a new crate, determine whether the
-functionality belongs in an existing component.
+- Its responsibility.
+- Its public interface.
+- Its mutable state owner.
+- Its resource limits.
+- Its failure semantics.
+- Its sequence requirements.
+- Its synchronization requirements.
+- Its integration dependencies.
+- Its validation strategy.
 
-A new crate should have:
+Avoid introducing application orchestration into foundational
+domain crates.
 
-- A clearly defined responsibility.
-- A documented public interface.
-- Explicit dependency boundaries.
-- Explicit error semantics.
-- Documented state ownership.
-- Capacity and allocation policies.
-- Unit and integration tests.
-- Relevant performance considerations.
+## 20. Validation
 
-Avoid creating new crates solely to separate small groups
-of closely related functions.
+Generate the public API documentation:
 
-## 16. Component Review Checklist
+    cargo doc --workspace --no-deps
 
-- [ ] Public interfaces are narrowly scoped.
-- [ ] Domain values are validated.
-- [ ] Errors are explicit.
-- [ ] State transitions are documented.
-- [ ] Resource consumption is bounded.
-- [ ] Ownership assumptions are preserved.
-- [ ] Ordering guarantees are preserved.
-- [ ] Failure behavior is tested.
-- [ ] Dependencies are justified.
-- [ ] Relevant integration tests pass.
-- [ ] Documentation reflects actual behavior.
+Inspect workspace dependencies:
+
+    cargo tree --workspace
+
+Validate an individual package:
+
+    cargo test -p maxwell-replay
+
+Validate the complete workspace:
+
+    cargo test --workspace
+    cargo clippy --workspace --all-targets -- -D warnings
+
+## 21. Related Documentation
+
+- [Architecture](architecture.md)
+- [Concurrency](concurrency.md)
+- [Protocol](protocol.md)
+- [Design Decisions](decisions.md)
+- [Testing](testing.md)

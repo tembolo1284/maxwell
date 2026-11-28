@@ -1,742 +1,772 @@
-# Architectural Decision Records
+# Maxwell Architectural Decisions
 
 ## 1. Purpose
 
-This document records significant architectural decisions
-made during Maxwell's development.
+This document records architectural decisions, their
+rationale, consequences, and review conditions.
 
-Architectural Decision Records (ADRs) preserve the context,
-rationale, alternatives, and consequences of technical
-decisions.
-
-An accepted decision represents an architectural direction.
-It does not necessarily imply that every associated
-application-level capability has been implemented.
+Decisions should preserve the reasoning behind the
+implementation rather than merely describe its current
+structure.
 
 ## 2. Decision Index
 
-| ADR | Decision | Status |
-|-----|----------|--------|
-| 001 | Use Rust for market data infrastructure | Accepted |
-| 002 | Separate matching from market data processing | Accepted |
-| 003 | Organize Maxwell as a Cargo workspace | Accepted |
-| 004 | Use fixed-point financial representations | Accepted |
-| 005 | Prioritize deterministic processing | Accepted |
-| 006 | Adopt single-owner mutable state | Accepted |
-| 007 | Bound resource consumption | Accepted |
-| 008 | Use explicit backpressure policies | Accepted |
-| 009 | Separate protocol and transport | Accepted |
-| 010 | Separate sequencing and recovery | Accepted |
-| 011 | Distinguish sequence domains | Accepted |
-| 012 | Coordinate snapshot activation | Accepted |
-| 013 | Prefer safe Rust | Accepted |
-| 014 | Minimize external dependencies | Accepted |
-| 015 | Keep instrumentation owner-local | Accepted |
-| 016 | Use fixed-capacity latency histograms | Accepted |
-| 017 | Separate libraries from applications | Accepted |
-| 018 | Establish correctness before optimization | Accepted |
-| 019 | Introduce parallelism incrementally | Accepted |
-| 020 | Require deterministic simulation and replay | Accepted |
+| ADR | Decision |
+|-----|----------|
+| 001 | Use Rust for market data infrastructure |
+| 002 | Separate matching from market data processing |
+| 003 | Organize Maxwell as a Cargo workspace |
+| 004 | Use fixed-point financial representations |
+| 005 | Prioritize deterministic processing |
+| 006 | Adopt single-owner mutable state |
+| 007 | Bound resource consumption |
+| 008 | Use explicit backpressure policies |
+| 009 | Separate protocol and transport |
+| 010 | Separate sequencing and recovery |
+| 011 | Distinguish sequence domains |
+| 012 | Coordinate snapshot activation |
+| 013 | Prefer safe Rust |
+| 014 | Minimize external dependencies |
+| 015 | Keep instrumentation owner-local |
+| 016 | Use fixed-capacity latency histograms |
+| 017 | Separate libraries from applications |
+| 018 | Establish correctness before optimization |
+| 019 | Introduce parallelism incrementally |
+| 020 | Require deterministic simulation and replay |
+| 021 | Separate market mutation from publication retry |
+| 022 | Maintain an independent simulator market |
+| 023 | Separate market and fault randomness |
+| 024 | Use versioned append-only binary journals |
+| 025 | Distinguish authoritative and raw journals |
+| 026 | Separate flushing from durability |
+| 027 | Retain pending replay records |
+| 028 | Use bounded sparse journal indexes |
+| 029 | Provide a unified operational CLI |
+| 030 | Define explicit benchmark boundaries |
+| 031 | Deploy an incremental distributed baseline |
 
 ## ADR-001: Use Rust for Market Data Infrastructure
 
-### Context
-
-Market data processing requires predictable performance,
-memory safety, and efficient systems-level programming.
-
-Planck is implemented in C++23.
+Status: Accepted
 
 ### Decision
 
-Implement Maxwell in Rust.
-
-### Alternatives Considered
-
-- C++.
-- C.
-- Zig.
-- Go.
-- Java.
+Implement Maxwell in Rust while retaining C++23 for Planck.
 
 ### Rationale
 
-Rust provides:
-
-- Native compilation.
-- Explicit ownership.
-- Memory safety without mandatory garbage collection.
-- Strong domain type modeling.
-- Efficient abstractions.
-- Integrated package management and testing.
+Rust provides explicit ownership, memory safety, strong
+domain modeling, and efficient systems programming.
 
 ### Consequences
 
-Cross-language interoperability with Planck requires an
-explicit protocol contract.
-
-Rust ownership and borrowing requirements influence
-component boundaries and concurrency design.
+Cross-language interoperability must use explicit protocol
+contracts rather than shared compiler-specific layouts.
 
 ## ADR-002: Separate Matching from Market Data Processing
 
-### Context
-
-Matching and market data distribution have different
-performance characteristics and scaling requirements.
+Status: Accepted
 
 ### Decision
 
-Maintain Planck and Maxwell as independent systems.
-
-Planck owns execution state. Maxwell owns derived market
-data state.
-
-### Alternatives Considered
-
-- Embed market data distribution inside Planck.
-- Share mutable order book memory between both systems.
-- Combine execution and publication in one process.
+Maintain independent matching and market data systems.
 
 ### Rationale
 
-Independent systems provide:
-
-- Clear responsibility boundaries.
-- Independent scaling.
-- Independent deployment.
-- Failure isolation.
-- Reduced interference with order execution.
+Matching and market data distribution have different
+state ownership, throughput, and operational requirements.
 
 ### Consequences
 
-An explicit interoperability contract is required.
+Planck owns authoritative exchange execution state.
 
-Maxwell must handle transport failures, sequence gaps,
-and synchronization independently.
-
-Process separation does not eliminate the need to manage
-upstream resource consumption.
+Maxwell reconstructs and distributes market data without
+performing order matching.
 
 ## ADR-003: Organize Maxwell as a Cargo Workspace
 
-### Context
-
-The platform contains multiple reusable components with
-distinct responsibilities.
+Status: Accepted
 
 ### Decision
 
-Use a Cargo workspace containing focused library crates
-and executable applications.
-
-### Alternatives Considered
-
-- One monolithic crate.
-- Independent repositories for every component.
+Separate foundational libraries from application packages
+within a shared Cargo workspace.
 
 ### Rationale
 
-A workspace provides coordinated builds, shared dependency
-management, independent component testing, and explicit
-dependency boundaries.
+Independent components improve testing, reuse, dependency
+management, and engineering handover.
 
 ### Consequences
 
-Public crate interfaces must be maintained carefully.
-
-Circular dependencies must be avoided.
-
-Excessive crate fragmentation should also be avoided.
+Public interfaces and dependency direction require
+deliberate review.
 
 ## ADR-004: Use Fixed-Point Financial Representations
 
-### Context
-
-Prices and quantities require consistent arithmetic and
-comparison semantics.
+Status: Accepted
 
 ### Decision
 
-Represent financial values using validated integer-based
+Represent authoritative prices and quantities using
 fixed-point domain types.
-
-### Alternatives Considered
-
-- IEEE 754 floating-point values.
-- Arbitrary-precision decimal libraries.
-- Untyped integer values throughout the application.
 
 ### Rationale
 
-Fixed-point representations provide predictable comparison,
-explicit precision, and reproducible arithmetic.
-
-Domain types prevent accidental mixing of unrelated values.
+Financial correctness requires explicit precision and
+predictable arithmetic.
 
 ### Consequences
 
-Scale, range, conversion, and rounding rules must be
-explicitly documented.
-
-Overflow and underflow must be handled deliberately.
-
-Fixed-point arithmetic is not inherently overflow-safe.
+Overflow, scaling, tick alignment, and instrument-specific
+constraints must be validated.
 
 ## ADR-005: Prioritize Deterministic Processing
 
-### Context
-
-Market data state must be reproducible for debugging,
-recovery validation, and historical replay.
+Status: Accepted
 
 ### Decision
 
-Identical ordered logical inputs and equivalent initial
-state should produce identical logical results.
-
-### Alternatives Considered
-
-- Allow processing order to depend on thread scheduling.
-- Accept nondeterministic publication ordering.
+Identical logical inputs and initial state should produce
+equivalent logical results.
 
 ### Rationale
 
-Determinism simplifies:
-
-- Regression testing.
-- Historical replay.
-- Root-cause analysis.
-- Recovery verification.
-- State reconciliation.
+Determinism improves recovery, regression testing, and
+historical reconstruction.
 
 ### Consequences
 
-Iteration order, merge order, partitioning, and scheduling
-policies require explicit consideration.
-
-Wall-clock measurements and operational telemetry are not
-necessarily deterministic.
+Randomness, time, ordering, and state ownership must be
+explicit.
 
 ## ADR-006: Adopt Single-Owner Mutable State
 
-### Context
-
-Shared mutable state introduces contention and makes
-state transitions more difficult to reason about.
+Status: Accepted
 
 ### Decision
 
-Assign one logical owner to each mutable processing
-component.
-
-Prefer message passing and explicit ownership transfer.
-
-### Alternatives Considered
-
-- Shared order books protected by mutexes.
-- Concurrent mutation through fine-grained locks.
-- Atomic fields throughout processing structures.
+Assign each mutable market state object an explicit owner.
 
 ### Rationale
 
-Single ownership reduces synchronization requirements and
-simplifies consistency guarantees.
+Single ownership simplifies ordering and reduces
+synchronization requirements.
 
 ### Consequences
 
-Communication boundaries require explicit capacity and
-ordering policies.
-
-Single ownership does not imply that the entire application
-must execute on one thread.
+Cross-thread interaction should use explicit communication
+or ownership transfer.
 
 ## ADR-007: Bound Resource Consumption
 
-### Context
-
-Unrestricted queues and buffers can turn temporary
-overload into process-wide resource exhaustion.
+Status: Accepted
 
 ### Decision
 
-Use explicit capacity limits for growing runtime structures.
-
-### Alternatives Considered
-
-- Unbounded channels.
-- Dynamically expanding recovery buffers.
-- Unrestricted subscriber queues.
+Use explicit logical limits for market state, queues,
+recovery buffers, and historical processing resources.
 
 ### Rationale
 
-Bounded resources make overload behavior more predictable
-and improve operational isolation.
+Unrestricted resource growth produces unpredictable
+latency and failure behavior.
 
 ### Consequences
 
-Every capacity limit requires a documented exhaustion
-policy.
+Capacity exhaustion requires explicit handling.
 
-Capacity selection becomes an operational configuration
-responsibility.
-
-Bounded memory is not equivalent to allocation-free
-processing.
+Logical bounds do not establish allocation-free execution.
 
 ## ADR-008: Use Explicit Backpressure Policies
 
-### Context
-
-Downstream consumers may process data more slowly than
-the publisher generates it.
+Status: Accepted
 
 ### Decision
 
-Handle overload using explicit policy outcomes.
-
-The publisher supports:
-
-- RejectPublication.
-- RequireResync.
-
-### Alternatives Considered
-
-- Silently drop incremental updates.
-- Block indefinitely.
-- Grow subscriber queues without limits.
+Represent capacity exhaustion through defined
+backpressure outcomes.
 
 ### Rationale
 
-Explicit policies preserve correctness and expose overload
-to the application.
+Silent dropping or unrestricted buffering can corrupt
+market state or exhaust resources.
 
 ### Consequences
 
-RejectPublication requires application-managed retry.
-
-RequireResync requires subscriber invalidation and a
-coordinated synchronization procedure.
-
-Neither policy eliminates the need for overload monitoring.
+Callers must distinguish accepted, rejected, pending,
+and invalidated states.
 
 ## ADR-009: Separate Protocol and Transport
 
-### Context
-
-Market data messages may be delivered through different
-communication mechanisms.
+Status: Accepted
 
 ### Decision
 
-Separate binary message representation from transport
-implementation.
-
-### Alternatives Considered
-
-- Embed message parsing inside socket handlers.
-- Couple protocol messages directly to one transport.
+Keep logical binary message representation independent
+of socket and transport implementation.
 
 ### Rationale
 
-Separation improves testability, replay support, and
-transport portability.
+Protocol messages may be carried over different
+communication mechanisms.
 
 ### Consequences
 
-Framing and message boundary responsibilities must be
-explicit.
-
-Transport delivery guarantees cannot be inferred from
-protocol structure.
+Transport adapters must establish message boundaries and
+handle partial communication.
 
 ## ADR-010: Separate Sequencing and Recovery
 
-### Context
-
-Detecting a sequence gap is distinct from deciding how
-to restore missing state.
+Status: Accepted
 
 ### Decision
 
-Keep sequence validation and recovery orchestration in
-separate components.
-
-### Alternatives Considered
-
-- Implement all recovery logic inside the sequencer.
-- Allow the order book to manage upstream recovery.
+Separate sequence validation from recovery orchestration.
 
 ### Rationale
 
-Sequencing remains focused on continuity.
-
-Recovery manages buffering, retransmission, snapshots,
-and synchronization policy.
+Detecting a missing event and restoring synchronization
+are distinct responsibilities.
 
 ### Consequences
 
-The application must coordinate the two components.
-
-Recovery completion must update sequencing state
-consistently with restored market state.
+The recovery manager coordinates upstream sequence
+ownership within the integrated server.
 
 ## ADR-011: Distinguish Sequence Domains
 
-### Context
-
-Upstream feed sequences and downstream publication
-sequences represent different ordering relationships.
+Status: Accepted
 
 ### Decision
 
-Treat feed, recovery, publication, and session sequence
-domains independently.
-
-### Alternatives Considered
-
-- Use upstream sequence numbers for all downstream delivery.
-- Treat publication sequence gaps as universal packet loss.
+Maintain independent upstream, publication, and
+connection sequence domains.
 
 ### Rationale
 
-Filtering and recovery can produce legitimate differences
-between sequence domains.
+Each sequence identifies ordering within a different
+logical boundary.
 
 ### Consequences
 
-Protocol documentation must identify sequence scope.
+Sequence values must not be substituted across domains.
 
-Filtered subscribers cannot infer missing relevant updates
-solely from gaps in global publication sequences.
+Filtered publication gaps do not automatically indicate
+upstream data loss.
 
 ## ADR-012: Coordinate Snapshot Activation
 
-### Context
-
-A downstream subscriber requires a consistent starting
-state before processing incremental updates.
+Status: Accepted
 
 ### Decision
 
-Associate snapshot activation with an explicit publication
-watermark.
-
-### Alternatives Considered
-
-- Begin incremental delivery immediately upon subscription.
-- Generate snapshots independently of publication state.
-- Maintain unrestricted publication history.
+Activate incremental delivery only after establishing
+a valid snapshot or initialization watermark.
 
 ### Rationale
 
-A coordinated boundary prevents missing or duplicate
-incremental state transitions.
+Inconsistent initialization boundaries can produce
+missing or duplicate market mutations.
 
 ### Consequences
 
-Snapshot generation and activation require application-level
-coordination.
-
-The initial publisher implementation does not maintain a
-general historical replay log.
+Invalidated subscribers require explicit
+resynchronization.
 
 ## ADR-013: Prefer Safe Rust
 
-### Context
-
-Unsafe code can introduce memory safety defects that are
-difficult to detect through ordinary testing.
+Status: Accepted
 
 ### Decision
 
-Prefer safe Rust throughout the foundational crates.
-
-### Alternatives Considered
-
-- Introduce unsafe data structures preemptively.
-- Use unchecked indexing in critical paths.
-- Implement custom memory management immediately.
+Keep Maxwell's own implementation in safe Rust.
 
 ### Rationale
 
-Safe Rust provides strong correctness guarantees while
-retaining native performance.
+Memory safety and maintainability are foundational
+requirements.
 
 ### Consequences
 
-Some optimizations may require additional design work.
-
-Any proposed unsafe code must include documented invariants,
-a measurable benefit, and a dedicated review.
+Any future proposal involving unsafe code requires
+explicit architectural review and supporting evidence.
 
 ## ADR-014: Minimize External Dependencies
 
-### Context
-
-External dependencies increase maintenance, security,
-compatibility, and supply-chain obligations.
+Status: Accepted
 
 ### Decision
 
-Prefer standard library functionality when sufficient.
-
-### Alternatives Considered
-
-- Adopt a large asynchronous runtime immediately.
-- Use external frameworks for every subsystem.
-- Implement all functionality internally regardless of cost.
+Introduce third-party dependencies only when they
+provide a clear engineering benefit.
 
 ### Rationale
 
-A focused dependency graph improves maintainability and
-reduces unnecessary abstractions.
+A smaller dependency surface improves auditability,
+portability, and build predictability.
 
 ### Consequences
 
-Dependencies remain acceptable when they provide a clear
-benefit.
+Additional dependencies must justify their complexity
+and maintenance cost.
 
-Avoiding dependencies must not justify implementing
-security-sensitive algorithms incorrectly.
+This decision does not prohibit useful future libraries.
 
 ## ADR-015: Keep Instrumentation Owner-Local
 
-### Context
-
-Shared metrics can introduce contention into otherwise
-independent processing threads.
+Status: Accepted
 
 ### Decision
 
-Prefer single-owner counters, gauges, and histograms.
-
-Use atomic counters only when shared instrumentation is
-genuinely required.
-
-### Alternatives Considered
-
-- Global mutex-protected metrics registry.
-- Atomic operations for every metric update.
-- Synchronous logging of every market event.
+Prefer owner-local instrumentation on critical
+processing paths.
 
 ### Rationale
 
-Owner-local metrics reduce synchronization overhead and
-cache-line contention.
+Shared metrics can introduce unnecessary synchronization
+and cache-coherence traffic.
 
 ### Consequences
 
-The application requires a safe telemetry collection
-mechanism.
-
-Metrics snapshots may represent different collection times
-unless explicitly coordinated.
+Cross-thread collection and aggregation must have explicit
+consistency semantics.
 
 ## ADR-016: Use Fixed-Capacity Latency Histograms
 
-### Context
-
-Latency measurements must remain bounded under sustained
-high-throughput workloads.
+Status: Accepted
 
 ### Decision
 
-Use integer histogram buckets with fixed capacity.
-
-Maintain exact accepted observation counts, sums, minimums,
-and maximums.
-
-Estimate percentiles using bucket boundaries.
-
-### Alternatives Considered
-
-- Retain every latency observation.
-- Maintain dynamically growing distributions.
-- Introduce an external histogram implementation immediately.
+Represent latency distributions using bounded histogram
+storage.
 
 ### Rationale
 
-Fixed-capacity histograms provide predictable storage and
-allocation-free recording.
+Unrestricted storage of individual latency samples is
+unsuitable for sustained high-throughput processing.
 
 ### Consequences
 
-Percentile estimates depend on bucket resolution.
+Percentile accuracy depends on histogram resolution.
 
-Overflow observations may produce coarse tail estimates.
-
-Histogram configurations must match before aggregation.
+Aggregation requires compatible histogram configurations.
 
 ## ADR-017: Separate Libraries from Applications
 
-### Context
-
-Core processing functionality should be reusable across
-live processing, simulation, and replay.
+Status: Accepted
 
 ### Decision
 
-Keep reusable processing logic in library crates.
+Keep domain and component logic in reusable libraries.
 
-Executable applications act as composition roots.
-
-### Alternatives Considered
-
-- Implement processing logic directly in the server.
-- Duplicate processing logic across applications.
+Applications coordinate those components.
 
 ### Rationale
 
-Separation improves testability and reduces behavioral
-differences between live and simulated processing.
+The same implementation should support integration tests,
+operational commands, and future deployment environments.
 
 ### Consequences
 
-Application integration must explicitly coordinate component
-state transitions and error handling.
+CLI and server orchestration must not duplicate core
+financial logic.
 
 ## ADR-018: Establish Correctness Before Optimization
 
-### Context
-
-Premature optimization can introduce subtle market data
-consistency defects.
+Status: Accepted
 
 ### Decision
 
-Establish a correct, measurable baseline before introducing
-complex optimizations.
-
-### Alternatives Considered
-
-- Optimize every component during initial implementation.
-- Assume low-level implementation techniques guarantee speed.
+Require correctness validation before introducing
+performance-oriented changes.
 
 ### Rationale
 
-Profiling provides evidence about actual bottlenecks.
-
-Correctness tests provide a reference for optimized behavior.
+A fast but inconsistent market data system is not useful.
 
 ### Consequences
 
-Initial implementations may not achieve final performance
-objectives.
-
-Optimizations require regression testing and measurement.
+Optimization requires reproducible benchmarks and
+regression testing.
 
 ## ADR-019: Introduce Parallelism Incrementally
 
-### Context
-
-Additional processing threads may improve throughput but
-can introduce queueing, contention, and ordering complexity.
+Status: Accepted
 
 ### Decision
 
-Begin with a simple processing topology.
-
-Introduce additional ownership partitions only when
-correctness requirements and profiling justify them.
-
-### Alternatives Considered
-
-- One thread per crate.
-- One thread per instrument.
-- General-purpose worker pools for every event.
+Begin with deterministic single-owner processing and
+introduce parallelism where justified.
 
 ### Rationale
 
-Logical component boundaries do not necessarily correspond
-to optimal thread boundaries.
+Premature concurrency increases coordination complexity
+and makes failure diagnosis more difficult.
 
 ### Consequences
 
-The final server topology remains subject to benchmarking.
-
-Parallel publication requires explicit ordering semantics.
+Future partitioning requires explicit sequencing,
+snapshot, publication, and shutdown contracts.
 
 ## ADR-020: Require Deterministic Simulation and Replay
 
-### Context
-
-Live market conditions are difficult to reproduce.
+Status: Accepted
 
 ### Decision
 
-Provide dedicated simulation and replay applications using
-shared processing components.
-
-### Alternatives Considered
-
-- Test exclusively against a live Planck instance.
-- Generate uncontrolled random workloads.
-- Maintain separate test-only processing implementations.
+Support reproducible synthetic workloads and historical
+event playback.
 
 ### Rationale
 
-Deterministic workloads enable reproducible debugging,
-failure injection, and performance comparisons.
+Deterministic inputs enable repeatable correctness
+validation and recovery testing.
 
 ### Consequences
 
-Simulation seeds, event ordering, configuration, and
-initial state must be recorded.
+Random seeds, initial state, event identity, and
+sequence ordering must be preserved.
 
-Replay cannot reproduce external timing behavior unless
-that behavior is captured and modeled explicitly.
+## ADR-021: Separate Market Mutation from Publication Retry
+
+Status: Accepted
+
+### Context
+
+A server may successfully mutate its market state before
+downstream publication encounters backpressure.
+
+Retrying the original event could apply the mutation twice.
+
+### Decision
+
+Represent consumed input with pending publication as a
+distinct processing outcome.
+
+Retain pending publication state and retry publication
+rather than repeating the market mutation.
+
+### Consequences
+
+Ingestion adapters must distinguish input backpressure
+from publication backpressure.
+
+Tests must verify exactly-once logical mutation across
+publication retries.
+
+## ADR-022: Maintain an Independent Simulator Market
+
+Status: Accepted
+
+### Context
+
+Using the server's order book as the simulator's expected
+state would allow shared implementation defects to remain
+undetected.
+
+### Decision
+
+Maintain an independent authoritative synthetic market.
+
+### Rationale
+
+Independent expected state provides stronger correctness
+validation.
+
+### Consequences
+
+The simulator requires its own market representation and
+consistency checks.
+
+Canonical comparison must account for equivalent logical
+state rather than identical internal storage.
+
+## ADR-023: Separate Market and Fault Randomness
+
+Status: Accepted
+
+### Decision
+
+Maintain independent deterministic randomness for market
+generation and delivery fault injection.
+
+### Rationale
+
+Changing packet-loss or reordering behavior should not
+unintentionally redefine the underlying market workload.
+
+### Consequences
+
+Market and delivery randomness require independent
+initialization and state.
+
+Tests should verify reproducibility across equivalent
+configurations.
+
+## ADR-024: Use Versioned Append-Only Binary Journals
+
+Status: Accepted
+
+### Decision
+
+Persist events in a versioned binary journal containing
+a fixed-size header and checksummed variable-length records.
+
+Reuse native Maxwell protocol encoding within each record.
+
+### Rationale
+
+Binary persistence preserves exact event values, reduces
+serialization duplication, and supports deterministic
+historical playback.
+
+### Consequences
+
+Journal compatibility must be reviewed independently of
+wire protocol compatibility.
+
+The initial writer creates a new file and appends records
+during that recording session.
+
+Reopening an existing journal for append is not supported.
+
+## ADR-025: Distinguish Authoritative and Raw Journals
+
+Status: Accepted
+
+### Context
+
+Historical data may represent either a complete ordered
+stream or the actual arrival order of a faulty transport.
+
+### Decision
+
+Support separate Authoritative and RawCapture modes.
+
+### Rationale
+
+A faulty arrival stream is useful for recovery testing
+but must not be confused with authoritative history.
+
+### Consequences
+
+Authoritative records require contiguous upstream
+sequences.
+
+Raw capture permits gaps, duplicates, and reordering.
+
+Both modes preserve original event identity.
+
+Filtered or seeked playback requires additional baseline
+consideration before authoritative reconstruction.
+
+## ADR-026: Separate Flushing from Durability
+
+Status: Accepted
+
+### Decision
+
+Expose buffered writing, flushing, and file-data
+synchronization as distinct persistence operations.
+
+### Rationale
+
+Different durability policies have different latency and
+storage performance characteristics.
+
+### Consequences
+
+A successful buffered write does not imply persistence
+across power loss.
+
+File-data synchronization does not establish directory
+entry durability.
+
+Production transactional persistence remains future work.
+
+## ADR-027: Retain Pending Replay Records
+
+Status: Accepted
+
+### Decision
+
+Retain the current replay record until the sink accepts it.
+
+### Rationale
+
+Advancing the reader's logical delivery progress before
+acceptance can silently lose historical events.
+
+### Consequences
+
+Backpressure attempts must not increment accepted-record
+statistics.
+
+The caller must explicitly handle exhausted backpressure
+budgets.
+
+## ADR-028: Use Bounded Sparse Journal Indexes
+
+Status: Accepted
+
+### Decision
+
+Use configurable sparse in-memory indexes rather than
+retaining every journal record in memory.
+
+### Rationale
+
+Large historical journals require bounded memory
+consumption while supporting useful seeking operations.
+
+### Consequences
+
+Index construction may require a complete journal scan.
+
+Seeking may require sequential scanning from an indexed
+position.
+
+Persistent indexes and segmented journal catalogs remain
+future improvements.
+
+## ADR-029: Provide a Unified Operational CLI
+
+Status: Accepted
+
+### Decision
+
+Expose local operational commands through the maxwell
+executable provided by maxwell-cli.
+
+Use existing libraries for domain processing.
+
+### Rationale
+
+A unified CLI simplifies development, testing, diagnostics,
+and future deployment automation.
+
+### Consequences
+
+The initial CLI provides human-readable reporting and
+strict argument parsing without introducing a third-party
+argument parser.
+
+Remote administration and structured output remain
+future extensions.
+
+## ADR-030: Define Explicit Benchmark Boundaries
+
+Status: Accepted
+
+### Decision
+
+Measure simulator throughput separately from initialization,
+post-run validation, networking, and journal persistence.
+
+### Rationale
+
+A benchmark is meaningful only when its measurement
+boundary is understood.
+
+### Consequences
+
+Simulator throughput must not be represented as matching
+engine throughput or end-to-end network latency.
+
+Separate benchmarks are required for other components.
+
+## ADR-031: Deploy an Incremental Distributed Baseline
+
+Status: Proposed
+
+### Context
+
+Maxwell and Planck can be developed independently, but
+their eventual integration requires real deployment and
+operational validation.
+
+Waiting for every production feature before deploying
+would delay distributed systems feedback.
+
+### Decision
+
+Establish an initial distributed Maxwell environment
+using the simulator as the market producer.
+
+Introduce containerization and AWS infrastructure before
+completing live Planck interoperability.
+
+### Proposed Technology
+
+- Docker.
+- Terraform.
+- AWS EC2.
+- AWS VPC.
+- Amazon S3.
+- CloudWatch.
+- GitHub Actions.
+
+### Rationale
+
+An incremental deployment exposes networking,
+configuration, monitoring, and operational requirements
+early.
+
+### Consequences
+
+The initial deployment must be explicitly described as
+a development environment.
+
+Production recovery, security, durability, and availability
+guarantees must not be inferred from successful deployment.
 
 ## 3. Adding a New Decision
 
-Use the following template:
+Each new ADR should include:
 
-```text
-ADR-NNN: Decision Title
+    ADR identifier:
+    Title:
+    Status:
+    Context:
+    Decision:
+    Alternatives considered:
+    Rationale:
+    Consequences:
+    Review conditions:
 
-Status:
-Proposed | Accepted | Rejected | Superseded
+Recommended statuses:
 
-Context:
-What problem requires a decision?
+- Proposed.
+- Accepted.
+- Superseded.
+- Rejected.
 
-Decision:
-What approach is selected?
-
-Alternatives:
-What other approaches were considered?
-
-Rationale:
-Why was this approach selected?
-
-Consequences:
-What benefits, limitations, and obligations follow?
-
-Validation:
-How will the decision be verified?
-
-Related:
-Relevant ADRs, components, and documentation.
-```
-
-Do not rewrite historical decisions to conceal changes.
-
-When a decision is replaced, mark it superseded and link
-to the replacement ADR.
+Preserve superseded decisions to retain architectural
+history.
 
 ## 4. Decisions Requiring Future Review
 
-The following topics remain open for application integration:
+- Fixed-capacity order registry.
+- Allocation behavior on the critical path.
+- Instrument partitioning.
+- Cross-partition publication ordering.
+- Complete remote recovery protocol.
+- Upstream snapshot installation.
+- Journal rotation and retention.
+- Persistent sparse indexes.
+- Transactional persistence boundaries.
+- Asynchronous recording.
+- Structured CLI output.
+- Cloud deployment topology.
+- Clock synchronization.
+- Production authentication and authorization.
+- Performance regression thresholds.
 
-- Final server thread topology.
-- Network event loop implementation.
-- Upstream and downstream transport selection.
-- Planck wire-format compatibility.
-- Feed partitioning.
-- Stream epoch and reconnect semantics.
-- Session authentication.
-- Runtime configuration format.
-- Persistent market data recording.
-- Production deployment topology.
-- Quantitative latency and throughput requirements.
-- Telemetry snapshot transfer mechanism.
+## 5. Related Documentation
+
+- [Architecture](architecture.md)
+- [Concurrency](concurrency.md)
+- [Protocol](protocol.md)
+- [Performance](performance.md)
+- [Roadmap](roadmap.md)

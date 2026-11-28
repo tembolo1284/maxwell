@@ -1,823 +1,772 @@
-# Maxwell Development Roadmap
+# Maxwell Roadmap
 
 ## 1. Purpose
 
-This document tracks Maxwell's implementation status,
-development priorities, known limitations, technical debt,
-and future engineering opportunities.
+This document records Maxwell's development milestones,
+implementation status, technical debt, integration risks,
+and future engineering priorities.
 
-The roadmap is intended to guide development rather than
-establish fixed delivery dates.
-
-Correctness, integration readiness, and measured system
-behavior determine progression between milestones.
+The roadmap should distinguish implemented functionality
+from validated behavior and planned capabilities.
 
 ## 2. Project Vision
 
-Maxwell aims to become a high-performance, low-latency,
-deterministic market data platform supporting the Planck
-C++23 matching engine.
+Maxwell is intended to become a high-performance market
+data platform operating alongside the Planck C++23
+matching engine.
 
-The long-term objective is an independently deployable
-market data infrastructure platform with:
+The broader ecosystem will demonstrate:
 
-- Reliable market data ingestion.
-- Deterministic state reconstruction.
-- Explicit synchronization and recovery.
-- Efficient subscriber distribution.
-- Reusable client interfaces.
-- Reproducible simulation and replay.
-- Comprehensive operational instrumentation.
-- Measured performance characteristics.
+- Exchange and market data infrastructure.
+- Modern C++ and Rust systems programming.
+- Binary network communication.
+- Deterministic market reconstruction.
+- Fault detection and recovery.
+- Historical persistence and playback.
+- Distributed systems engineering.
+- Cloud infrastructure.
+- Automated deployment.
+- Operational observability.
+- Performance engineering.
 
 ## 3. Status Definitions
 
 | Status | Meaning |
 |--------|---------|
-| Planned | Work has not been completed |
-| Initial implementation | Foundational implementation exists |
-| Validated | Defined acceptance tests have passed |
-| Integrated | Component works within the intended application |
-| Production-ready | Operational, correctness, security, and performance requirements have been satisfied |
+| Implemented | Initial source implementation exists |
+| Validated | Relevant tests have been executed successfully |
+| In Progress | Active implementation work |
+| Planned | Identified future work |
+| Deferred | Intentionally postponed |
 
-An initial implementation is not equivalent to a
-production-ready component.
+An implemented component is not automatically production
+ready.
 
-## 4. Current Implementation Status
+Validation status should be supported by actual test
+results.
 
-### 4.1 Library Crates
+## 4. Current Workspace
 
-| Component | Status |
-|-----------|--------|
-| maxwell-core | Initial implementation |
-| maxwell-protocol | Initial implementation |
-| maxwell-sequencer | Initial implementation |
-| maxwell-book | Initial implementation |
-| maxwell-transport | Initial implementation |
-| maxwell-recovery | Initial implementation |
-| maxwell-publisher | Initial implementation |
-| maxwell-gateway | Initial implementation |
-| maxwell-client | Initial implementation |
-| maxwell-metrics | Initial implementation |
+| Package | Initial Implementation |
+|---------|------------------------|
+| maxwell-core | Implemented |
+| maxwell-protocol | Implemented |
+| maxwell-sequencer | Implemented |
+| maxwell-book | Implemented |
+| maxwell-transport | Implemented |
+| maxwell-recovery | Implemented |
+| maxwell-publisher | Implemented |
+| maxwell-gateway | Implemented |
+| maxwell-client | Implemented |
+| maxwell-metrics | Implemented |
+| maxwell-server | Implemented |
+| maxwell-simulator | Implemented |
+| maxwell-replay | Implemented |
+| maxwell-cli | Implemented |
 
-All ten foundational library implementations have been
-drafted.
+The workspace contains ten foundational libraries and
+four applications.
 
-The current repository and test results are authoritative
-for their exact validation status.
+Production networking and cloud deployment remain
+future integration workstreams.
 
-### 4.2 Applications
-
-| Application | Status | Priority |
-|-------------|--------|----------|
-| maxwell-server | Planned | P0 |
-| maxwell-simulator | Planned | P0 |
-| maxwell-replay | Planned | P1 |
-| maxwell-cli | Planned | P1 |
-
-### 4.3 System Capabilities
-
-| Capability | Status |
-|------------|--------|
-| Foundational domain representations | Initial implementation |
-| Binary protocol primitives | Initial implementation |
-| Sequence validation | Initial implementation |
-| Market state reconstruction | Initial implementation |
-| Recovery primitives | Initial implementation |
-| Subscriber fan-out | Initial implementation |
-| Session management primitives | Initial implementation |
-| Client synchronization primitives | Initial implementation |
-| Metrics primitives | Initial implementation |
-| Integrated server | Planned |
-| Integrated simulator | Planned |
-| Historical replay application | Planned |
-| Command-line application | Planned |
-| Live Planck interoperability | Pending validation |
-| Production benchmarks | Planned |
-| Production deployment | Planned |
-
-## 5. Priority Definitions
-
-| Priority | Meaning |
-|----------|---------|
-| P0 | Required for foundational integration or correctness |
-| P1 | Required for a usable and operationally credible platform |
-| P2 | Performance, maintainability, or operational enhancement |
-| P3 | Exploratory or advanced functionality |
-
-## 6. Development Milestones
+## 5. Development Phases
 
 ```mermaid
 flowchart TD
-    A["M1: Foundational Libraries"]
-    B["M2: Integrated Server"]
-    C["M3: Simulator"]
-    D["M4: Replay and CLI"]
-    E["M5: Planck Interoperability"]
-    F["M6: Performance Baseline"]
-    G["M7: Production Hardening"]
-    H["M8: Advanced Capabilities"]
+    P1["Phase I: Foundational Libraries"]
+    P2["Phase II: Integrated Applications"]
+    P3["Phase III: Distributed Systems and Cloud"]
+    P4["Phase IV: Production Engineering"]
+    P5["Phase V: Advanced Performance and Scaling"]
 
-    A --> B --> C
-    C --> D
-    C --> E
-    D --> F
-    E --> F
-    F --> G --> H
+    P1 --> P2 --> P3 --> P4 --> P5
 ```
 
-Some milestones may proceed concurrently when their
-dependencies permit.
+| Phase | Status |
+|-------|--------|
+| I | Initial implementation complete |
+| II | Initial implementation complete; milestone validation |
+| III | Planned next |
+| IV | Planned |
+| V | Deferred |
 
-## 7. Milestone 1: Foundational Libraries
+## 6. Phase I: Foundational Libraries
 
-Priority: P0.
+### Deliverables
 
-Status: Initial implementation drafted.
+- Financial domain types.
+- Native binary protocol.
+- Sequence validation.
+- Order book reconstruction.
+- Transport primitives.
+- Recovery coordination.
+- Subscriber publication.
+- Downstream gateway.
+- Consumer-side market processing.
+- Operational instrumentation.
+
+### Completion Criteria
+
+- Foundational packages compile.
+- Component interfaces are documented.
+- Relevant unit tests pass.
+- Workspace formatting passes.
+- Strict Clippy passes.
+
+The initial foundational implementation is complete.
+
+## 7. Phase II: Integrated Applications
+
+### 7.1 Integrated Server
+
+Implemented capabilities:
+
+- Server lifecycle management.
+- Instrument registration.
+- Upstream event ingestion.
+- Recovery coordination.
+- Deterministic market mutation.
+- Publication generation.
+- Pending publication handling.
+- Subscriber synchronization.
+- Operational status reporting.
+
+Remaining production integration:
+
+- Long-running socket orchestration.
+- Remote recovery correlation.
+- Complete upstream snapshot installation.
+- Downstream network session orchestration.
+
+### 7.2 Market Simulator
+
+Implemented capabilities:
+
+- Independent authoritative synthetic market.
+- Seeded deterministic generation.
+- Multiple instruments.
+- Configurable event distribution.
+- Packet loss.
+- Duplicate delivery.
+- Reordered delivery.
+- Combined fault scenarios.
+- Bounded delivery queues.
+- Retained history.
+- Snapshot generation.
+- Pacing and workload statistics.
+
+Remaining improvements:
+
+- Explicit FIFO-priority verification.
+- Additional capacity stress coverage.
+- Constant-time resting-order statistics where justified.
+- Production network adapters.
+
+### 7.3 Historical Recording and Replay
+
+Implemented capabilities:
+
+- Versioned binary journal.
+- Authoritative and raw-capture modes.
+- CRC32C integrity checks.
+- Buffered recording.
+- Configurable durability.
+- Sequential validation.
+- Incomplete-tail policy.
+- Sparse indexing.
+- Sequence and timestamp seeking.
+- Record filtering.
+- Virtual, unbounded, real-time, and scaled playback.
+- Pending record retention.
+- Replay statistics.
+
+Remaining improvements:
+
+- Persistent index representation.
+- Journal rotation.
+- Segmented history.
+- Snapshot catalogs.
+- Transactional persistence boundaries.
+- Asynchronous recording.
+- Cloud journal archival.
+
+### 7.4 Operational CLI
+
+Implemented commands:
+
+- help
+- version
+- scenarios
+- simulate
+- record
+- inspect
+- validate
+- replay
+- benchmark
+
+The CLI provides a unified local interface without
+duplicating domain logic.
+
+Remaining improvements:
+
+- Structured output.
+- Remote server administration.
+- Network-connected replay.
+- Additional benchmark categories.
+- Production configuration loading.
+
+### 7.5 Phase II Milestone Validation
+
+Before tagging the milestone:
+
+- [ ] Run workspace formatting checks.
+- [ ] Run workspace compilation checks.
+- [ ] Run all workspace tests.
+- [ ] Run dedicated historical reconstruction tests.
+- [ ] Run strict workspace Clippy.
+- [ ] Run release-mode tests.
+- [ ] Build the release CLI.
+- [ ] Execute the local recording and replay workflow.
+- [ ] Generate API documentation.
+- [ ] Review updated project documentation.
+- [ ] Commit the milestone.
+- [ ] Create a version tag.
+
+Proposed milestone version:
+
+    v0.2.0
+
+The version should be confirmed before changing workspace
+package metadata or creating the release tag.
+
+## 8. Phase III: Distributed Systems and Cloud
+
+The next phase establishes a real distributed environment
+using the existing Maxwell applications.
+
+The initial market producer will be the simulator.
+
+Planck integration will follow after the distributed
+market data baseline is operational.
+
+## 9. Phase III-A: Network Integration
+
+### Objective
+
+Connect independently executing market producer and
+consumer processes.
+
+```mermaid
+flowchart LR
+    SIM["Simulator Process"]
+    NET["Binary Network Transport"]
+    SERVER["Maxwell Server Process"]
+    CLIENT["Downstream Consumer"]
+
+    SIM --> NET --> SERVER
+    SERVER -.-> CLIENT
+```
+
+### Work Items
+
+- Define the initial transport topology.
+- Define producer and server startup configuration.
+- Implement simulator network delivery.
+- Implement server socket ingestion.
+- Handle stream framing or datagram boundaries.
+- Validate incoming binary messages.
+- Handle partial communication.
+- Define connection lifecycle.
+- Define bounded buffering.
+- Define shutdown behavior.
+- Add process-to-process integration tests.
+
+### Initial Design Preference
+
+Establish a simple TCP-based producer-to-server baseline
+before expanding to UDP and more complex recovery
+topologies.
+
+This is a proposed implementation sequence, not a
+restriction on the eventual transport architecture.
+
+### Acceptance Criteria
+
+- Producer and server execute as independent processes.
+- Market events cross a real network connection.
+- The server reconstructs the expected market state.
+- Invalid input is handled explicitly.
+- Resource limits remain enforced.
+- Shutdown behavior is controlled.
+- Local distributed integration tests pass.
+
+## 10. Phase III-B: Containerization
+
+### Objective
+
+Package the producer and consumer as reproducible
+deployable applications.
+
+### Work Items
+
+- Create release-oriented Dockerfiles.
+- Use multi-stage builds where appropriate.
+- Define minimal runtime images.
+- Define application configuration inputs.
+- Configure container networking.
+- Mount journal storage.
+- Define process health checks.
+- Create a local distributed environment.
+- Document startup and teardown.
+
+### Acceptance Criteria
+
+- Producer and consumer images build successfully.
+- Containers communicate over an explicit network.
+- Market data is processed correctly.
+- Journal storage survives container replacement where
+  configured.
+- Local deployment is reproducible.
+
+## 11. Phase III-C: Infrastructure Repository
+
+### Objective
+
+Create a dedicated infrastructure repository for the
+broader Planck and Maxwell ecosystem.
+
+The repository name remains undecided.
+
+### Proposed Repository Structure
+
+    infrastructure/
+    ├── README.md
+    ├── terraform/
+    │   ├── modules/
+    │   └── environments/
+    │       └── dev/
+    ├── docker/
+    ├── scripts/
+    ├── monitoring/
+    ├── docs/
+    └── .github/
+        └── workflows/
+
+### Responsibilities
+
+- Infrastructure as code.
+- Application deployment configuration.
+- Environment provisioning.
+- Operational scripts.
+- Monitoring configuration.
+- Automated deployment.
+- Infrastructure documentation.
+
+Application-specific domain logic remains in the Planck
+and Maxwell repositories.
+
+## 12. Phase III-D: Initial AWS Deployment
+
+### Objective
+
+Deploy a small distributed Maxwell development environment
+on AWS.
+
+```mermaid
+flowchart TD
+    subgraph AWS["AWS"]
+        subgraph VPC["VPC"]
+            PROD["EC2: Maxwell Simulator"]
+            SERVER["EC2: Maxwell Server"]
+
+            PROD -->|Binary Market Data| SERVER
+        end
+
+        S3["S3: Historical Journals"]
+        CW["CloudWatch: Logs and Metrics"]
+
+        SERVER --> S3
+        PROD --> CW
+        SERVER --> CW
+    end
+
+    TF["Terraform"] -.-> AWS
+```
+
+### Proposed AWS Resources
+
+- VPC.
+- Subnets.
+- Route tables.
+- Restricted security groups.
+- EC2 application instances.
+- IAM instance roles.
+- S3 journal bucket.
+- CloudWatch log groups.
+- Cost monitoring.
+
+### Work Items
+
+- Establish an AWS development account environment.
+- Define infrastructure variables.
+- Configure Terraform state management.
+- Provision network resources.
+- Provision application instances.
+- Deploy application containers.
+- Configure least-privilege access.
+- Validate producer-to-server communication.
+- Document infrastructure teardown.
+
+### Acceptance Criteria
+
+- Infrastructure is reproducibly provisioned.
+- Producer and consumer execute on separate hosts.
+- Market data crosses the AWS network.
+- Operational access is restricted.
+- Resources can be destroyed reproducibly.
+- Deployment costs are understood.
+
+This is a development deployment rather than a claim
+of production readiness.
+
+## 13. Phase III-E: Persistence and Observability
+
+### Objective
+
+Extend the distributed environment with historical
+storage and operational monitoring.
+
+### Work Items
+
+- Define journal finalization workflow.
+- Upload completed journals to S3.
+- Configure journal retention.
+- Define object naming conventions.
+- Validate archived journal integrity.
+- Configure CloudWatch logging.
+- Export selected operational metrics.
+- Create initial monitoring dashboards.
+- Establish basic operational alerts.
+
+### Acceptance Criteria
+
+- Completed journals are archived successfully.
+- Archived journals can be retrieved and validated.
+- Application failures are observable.
+- Market synchronization status is observable.
+- Resource usage can be monitored.
+- Operational procedures are documented.
+
+## 14. Phase III-F: Automated Deployment
+
+### Objective
+
+Automate validation, packaging, and development deployment.
+
+### Work Items
+
+- Configure GitHub Actions validation.
+- Build application release artifacts.
+- Build container images.
+- Publish versioned images.
+- Validate Terraform configuration.
+- Define deployment approval boundaries.
+- Use short-lived cloud credentials.
+- Deploy the development environment.
+- Record deployed source and image versions.
+- Document rollback.
+
+### Acceptance Criteria
+
+- Application changes trigger automated validation.
+- Release artifacts are traceable to source commits.
+- Infrastructure changes are reviewable.
+- Deployment is reproducible.
+- Credentials are not stored in source control.
+
+## 15. Phase III-G: Planck Interoperability
+
+### Objective
+
+Replace or supplement the simulator with live market
+events generated by Planck.
+
+```mermaid
+flowchart LR
+    ORDERS["Order Flow"]
+    PLANCK["Planck C++23"]
+    ADAPTER["Protocol Adapter"]
+    MAXWELL["Maxwell Rust"]
+    CLIENT["Market Data Consumer"]
+
+    ORDERS --> PLANCK
+    PLANCK --> ADAPTER --> MAXWELL --> CLIENT
+```
+
+### Work Items
+
+- Review Planck's event representation.
+- Define the cross-language protocol contract.
+- Map financial domain values.
+- Reconcile identifier widths.
+- Reconcile sequence ownership.
+- Reconcile timestamp semantics.
+- Implement the required adapter.
+- Add binary golden-vector tests.
+- Validate live event ingestion.
+- Compare reconstructed state against Planck state.
+- Define remote recovery contracts.
+
+### Acceptance Criteria
+
+- Planck-generated events are decoded correctly.
+- Maxwell reconstructs the expected market state.
+- Sequence and feed identity are preserved.
+- Cross-language compatibility tests pass.
+- Integration behavior is documented.
+
+## 16. Phase IV: Production Engineering
 
 ### Objectives
 
-Establish reusable, independently testable processing
-components.
+Strengthen correctness, resilience, security, and
+operability of the distributed environment.
 
-### Tasks
+### Workstreams
 
-- [x] Draft maxwell-core.
-- [x] Draft maxwell-protocol.
-- [x] Draft maxwell-sequencer.
-- [x] Draft maxwell-book.
-- [x] Draft maxwell-transport.
-- [x] Draft maxwell-recovery.
-- [x] Draft maxwell-publisher.
-- [x] Draft maxwell-gateway.
-- [x] Draft maxwell-client.
-- [x] Draft maxwell-metrics.
-- [ ] Verify final workspace compilation.
-- [ ] Verify final workspace unit tests.
-- [ ] Verify final workspace integration tests.
-- [ ] Verify release-mode tests.
-- [ ] Resolve remaining Clippy warnings.
-- [ ] Review public API consistency.
-- [ ] Review resource capacity policies.
-- [ ] Review cross-component contracts.
-- [ ] Reconcile documentation with current source.
+- Complete remote recovery request correlation.
+- Recovery timeout and retry policy.
+- Upstream snapshot installation.
+- Downstream network session lifecycle.
+- Reconnection and resynchronization.
+- Journal rotation and retention.
+- Persistent historical indexing.
+- Controlled shutdown.
+- Structured logging.
+- Health and readiness endpoints.
+- Authentication and authorization.
+- Resource exhaustion testing.
+- Failure injection.
+- Long-running soak testing.
+- Deployment rollback.
+- Operational alerting.
 
 ### Acceptance Criteria
 
-- All ten packages compile.
-- Workspace tests pass.
-- Release-mode tests pass.
-- Static analysis passes.
-- Component responsibilities are documented.
-- Remaining integration assumptions are identified.
+Production-oriented guarantees must be supported by
+explicit validation.
 
-## 8. Milestone 2: Integrated Server
+A successful cloud deployment alone does not establish
+availability, durability, security, or recovery guarantees.
 
-Priority: P0.
+## 17. Phase V: Advanced Performance and Scaling
 
-Status: Planned.
+Potential workstreams:
 
-Location:
-
-```text
-apps/maxwell-server/
-```
-
-### Objective
-
-Compose the foundational library crates into a functioning
-market data processing and distribution application.
-
-### 8.1 Application Foundation
-
-- [ ] Establish executable package.
-- [ ] Establish configuration representation.
-- [ ] Implement configuration validation.
-- [ ] Define application error types.
-- [ ] Construct required library components.
-- [ ] Establish application lifecycle.
-- [ ] Establish startup and shutdown behavior.
-
-### 8.2 Processing Pipeline
-
-- [ ] Receive upstream messages.
-- [ ] Decode protocol messages.
-- [ ] Validate domain values.
-- [ ] Validate sequence continuity.
-- [ ] Route events to appropriate market state.
-- [ ] Apply market events.
-- [ ] Generate publications.
-- [ ] Coordinate subscriber delivery.
-
-### 8.3 Recovery Integration
-
-- [ ] Connect sequencing results to recovery.
-- [ ] Establish recovery request handling.
-- [ ] Establish retransmission response handling.
-- [ ] Establish snapshot response handling.
-- [ ] Coordinate buffered replay.
-- [ ] Preserve book consistency during recovery.
-- [ ] Restore synchronized processing.
-
-### 8.4 Publication Integration
-
-- [ ] Establish publication payload mapping.
-- [ ] Coordinate book mutation and publication.
-- [ ] Retain rejected publications for retry.
-- [ ] Prevent duplicate book mutation.
-- [ ] Coordinate subscriber snapshot activation.
-- [ ] Deliver invalidation notifications.
-- [ ] Handle slow subscribers.
-
-### 8.5 Session Integration
-
-- [ ] Establish downstream connection handling.
-- [ ] Coordinate gateway session state.
-- [ ] Implement subscription request handling.
-- [ ] Implement snapshot delivery.
-- [ ] Implement incremental delivery.
-- [ ] Handle partial transport writes.
-- [ ] Clean up disconnected sessions.
-
-### 8.6 Observability
-
-- [ ] Register application metrics.
-- [ ] Collect component statistics.
-- [ ] Record processing latency.
-- [ ] Record queue occupancy.
-- [ ] Record recovery transitions.
-- [ ] Establish telemetry snapshot transfer.
-- [ ] Implement metrics exposition endpoint.
-
-### 8.7 Acceptance Criteria
-
-- Server starts with valid configuration.
-- Invalid configuration is rejected.
-- Synthetic upstream events are processed.
-- Order book state is reconstructed correctly.
-- Publications reach downstream consumers.
-- Recovery restores synchronized state.
-- Slow consumers follow explicit backpressure policy.
-- Shutdown completes within the defined policy.
-- End-to-end integration tests pass.
-
-## 9. Milestone 3: Market Data Simulator
-
-Priority: P0.
-
-Status: Planned.
-
-Location:
-
-```text
-apps/maxwell-simulator/
-```
-
-### Objective
-
-Provide deterministic and configurable market data
-workloads without requiring a live Planck instance.
-
-### Tasks
-
-- [ ] Establish executable package.
-- [ ] Define simulator configuration.
-- [ ] Generate synthetic instruments.
-- [ ] Generate valid market events.
-- [ ] Support deterministic random seeds.
-- [ ] Support configurable event rates.
-- [ ] Support configurable burst behavior.
-- [ ] Encode messages using shared protocol components.
-- [ ] Support in-memory test delivery.
-- [ ] Support selected network transports.
-- [ ] Inject sequence gaps.
-- [ ] Inject duplicate events.
-- [ ] Inject out-of-order events.
-- [ ] Inject malformed messages.
-- [ ] Simulate transport disconnection.
-- [ ] Provide retransmission responses.
-- [ ] Provide snapshot responses.
-- [ ] Simulate slow downstream consumers.
-- [ ] Report generated workload statistics.
-
-### Acceptance Criteria
-
-- Identical seeds and configuration produce identical
-  logical event sequences.
-- Generated events satisfy the selected domain rules.
-- Server consumes generated market data.
-- Expected final state can be independently verified.
-- Failure scenarios are reproducible.
-- Workload rate and burst behavior are measurable.
-
-## 10. Milestone 4: Replay and CLI
-
-Priority: P1.
-
-Status: Planned.
-
-### 10.1 maxwell-replay
-
-Location:
-
-```text
-apps/maxwell-replay/
-```
-
-#### Objective
-
-Reproduce historical processing behavior from recorded
-market data.
-
-#### Tasks
-
-- [ ] Establish recording format.
-- [ ] Establish recording metadata.
-- [ ] Validate recorded message boundaries.
-- [ ] Preserve original logical event ordering.
-- [ ] Support configurable replay speed.
-- [ ] Support maximum-throughput replay.
-- [ ] Support deterministic state reconstruction.
-- [ ] Support canonical state comparison.
-- [ ] Report replay statistics.
-- [ ] Reproduce recorded recovery scenarios.
-- [ ] Identify the first divergent event during validation.
-
-#### Acceptance Criteria
-
-- Recorded input can be replayed successfully.
-- Repeated replay produces equivalent logical state.
-- Invalid recording data is rejected explicitly.
-- Replay results can be compared against expected state.
-
-### 10.2 maxwell-cli
-
-Location:
-
-```text
-apps/maxwell-cli/
-```
-
-#### Objective
-
-Provide an operational and development interface for
-interacting with Maxwell.
-
-#### Tasks
-
-- [ ] Establish executable package.
-- [ ] Define command-line interface.
-- [ ] Connect to a Maxwell server.
-- [ ] Establish client session.
-- [ ] Submit subscription requests.
-- [ ] Display snapshot state.
-- [ ] Display incremental updates.
-- [ ] Display best bid and offer.
-- [ ] Display selected order book depth.
-- [ ] Display session synchronization state.
-- [ ] Display operational statistics.
-- [ ] Handle disconnect and reconnect.
-- [ ] Support machine-readable output where useful.
-
-#### Acceptance Criteria
-
-- CLI connects to the integrated server.
-- Subscriptions can be established.
-- Snapshot and incremental state are displayed correctly.
-- Invalidated state is clearly identified.
-- Transport errors are reported explicitly.
-
-## 11. Milestone 5: Planck Interoperability
-
-Priority: P0.
-
-Status: Pending implementation and validation.
-
-### Objective
-
-Establish reliable cross-language market data communication
-between Planck and Maxwell.
-
-### Tasks
-
-- [ ] Review Planck's market event representation.
-- [ ] Review Maxwell's binary protocol representation.
-- [ ] Reconcile message identifiers.
-- [ ] Reconcile field widths.
-- [ ] Reconcile byte ordering.
-- [ ] Reconcile fixed-point scales.
-- [ ] Reconcile timestamp semantics.
-- [ ] Reconcile sequence scope.
-- [ ] Define stream restart behavior.
-- [ ] Define retransmission request format.
-- [ ] Define snapshot format.
-- [ ] Define snapshot watermark semantics.
-- [ ] Establish shared golden vectors.
-- [ ] Implement cross-language codec tests.
-- [ ] Establish live upstream connectivity.
-- [ ] Validate trade and book event processing.
-- [ ] Validate upstream recovery.
-- [ ] Reconcile Maxwell state with authoritative state.
-
-### Acceptance Criteria
-
-- Planck-generated messages decode correctly in Maxwell.
-- Golden vectors agree across Rust and C++.
-- Financial values retain their intended meaning.
-- Sequence gaps are detected correctly.
-- Retransmission and snapshot recovery restore state.
-- Maxwell's reconstructed state agrees with the
-  authoritative expected state.
-
-## 12. Milestone 6: Performance Baseline
-
-Priority: P1.
-
-Status: Planned.
-
-### Objective
-
-Establish reproducible performance measurements for the
-integrated platform.
-
-### Tasks
-
-- [ ] Establish benchmark hardware configuration.
-- [ ] Establish optimized build configuration.
-- [ ] Establish reproducible workloads.
-- [ ] Benchmark protocol encoding and decoding.
-- [ ] Benchmark sequence validation.
-- [ ] Benchmark order book mutation.
-- [ ] Benchmark publication filtering.
-- [ ] Benchmark subscriber fan-out.
-- [ ] Benchmark recovery replay.
-- [ ] Benchmark metrics overhead.
-- [ ] Measure integrated processing latency.
-- [ ] Measure end-to-end latency.
-- [ ] Measure sustained throughput.
-- [ ] Measure burst throughput.
-- [ ] Measure tail latency.
-- [ ] Measure memory consumption.
-- [ ] Measure queue occupancy.
-- [ ] Identify limiting components.
-- [ ] Establish performance regression criteria.
-
-### Acceptance Criteria
-
-- Benchmark methodology is documented.
-- Results are reproducible within characterized variability.
-- Workloads preserve correctness.
-- Throughput and latency boundaries are explicit.
-- Performance limitations are identified.
-- No unsupported performance claims are published.
-
-## 13. Milestone 7: Production Hardening
-
-Priority: P1.
-
-Status: Planned.
-
-### Objectives
-
-Improve operational reliability, security, deployment
-readiness, and maintainability.
-
-### Tasks
-
-- [ ] Establish automated CI.
-- [ ] Establish reproducible builds.
-- [ ] Establish runtime configuration validation.
-- [ ] Establish structured logging.
-- [ ] Establish health and readiness reporting.
-- [ ] Establish operational dashboards.
-- [ ] Establish alerting.
-- [ ] Establish resource limits.
-- [ ] Complete failure injection tests.
-- [ ] Complete sustained load tests.
-- [ ] Complete long-running soak tests.
-- [ ] Review session authentication requirements.
-- [ ] Review subscription authorization requirements.
-- [ ] Review network security.
-- [ ] Review dependency security.
-- [ ] Establish deployment procedures.
-- [ ] Establish rollback procedures.
-- [ ] Establish operational recovery procedures.
-- [ ] Validate graceful shutdown.
-- [ ] Complete engineering handover review.
-
-### Acceptance Criteria
-
-- Required operational states are observable.
-- Known failure scenarios have documented responses.
-- Resource consumption remains bounded.
-- Security requirements are addressed.
-- Deployment and rollback procedures are validated.
-- Operational requirements are supported by measurements.
-
-## 14. Milestone 8: Advanced Capabilities
-
-Priority: P2 or P3.
-
-Status: Exploratory.
-
-Potential enhancements include:
-
-### Processing
-
-- Independent feed partitions.
-- Instrument-level processing partitions.
-- Specialized price-ladder structures.
-- More efficient subscription indexing.
-- Profile-guided batching.
-- NUMA-aware processing.
+- Fixed-capacity order registry.
+- Reduced critical-path allocation.
+- Instrument partitioning.
+- Dedicated network threads.
+- Bounded inter-thread communication.
 - CPU affinity.
+- NUMA-aware processing.
+- Batched communication.
+- Advanced latency instrumentation.
+- Persistent journal indexes.
+- Asynchronous persistence.
+- Multi-feed ingestion.
+- Horizontal distribution.
+- Advanced recovery coordination.
 
-### Transport
+These optimizations require measured baselines and
+correctness-preserving designs.
 
-- Advanced multicast distribution.
-- Shared-memory transport.
-- Specialized network event loops.
-- Hardware timestamping.
-- Additional transport adapters.
+## 18. Technical Debt Register
 
-### Reliability
+Priority definitions:
 
-- Redundant upstream feeds.
-- Feed arbitration.
-- Persistent recovery history.
-- Persistent snapshot storage.
-- Active-passive deployment.
-- Additional failover strategies.
+| Priority | Meaning |
+|----------|---------|
+| P0 | Correctness or deployment blocker |
+| P1 | Important near-term engineering work |
+| P2 | Improvement after baseline |
+| P3 | Longer-term optimization |
 
-### Distribution
+| ID | Priority | Item |
+|----|----------|------|
+| TD-001 | P0 | Production server socket orchestration |
+| TD-002 | P0 | Producer network adapter |
+| TD-003 | P0 | Process-to-process integration tests |
+| TD-004 | P1 | Correlated remote recovery requests |
+| TD-005 | P1 | Complete upstream snapshot installation |
+| TD-006 | P1 | Downstream network framing and sessions |
+| TD-007 | P1 | Recovery and publication runtime budget review |
+| TD-008 | P1 | Explicit snapshot watermark integration review |
+| TD-009 | P1 | FIFO-priority reconstruction coverage |
+| TD-010 | P1 | Planck protocol adapter |
+| TD-011 | P1 | Journal rotation and finalization workflow |
+| TD-012 | P1 | Cloud archival and retrieval |
+| TD-013 | P1 | Structured operational logging |
+| TD-014 | P1 | Health and readiness endpoints |
+| TD-015 | P1 | Coordinated shutdown |
+| TD-016 | P2 | Fixed-capacity order registry |
+| TD-017 | P2 | Consolidation of duplicated resource limits |
+| TD-018 | P2 | Constant-time resting-order statistics |
+| TD-019 | P2 | Persistent sparse journal index |
+| TD-020 | P2 | Historical snapshot catalog |
+| TD-021 | P2 | Asynchronous persistence |
+| TD-022 | P2 | Structured CLI output |
+| TD-023 | P2 | Additional latency benchmarks |
+| TD-024 | P2 | Long-running soak tests |
+| TD-025 | P3 | Instrument partitioning |
+| TD-026 | P3 | NUMA-aware optimization |
+
+Priorities should be revised as integration requirements
+and measured bottlenecks become clearer.
+
+## 19. Integration Risks
 
-- More advanced subscription expressions.
-- Shared immutable publication payloads.
-- Additional market data representations.
-- Additional client language bindings.
+### Protocol Compatibility
 
-### Operations
+Planck and Maxwell may use different message framing,
+financial scales, event kinds, or timestamp conventions.
 
-- Advanced monitoring dashboards.
-- Automated performance regression detection.
-- Deployment automation.
-- Capacity forecasting.
-- Distributed telemetry aggregation.
+Mitigation:
 
-These capabilities should be selected according to
-measured bottlenecks and operational requirements.
+- Explicit protocol mapping.
+- Binary golden vectors.
+- Cross-language integration tests.
 
-They are not committed implementation requirements.
+### Sequence Ownership
 
-## 15. Known Integration Risks
+Independent sequence domains may be accidentally conflated.
 
-| Risk | Impact | Priority |
-|------|--------|----------|
-| Planck wire-format mismatch | Incorrect decoding | P0 |
-| Sequence domain confusion | Incorrect loss detection | P0 |
-| Snapshot activation race | Missing or duplicate updates | P0 |
-| Duplicate book mutation during retry | Incorrect market state | P0 |
-| Partial transport write handling | Corrupted delivery stream | P0 |
-| Recovery buffer exhaustion | Failed synchronization | P0 |
-| Unreported subscriber invalidation | Stale client state | P0 |
-| Undefined stream restart semantics | Incorrect sequence interpretation | P0 |
-| Excessive allocation | Latency and memory degradation | P1 |
-| Metrics contention | Processing latency degradation | P1 |
-| Unmeasured capacity assumptions | Operational overload | P1 |
-| Missing authentication | Unauthorized access | P1 |
+Mitigation:
 
-Risks should be tracked until their associated contracts
-and acceptance tests are established.
+- Explicit domain types.
+- Ownership documentation.
+- Sequence regression tests.
 
-## 16. Technical Debt Register
+### Publication Retry
 
-### TD-001: Final Cross-Crate API Review
+An accepted market mutation may be repeated if a caller
+misinterprets publication backpressure.
 
-Priority: P0.
+Mitigation:
 
-The library crates were developed incrementally.
+- Distinct ingestion outcomes.
+- Pending publication retention.
+- Integration regression tests.
 
-Review type mappings, error propagation, state-transition
-contracts, and integration assumptions before establishing
-stable application interfaces.
+### Snapshot Consistency
 
-### TD-002: Normative Wire Specification
+Incorrect watermarks may cause missing or duplicate
+market events.
 
-Priority: P0.
+Mitigation:
 
-The exact binary contract must be reconciled with the
-current Rust and C++ implementations.
+- Explicit snapshot contracts.
+- Baseline validation.
+- Ordered incremental application.
 
-Create a complete field-level specification and shared
-golden vectors.
+### Persistence Consistency
 
-### TD-003: Snapshot and Publication Coordination
+A recording failure may occur after market state has
+already been mutated.
 
-Priority: P0.
+Mitigation:
 
-The server must establish an atomic logical boundary
-between snapshot state, publication watermark, and
-incremental delivery.
+- Explicit persistence boundaries.
+- Failed-recording diagnostics.
+- Future transactional or checkpoint coordination.
 
-### TD-004: Rejected Publication Retry
+### Resource Exhaustion
 
-Priority: P0.
+Logical capacity limits may not eliminate all dynamic
+allocation or operating-system resource exhaustion.
 
-Under RejectPublication, retain the rejected publication
-without repeating the corresponding book mutation.
+Mitigation:
 
-Define ordering and snapshot behavior while a publication
-is pending retry.
+- Capacity testing.
+- Memory profiling.
+- Fallible allocation.
+- Explicit operational limits.
 
-### TD-005: Subscriber Invalidation Delivery
+### Cloud Cost
 
-Priority: P0.
+Unmanaged instances, storage, networking, and monitoring
+may create unnecessary recurring costs.
 
-Ensure subscriber invalidation is communicated even when
-no additional market events arrive.
+Mitigation:
 
-### TD-006: Transport Delivery Semantics
+- Small development environments.
+- Cost monitoring.
+- Explicit teardown.
+- Retention policies.
+- Review of provisioned resources.
 
-Priority: P0.
+## 20. Immediate Development Sequence
 
-Reconcile publisher sink acceptance with partial writes,
-transport buffering, disconnect behavior, and session
-delivery guarantees.
+1. Complete Phase II milestone validation.
+2. Commit the documentation refresh.
+3. Confirm and create the Phase II version tag.
+4. Review existing transport and server interfaces.
+5. Define the initial network integration contract.
+6. Implement producer-to-server socket communication.
+7. Validate separate local processes.
+8. Introduce Docker packaging.
+9. Create the infrastructure repository.
+10. Provision the first AWS development environment.
+11. Introduce S3 archival and CloudWatch monitoring.
+12. Automate deployment.
+13. Integrate live Planck market events.
 
-### TD-007: Runtime Configuration
+Do not delay the initial cloud deployment until every
+advanced production feature is complete.
 
-Priority: P1.
+## 21. Engineering Handover Requirements
 
-Finalize supported configuration fields, defaults,
-validation, and compatibility policies.
+Each completed workstream should provide:
 
-### TD-008: Telemetry Collection
-
-Priority: P1.
-
-Implement safe, bounded snapshot transfer between
-processing owners and the reporting component.
-
-### TD-009: Metrics Export Units
-
-Priority: P1.
-
-Review integer nanosecond metrics and Prometheus base-unit
-conventions.
-
-Ensure metric names accurately describe exported values.
-
-### TD-010: Performance Baseline
-
-Priority: P1.
-
-Establish measured latency, throughput, memory, and
-capacity characteristics.
-
-### TD-011: Internal Dead Code Review
-
-Priority: P2.
-
-Review temporarily unused internal methods after
-application integration.
-
-Remove redundant functionality rather than retaining
-unnecessary lint suppressions indefinitely.
-
-### TD-012: Publisher Scaling
-
-Priority: P2.
-
-Evaluate whether the initial subscriber traversal and
-filtering approach becomes a bottleneck at measured
-subscriber populations.
-
-Consider indexed fan-out only when justified.
-
-### TD-013: Metrics Registry Storage
-
-Priority: P2.
-
-The initial registry stores metric variants inline.
-
-Counter and gauge entries therefore reserve storage
-sufficient for the largest metric variant.
-
-Evaluate separate typed storage if memory or cache
-profiling identifies a meaningful cost.
-
-### TD-014: Histogram Resolution
-
-Priority: P2.
-
-Review latency bucket boundaries after obtaining
-representative measurements.
-
-Increase resolution where tail estimates are too coarse.
-
-### TD-015: Documentation Reconciliation
-
-Priority: P1.
-
-Review architectural descriptions against the actual
-repository after each integration milestone.
-
-Remove outdated assumptions and document finalized
-application contracts.
-
-## 17. Immediate Development Sequence
-
-The recommended next implementation sequence is:
-
-1. Complete final workspace validation.
-2. Review library public interfaces.
-3. Implement server configuration and lifecycle.
-4. Implement a minimal single-owner processing pipeline.
-5. Integrate synthetic in-memory input.
-6. Integrate sequencing and order book mutation.
-7. Integrate recovery.
-8. Integrate publication and gateway.
-9. Integrate downstream client behavior.
-10. Implement the simulator.
-11. Establish end-to-end correctness tests.
-12. Implement replay and CLI.
-13. Establish Planck interoperability.
-14. Establish performance baselines.
-15. Begin measured optimization.
-
-The initial server should favor correctness and simplicity.
-
-Do not introduce a complex multithreaded topology before
-the component integration contracts are understood.
-
-## 18. Engineering Workstreams
-
-The following workstreams provide natural ownership
-boundaries for multiple developers.
-
-| Workstream | Primary Components |
-|------------|--------------------|
-| Domain and protocol | Core, protocol, Planck interoperability |
-| Market state | Sequencer, book, recovery |
-| Distribution | Publisher, gateway, client |
-| Runtime integration | Transport, server, configuration |
-| Simulation and validation | Simulator, replay, testing |
-| Observability | Metrics, monitoring, operations |
-| Performance engineering | Benchmarks, profiling, optimization |
-| Developer experience | CLI, documentation, CI |
-
-A workstream may be owned by one engineer or a small
-team.
-
-Changes crossing workstream boundaries require coordinated
-contract review.
-
-## 19. Handover Requirements
-
-Before transferring component ownership, provide:
-
-- Component responsibility.
-- Relevant source locations.
+- Source implementation.
 - Public interface documentation.
-- Dependency information.
-- State ownership rules.
-- Ordering guarantees.
-- Resource capacity policies.
-- Error and recovery semantics.
+- Configuration requirements.
+- Ownership boundaries.
+- Failure semantics.
 - Relevant tests.
+- Validation results.
 - Known limitations.
-- Outstanding work.
-- Relevant architectural decisions.
-- Available benchmark results.
+- Outstanding technical debt.
+- Recommended next steps.
 
-The receiving engineer should be able to build and test
-the component independently.
+A new developer should be able to identify the relevant
+component and its responsibilities without reading the
+entire workspace.
 
-## 20. Roadmap Maintenance
+## 22. Roadmap Maintenance
 
 Update this document when:
 
 - A milestone is completed.
-- A new integration risk is discovered.
-- A technical debt item is resolved.
-- A component's implementation status changes.
+- A new architectural decision is accepted.
+- A correctness defect changes implementation priorities.
+- A new integration dependency is discovered.
 - A performance baseline is established.
-- An architectural decision changes development priorities.
+- A deployment environment becomes operational.
+- Technical debt is resolved or reprioritized.
 
-Do not mark an item complete solely because code has
-been drafted.
+Implementation status should reflect observed results
+rather than anticipated completion.
 
-Completion should be supported by the relevant acceptance
-criteria.
-
-## 21. Related Documentation
+## 23. Related Documentation
 
 - [Architecture](architecture.md)
-- [Quick Start](quick_start.md)
-- [Architectural Decisions](decisions.md)
 - [Crate Reference](crates.md)
 - [Protocol](protocol.md)
 - [Concurrency](concurrency.md)
-- [Performance](performance.md)
+- [Design Decisions](decisions.md)
 - [Testing](testing.md)
+- [Performance](performance.md)
 - [Operations](operations.md)
+- [Quick Start](quick_start.md)

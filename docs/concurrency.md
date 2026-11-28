@@ -1,154 +1,134 @@
-# Maxwell Concurrency and Memory Model
+# Maxwell Concurrency Model
 
 ## 1. Purpose
 
-This document defines Maxwell's concurrency philosophy,
-state ownership requirements, communication boundaries,
-memory ordering rules, and backpressure semantics.
+This document defines Maxwell's concurrency principles,
+state ownership model, synchronization boundaries,
+backpressure semantics, and future parallel execution
+strategy.
 
-Concurrency design must preserve deterministic market
-data processing and synchronization correctness.
-
-The final server thread topology remains subject to
-application integration and benchmarking.
+The initial application architecture prioritizes
+deterministic correctness before introducing additional
+parallelism.
 
 ## 2. Core Principle
 
-Every mutable processing state has one logical owner.
+Mutable market state should have one explicit owner.
 
-The owner may be:
+Other components interact with that owner through defined
+interfaces, immutable values, snapshots, or bounded
+communication channels.
 
-- A dedicated operating system thread.
-- A single-threaded event loop.
-- A processing partition.
-- An application component executing synchronously.
-
-Single ownership does not require one thread per crate.
-
-```mermaid
-flowchart LR
-    A["Owner A"]
-    Q["Bounded Channel"]
-    B["Owner B"]
-
-    A -->|Owned Messages| Q
-    Q --> B
-```
-
-Cross-owner communication should occur through explicit
-message passing or other carefully defined synchronization
-mechanisms.
+Shared mutable state should not be introduced merely to
+increase the number of executing threads.
 
 ## 3. Why Single Ownership
 
-Shared mutable state can introduce:
+Single-owner processing provides:
 
-- Lock contention.
-- Cache-line bouncing.
-- Priority inversion.
-- Nondeterministic processing order.
-- Complex recovery interactions.
-- Difficult-to-reproduce race conditions.
+- Explicit mutation ordering.
+- Reduced synchronization requirements.
+- Simpler reasoning about state transitions.
+- Reproducible logical behavior.
+- Clearer recovery boundaries.
+- Easier failure diagnosis.
+- Reduced lock contention.
 
-Single ownership reduces these risks by serializing
-mutations within a defined processing scope.
+Single ownership does not imply that the complete
+application must execute on one thread.
 
-It does not eliminate all concurrency problems.
+Networking, persistence, monitoring, and independent
+market partitions may eventually execute concurrently.
 
-Communication boundaries, shutdown, recovery coordination,
-and cross-owner state transfer still require careful design.
+## 4. State Ownership
 
-## 4. Ownership Model
+| State | Owner |
+|-------|-------|
+| Upstream sequence cursor | Recovery manager |
+| Order book state | Book owner |
+| Recovery buffers | Recovery manager |
+| Publication sequence | Publisher |
+| Subscriber queues | Publisher |
+| Connection sequence | Gateway session |
+| Consumer market state | Client |
+| Synthetic market | Simulator |
+| Simulation random state | Simulator |
+| Journal output | Journal writer |
+| Journal read position | Journal reader |
+| Pending replay record | Replay engine |
 
-| Component State | Preferred Ownership |
-|-----------------|---------------------|
-| Transport receive buffer | I/O owner |
-| Decoder scratch buffer | Decoder owner |
-| Expected feed sequence | Feed processing owner |
-| Recovery buffer | Feed processing owner |
-| Order book | Instrument or feed owner |
-| Publisher sequence | Publisher owner |
-| Subscriber queues | Publisher owner |
-| Downstream sessions | Gateway owner |
-| Client market state | Client owner |
-| Local metrics | Instrumented owner |
+The integrated server coordinates these owners through
+its processing lifecycle.
 
-Related components may share one logical owner to avoid
-unnecessary synchronization.
+Ownership transfer must be explicit.
 
-In particular, sequencing, recovery, book mutation, and
-publication coordination have closely related consistency
-requirements.
-
-## 5. Initial Server Topology
-
-The recommended starting point is a simple processing
-topology with minimal ownership boundaries.
-
-```mermaid
-flowchart TD
-    IN["Input Transport"]
-
-    subgraph OWNER["Processing Owner"]
-        D["Decode"]
-        S["Sequence"]
-        R["Recovery"]
-        B["Book"]
-        P["Publisher"]
-
-        D --> S --> R --> B --> P
-    end
-
-    IN --> D
-    P --> OUT["Output Delivery"]
-```
-
-This provides a baseline for:
-
-- Correctness validation.
-- Deterministic replay.
-- Recovery integration.
-- Latency measurement.
-- Throughput measurement.
-
-Additional threads should be introduced only when justified
-by measured bottlenecks or operational requirements.
-
-## 6. Partitioned Topology
-
-A possible future topology separates ingestion,
-processing, downstream delivery, and telemetry.
+## 5. Current Server Topology
 
 ```mermaid
 flowchart LR
-    I["Ingestion Owner"]
-    Q1["Bounded Queue"]
-    P["Processing Owner"]
-    Q2["Bounded Queue"]
-    G["Session Owner"]
+    INPUT["Event Input"]
+    OWNER["Single Processing Owner"]
+    REC["Recovery"]
+    BOOK["Book"]
+    PUB["Publisher"]
+    SINK["Downstream Sink"]
 
-    I --> Q1 --> P --> Q2 --> G
-
-    I -. Telemetry .-> M["Collector"]
-    P -. Telemetry .-> M
-    G -. Telemetry .-> M
+    INPUT --> OWNER
+    OWNER --> REC --> BOOK --> PUB --> SINK
 ```
 
-Each additional boundary introduces potential costs:
+The current server supports deterministic in-process
+event ingestion.
 
-- Queue insertion and removal.
-- Cache ownership transfer.
-- Synchronization.
-- Queueing latency.
-- Scheduling delay.
-- Additional backpressure handling.
+The processing owner coordinates:
 
-Thread count should not be treated as a direct measure
-of system performance.
+1. Event eligibility and sequencing.
+2. Recovery state transitions.
+3. Market mutation.
+4. Publication construction.
+5. Publication acceptance or retention.
+
+The initial implementation does not require a dedicated
+thread for every foundational crate.
+
+## 6. Mutation and Publication Boundaries
+
+A market mutation and its downstream publication are
+separate operations.
+
+```mermaid
+flowchart TD
+    INPUT["Input Event"]
+    APPLY["Apply Event Once"]
+    PUB["Attempt Publication"]
+    CHECK{"Accepted?"}
+    DONE["Complete"]
+    PENDING["Retain Publication"]
+
+    INPUT --> APPLY --> PUB --> CHECK
+    CHECK -->|Yes| DONE
+    CHECK -->|No| PENDING
+    PENDING --> PUB
+```
+
+Once the event has been successfully applied, retrying
+publication must not apply the event again.
+
+The server distinguishes between:
+
+- Input not yet consumed.
+- Input consumed with publication pending.
+- Input consumed and publication accepted.
+
+An adapter must preserve these distinctions.
+
+Treating all forms of backpressure as an instruction to
+resubmit the original event can corrupt market state.
 
 ## 7. Queue Selection
 
-### 7.1 Queue Categories
+Future concurrent components should use the simplest
+queue compatible with their producer-consumer topology.
 
 | Queue | Producers | Consumers |
 |-------|-----------|-----------|
@@ -157,501 +137,357 @@ of system performance.
 | SPMC | One | Multiple |
 | MPMC | Multiple | Multiple |
 
-Use the simplest queue category that satisfies the
-actual ownership relationship.
+Prefer SPSC when ownership naturally permits it.
 
-### 7.2 SPSC
+Do not select MPMC merely because it is more general.
 
-A single-producer single-consumer queue is appropriate
-for dedicated communication between two owners.
+Queue selection must consider:
 
-It can provide efficient synchronization because producer
-and consumer responsibilities are distinct.
-
-### 7.3 MPSC
-
-A multiple-producer single-consumer queue may be appropriate
-when several independent sources send work to one owner.
-
-Arrival order across producers may depend on scheduling.
-
-If deterministic total ordering is required, an explicit
-ordering mechanism is necessary.
-
-### 7.4 MPMC
-
-Multiple-producer multiple-consumer queues provide flexible
-work distribution but generally introduce greater
-coordination complexity.
-
-They should not be introduced merely because multiple
-threads exist.
-
-### 7.5 Current Publisher Queue
-
-The publisher's bounded subscriber queue is an owner-local
-FIFO structure.
-
-It is not a concurrent lock-free queue.
-
-It must not be used as though it supports simultaneous
-mutation by unrelated threads.
+- Ordering requirements.
+- Capacity.
+- Ownership transfer.
+- Allocation behavior.
+- Backpressure.
+- Shutdown behavior.
+- Memory ordering.
 
 ## 8. Queue Contracts
 
-Every communication queue must define:
+A bounded queue should define:
 
-- Producer ownership.
-- Consumer ownership.
-- Capacity.
-- Ordering guarantee.
-- Allocation policy.
+- Maximum logical capacity.
+- Successful insertion semantics.
 - Full-queue behavior.
 - Empty-queue behavior.
-- Shutdown behavior.
-- Ownership of rejected messages.
-- Retry semantics.
+- Ownership of rejected items.
+- FIFO guarantees.
+- Shutdown and cleanup behavior.
 
-A bounded queue is not a complete backpressure policy.
+Queue capacity must not silently expand under load.
 
-The application must decide what happens when insertion
-fails.
+A failed enqueue must not imply successful ownership
+transfer.
 
 ## 9. Backpressure
 
-Backpressure occurs when an upstream producer generates
-work faster than a downstream consumer can accept it.
+Backpressure is an explicit operational condition.
 
-```mermaid
-flowchart TD
-    A["Attempt Delivery"]
-    B{"Capacity Available?"}
-    C["Accept Message"]
-    D{"Configured Policy"}
-    E["Retain and Retry"]
-    F["Invalidate Consumer"]
-    G["Escalate Failure"]
+It must not be treated as an unspecified error or
+silently ignored.
 
-    A --> B
-    B -->|Yes| C
-    B -->|No| D
+### 9.1 Server Backpressure
 
-    D --> E
-    D --> F
-    D --> G
-```
+If an input has not been consumed, the caller may retry
+that input according to the ingestion contract.
 
-### 9.1 Upstream Processing Backpressure
+If the input has already mutated market state, only the
+pending publication should be retried.
 
-When a processing queue is full, the application must
-consider the transport semantics.
+### 9.2 Publisher Backpressure
 
-A reliable stream may allow temporary read suspension.
+Supported policies distinguish between:
 
-A datagram feed may continue delivering data regardless
-of application readiness.
+- Rejecting publication when capacity is unavailable.
+- Invalidating overloaded subscribers and requiring
+  resynchronization.
 
-In the latter case, overflow can create a sequence gap
-requiring recovery.
+Healthy subscribers should not inherit invalidated
+subscriber state.
 
-### 9.2 Publisher Rejection
+### 9.3 Simulator Backpressure
 
-Under RejectPublication:
+The simulator retains pending delivery when its sink
+reports that an event was not accepted.
 
-1. Check capacity of all matching active subscribers.
-2. Reject before partial publication acceptance.
-3. Preserve the pending publication.
-4. Retry when capacity becomes available.
-5. Do not repeat the corresponding book mutation.
+It must not generate unrestricted additional work while
+bounded delivery resources remain exhausted.
 
-The application must prevent subsequent events from
-overtaking a rejected publication where ordering requires
-strict continuity.
+### 9.4 Replay Backpressure
 
-### 9.3 Subscriber Resynchronization
+The replay engine retains the current record until its
+sink accepts delivery.
 
-Under RequireResync:
+A rejected delivery attempt must not advance the
+accepted-record statistics.
 
-1. Identify the overloaded subscriber.
-2. Invalidate its incremental state.
-3. Discard its pending publication queue.
-4. Continue delivering to healthy subscribers.
-5. Notify or disconnect the invalidated subscriber.
-6. Coordinate a fresh snapshot before activation.
+The engine exposes a bounded backpressure-attempt budget.
 
-Invalidation must be observable even if no new market
-data arrives.
+Exhausting that budget requires an explicit caller
+decision rather than indefinite busy spinning.
 
-### 9.4 Control Messages
+### 9.5 Persistence Backpressure
 
-Recovery, shutdown, and invalidation messages must not
-be indefinitely starved by ordinary data traffic.
+The current recorder uses synchronous buffered file I/O.
 
-The application may require separate control capacity or
-another explicitly prioritized control mechanism.
+Disk latency can therefore delay the calling execution
+path.
+
+A future asynchronous persistence worker must use bounded
+queues and define the durability and failure semantics
+of ownership transfer.
 
 ## 10. Atomic Operations
 
 Atomic operations should be introduced only when state
-must genuinely be shared between owners.
+must be shared across concurrent execution contexts.
 
-An atomic variable prevents data races on that variable.
+Appropriate examples include:
 
-It does not automatically establish correctness for a
-larger multi-field state transition.
+- Independent metric counters.
+- Shutdown flags.
+- Queue ownership coordination.
+- Explicit synchronization state.
 
-### 10.1 Memory Ordering
+Relaxed ordering may be sufficient for independent
+statistics that do not publish associated state.
 
-| Ordering | Typical Purpose |
-|----------|-----------------|
-| Relaxed | Atomicity without cross-variable synchronization |
-| Acquire | Observe data published by a matching release |
-| Release | Publish preceding writes |
-| AcqRel | Acquire and release on a read-modify-write operation |
-| SeqCst | Sequentially consistent atomic ordering |
+Acquire and release ordering may be required when an
+operation publishes or consumes associated memory.
 
-The correct ordering depends on the synchronization
-protocol, not simply on the variable's type.
+Sequential consistency should be selected when its
+stronger ordering guarantees are required.
 
-### 10.2 Relaxed Ordering
-
-Relaxed ordering is appropriate for independent telemetry
-counters when their values do not establish visibility
-of unrelated application state.
-
-```rust
-use std::sync::atomic::{AtomicU64, Ordering};
-
-let counter = AtomicU64::new(0);
-
-counter.fetch_add(1, Ordering::Relaxed);
-
-let observed = counter.load(Ordering::Relaxed);
-```
-
-This example demonstrates atomic ordering only.
-
-fetch_add wraps on overflow; Maxwell's AtomicCounter
-provides saturating addition instead.
-
-### 10.3 Acquire and Release
-
-Acquire and release operations can establish a
-synchronizes-with relationship when the acquire observes
-the appropriate released value.
-
-They are commonly used in ownership transfer and
-producer-consumer communication.
-
-A queue implementation must document which operations
-publish initialized data and which operations permit
-safe reuse of storage.
-
-### 10.4 Sequential Consistency
-
-Sequential consistency provides a stronger global
-ordering guarantee for sequentially consistent atomic
-operations.
-
-It may simplify reasoning in some synchronization
-protocols.
-
-It does not replace the need for a correct ownership
-and state-transition design.
-
-### 10.5 Compare-and-Exchange
-
-Compare-and-exchange operations may fail because another
-thread changed the observed value.
-
-Weak compare-and-exchange may also fail spuriously.
-
-Retry loops must account for:
-
-- Contention.
-- Progress guarantees.
-- Overflow.
-- Cancellation or shutdown where applicable.
-
-A CAS retry loop is not necessarily wait-free.
+Memory ordering must follow a documented synchronization
+contract rather than a blanket optimization rule.
 
 ## 11. Rust Send and Sync
 
-Rust's Send trait permits ownership transfer between
-threads.
+Rust's type system provides important concurrency
+constraints.
 
-Rust's Sync trait permits shared references to be used
-across threads under the applicable safety requirements.
+Send permits ownership transfer between threads.
 
-These traits establish memory-safety properties.
+Sync permits shared references across threads when the
+underlying type satisfies the required safety contract.
 
-They do not guarantee:
+These traits do not establish application-level
+determinism, ordering, or transactional correctness.
 
-- Deterministic ordering.
-- Transactional consistency.
-- Absence of deadlocks.
-- Bounded latency.
-- Correct market data recovery.
-
-A component being Send does not imply that it should
-have multiple concurrent processing owners.
+A thread-safe data structure can still be used incorrectly
+within a market processing pipeline.
 
 ## 12. Locking
 
-Locks are acceptable when they are appropriate for the
-actual workload and ownership requirements.
+Avoid unnecessary locks on the market mutation path.
 
-Examples include:
+Locks may be appropriate for:
 
-- Configuration management.
+- Infrequent configuration changes.
 - Administrative operations.
-- Infrequent diagnostics.
-- Off-critical-path reporting.
+- Shared noncritical resources.
+- Explicit coordination boundaries.
 
-Locks in latency-sensitive paths require justification
-and measurement.
+When multiple locks are necessary, define acquisition
+ordering and avoid holding locks across blocking I/O.
 
-### 12.1 Locking Rules
-
-- Avoid holding locks during network I/O.
-- Avoid holding locks during blocking callbacks.
-- Establish a consistent lock acquisition order.
-- Keep critical sections small.
-- Avoid unnecessary nested locking.
-- Document lock poisoning and failure behavior.
-
-### 12.2 Lock-Free Terminology
-
-Lock-free, wait-free, and obstruction-free describe
-different progress guarantees.
-
-Do not label a component lock-free solely because it
-contains no explicit mutex.
-
-Allocation, operating system calls, and underlying
-libraries may still block.
+The absence of explicit mutexes does not prove that an
+application is lock-free.
 
 ## 13. Memory Allocation
 
-### 13.1 Initialization
+Maxwell uses bounded logical resources where practical.
 
-Allocate predictable runtime resources during
-initialization where practical.
+Important limits include:
 
-Examples include:
-
-- Receive buffers.
-- Decode scratch buffers.
+- Registered instruments.
+- Resting orders.
+- Price levels.
 - Recovery buffers.
 - Subscriber queues.
-- Metric registries.
-- Session storage.
+- Simulator history.
+- Simulator delivery queues.
+- Journal payload buffers.
+- Sparse journal index entries.
 
-### 13.2 Steady-State Processing
+Logical resource limits are not equivalent to
+allocation-free execution.
 
-Avoid unnecessary allocation in frequently executed
-processing operations.
+The current order registry may allocate while remaining
+within its configured logical order limit.
 
-Allocation-free claims must be verified against actual
-implementation behavior and representative workloads.
-
-Book insertion, subscription registration, snapshot
-creation, and configuration changes may have different
-allocation characteristics from steady-state updates.
-
-### 13.3 Capacity Exhaustion
-
-Allocation or capacity failure must have an explicit
-outcome.
-
-Possible outcomes include:
-
-- Reject operation.
-- Retain work for retry.
-- Invalidate state.
-- Restart recovery.
-- Terminate the affected component.
-
-Unbounded fallback allocation must not undermine a
-documented resource limit.
+A fixed-capacity registry is a future optimization.
 
 ## 14. Cache Locality
 
-Frequently accessed processing state should remain close
-to its logical owner.
+Future optimization should evaluate:
 
-Performance considerations include:
-
-- Contiguous storage.
-- Compact domain representations.
+- Contiguous price-level storage.
+- Hot and cold field separation.
+- Compact event representations.
+- Predictable traversal.
 - Reduced pointer chasing.
-- Reduced shared cache-line writes.
-- Predictable access patterns.
-- Separation of hot and cold fields.
+- Reuse of encoding buffers.
+- Batching of communication operations.
 
-Data layout changes should be guided by profiling rather
-than assumptions about a particular processor.
+Changes must be supported by profiling and preserve
+logical correctness.
 
 ## 15. False Sharing
 
-False sharing occurs when independent frequently modified
-variables occupy the same cache line.
+Independent mutable counters or queue indexes may occupy
+the same cache line.
 
-```text
-Potential false sharing:
+Concurrent updates can therefore produce unnecessary
+cache-coherence traffic.
 
-| Counter A | Counter B | Other fields |
-|           One cache line             |
+Potential mitigations include:
 
-Separated counters:
+- Owner-local metrics.
+- Per-thread counters.
+- Appropriate alignment.
+- Separation of frequently updated producer and consumer
+  state.
 
-| Counter A | Padding                  |
-| Counter B | Padding                  |
+Padding should be introduced based on measured contention.
+
+## 16. Deterministic Simulation
+
+The simulator maintains independent market and fault
+randomness.
+
+A change in delivery fault configuration should not
+implicitly redefine the authoritative market generation
+algorithm.
+
+Virtual pacing allows deterministic workloads without
+depending on operating-system scheduling.
+
+Wall-clock measurements remain observational rather than
+part of the logical market state.
+
+## 17. Deterministic Replay
+
+The replay engine separates:
+
+- Reading a record.
+- Filtering a record.
+- Waiting for playback timing.
+- Attempting delivery.
+- Committing accepted delivery.
+
+A pending record remains owned by the engine until
+acceptance.
+
+Playback speed and processing batch size must not change
+the final reconstructed market when the same complete
+authoritative stream and baseline are used.
+
+## 18. Snapshot Coordination
+
+A snapshot must represent a consistent logical state.
+
+Snapshot coordination requires:
+
+- Defined market scope.
+- Defined sequence watermark.
+- Complete state capture.
+- Correct subsequent incremental boundary.
+
+A snapshot must not combine inconsistent states from
+different processing positions.
+
+Future parallel snapshots may require barriers, ownership
+handoff, immutable copies, or coordinated checkpoints.
+
+## 19. Future Partitioned Topology
+
+A possible future architecture partitions instruments
+across independent processing owners.
+
+```mermaid
+flowchart TD
+    INPUT["Network Ingress"]
+    SEQ["Feed Sequencing"]
+    ROUTE["Instrument Routing"]
+
+    INPUT --> SEQ --> ROUTE
+
+    ROUTE --> A["Partition A Owner"]
+    ROUTE --> B["Partition B Owner"]
+    ROUTE --> C["Partition C Owner"]
+
+    A --> PUB["Publication Coordination"]
+    B --> PUB
+    C --> PUB
 ```
 
-Maxwell's AtomicCounter uses 64-byte alignment.
+Partitioning introduces additional requirements:
 
-This is intended to reduce false sharing on processors
-with compatible cache-line characteristics.
-
-It does not guarantee optimal placement on every
-architecture.
-
-Owner-local non-atomic counters remain preferable where
-shared updates are unnecessary.
-
-## 16. Deterministic Parallelism
-
-Parallel processing is acceptable when independent
-processing scopes can be established.
-
-Potential partition keys include:
-
-- Feed identifier.
-- Instrument identifier.
-- Explicit exchange partition.
-
-Partitioning must preserve:
-
-- Upstream sequence scope.
-- Recovery scope.
-- Required cross-instrument ordering.
+- Feed-wide sequencing before routing.
+- Deterministic partition assignment.
+- Instrument ownership.
+- Cross-partition snapshot consistency.
 - Publication ordering.
-- Snapshot consistency.
+- Partition-specific recovery.
+- Coordinated shutdown.
 
-If multiple partitions contribute to a global publication
-sequence, the merge policy must define how that sequence
-is assigned.
+This topology is a future design option rather than
+the current server implementation.
 
-Thread completion order alone is not a deterministic
-merge policy.
+## 20. Metrics Collection
 
-## 17. Snapshot Coordination
+Prefer owner-local metrics where practical.
 
-Snapshot generation must not race with mutable state
-updates in a way that produces inconsistent results.
+Cross-thread collection should avoid unnecessarily
+synchronizing the critical processing path.
 
-Possible strategies include:
+Metric aggregation must distinguish exact counters from
+sampled or eventually consistent observations.
 
-- Generate snapshots within the state owner.
-- Transfer an owned immutable snapshot.
-- Coordinate an explicit processing boundary.
-- Use a carefully designed versioned representation.
+Metrics must not become a second owner of financial
+market state.
 
-The initial architecture favors owner-generated snapshots
-and explicit publication watermarks.
+## 21. Scheduling and Affinity
 
-Copying state does not automatically establish consistency
-if the source changes during the copy.
+Future dedicated processing threads may benefit from:
 
-## 18. Metrics Collection
-
-Each processing owner should maintain local telemetry.
-
-The reporting component may receive:
-
-- Owned metric snapshots.
-- Completed interval histograms.
-- Explicitly transferred metrics state.
-- Independent atomic counters.
-
-Histogram aggregation requires compatible bucket bounds.
-
-Cumulative and interval metrics must not be mixed without
-a defined collection policy.
-
-Telemetry transfer queues must remain bounded.
-
-A delayed metrics consumer should not stall market data
-processing indefinitely.
-
-## 19. Scheduling and Affinity
-
-Potential performance improvements include:
-
-- Dedicated processing threads.
 - CPU affinity.
 - NUMA-aware allocation.
-- Reduced thread migration.
-- Interrupt affinity.
-- Controlled polling.
-- Appropriate batching.
+- Reduced context switching.
+- Controlled thread placement.
+- Predictable scheduling.
 
-These are future tuning options, not mandatory baseline
-requirements.
+These are performance engineering techniques, not
+correctness requirements.
 
-Busy polling can reduce wake-up latency while increasing
-CPU consumption and power usage.
+Their benefits must be established experimentally.
 
-Affinity may improve cache locality but can reduce
-scheduling flexibility.
+## 22. Shutdown
 
-Evaluate these tradeoffs using representative workloads.
+A coordinated shutdown should:
 
-## 20. Shutdown
+1. Stop accepting new input.
+2. Resolve or explicitly abandon pending work.
+3. Drain required publication queues.
+4. Finalize journal output.
+5. Synchronize persistent data where required.
+6. Close communication resources.
+7. Publish final operational statistics.
 
-Shutdown must preserve ownership and delivery semantics.
+Shutdown must not imply successful persistence when a
+flush or synchronization operation has failed.
 
-A recommended application shutdown sequence is:
+Production signal handling and distributed shutdown
+orchestration remain Phase III work.
 
-1. Stop accepting new sessions and subscriptions.
-2. Signal ingestion to stop.
-3. Complete or explicitly invalidate pending processing.
-4. Resolve pending publications according to policy.
-5. Drain or terminate downstream sessions.
-6. Collect final operational telemetry.
-7. Join processing threads.
-8. Release owned resources.
+## 23. Concurrency Review Checklist
 
-Shutdown must have a bounded completion policy.
+- Is mutable ownership explicit?
+- Are sequence domains independent?
+- Are queue limits enforced?
+- Is rejected ownership transfer unambiguous?
+- Can retry duplicate a successful mutation?
+- Can an invalidated consumer resume prematurely?
+- Are snapshots logically consistent?
+- Are atomic memory-ordering choices documented?
+- Can blocking I/O stall a critical processing owner?
+- Is shutdown behavior defined?
+- Are allocation claims supported by measurement?
+- Does parallelism preserve deterministic results?
 
-An indefinitely blocked consumer must not prevent the
-entire application from terminating.
+## 24. Related Documentation
 
-## 21. Concurrency Review Checklist
-
-- [ ] Every mutable state has a defined owner.
-- [ ] Cross-owner communication is explicit.
-- [ ] Queue capacities are bounded.
-- [ ] Full-queue behavior is documented.
-- [ ] Retry behavior preserves ownership.
-- [ ] Atomic memory ordering is justified.
-- [ ] Lock acquisition order is consistent.
-- [ ] Blocking operations are identified.
-- [ ] Snapshot consistency is preserved.
-- [ ] Publication ordering is preserved.
-- [ ] Recovery transitions remain correct.
-- [ ] Shutdown behavior is bounded.
-- [ ] Concurrent behavior is tested.
-- [ ] Performance claims are measured.
-
-## 22. References
-
-- The Rust Book: Fearless Concurrency
-  https://doc.rust-lang.org/book/ch16-00-concurrency.html
-
-- Rust Atomic Ordering
-  https://doc.rust-lang.org/std/sync/atomic/enum.Ordering.html
-
-- Rust Send and Sync
-  https://doc.rust-lang.org/nomicon/send-and-sync.html
+- [Architecture](architecture.md)
+- [Design Decisions](decisions.md)
+- [Testing](testing.md)
+- [Performance](performance.md)

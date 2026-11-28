@@ -1,629 +1,536 @@
-# Maxwell Protocol and Interoperability
+# Maxwell Protocol
 
 ## 1. Purpose
 
-This document defines the architectural requirements for
-Maxwell's binary market data protocol and its interoperability
-with Planck and downstream consumers.
+This document describes Maxwell's native binary protocol,
+sequence semantics, timestamp conventions, recovery
+boundaries, and historical journal representation.
 
-The current Rust protocol implementation resides in:
+The implementation in maxwell-protocol and maxwell-replay
+is authoritative for exact encoding and decoding behavior.
 
-```text
-crates/maxwell-protocol/
-```
-
-Foundational domain representations reside in:
-
-```text
-crates/maxwell-core/
-```
-
-Exact binary layouts, numeric message identifiers, field
-widths, byte ordering, and financial scales must be reconciled
-with the current source before this document is treated as
-a normative wire-format specification.
-
-Live Planck interoperability remains pending validation.
+Maxwell's native protocol must not be assumed to match
+Planck's existing wire format without interoperability
+validation.
 
 ## 2. Communication Boundaries
 
-Maxwell distinguishes two principal protocol boundaries.
+Maxwell distinguishes between:
 
-```mermaid
-flowchart LR
-    P["Planck"]
-    M["Maxwell"]
-    C["Downstream Client"]
+- Upstream market data messages.
+- Recovery requests and responses.
+- Downstream publications.
+- Session-level communication.
+- Historical journal records.
 
-    P -->|Upstream Market Data| M
-    M -->|Recovery Requests| P
+These boundaries may share domain values without sharing
+identical framing or sequence semantics.
 
-    C -->|Session and Subscription Control| M
-    M -->|Snapshots and Incremental Data| C
-```
+## 3. Design Requirements
 
-The upstream protocol describes authoritative exchange
-events.
-
-The downstream protocol describes market data distribution,
-subscription control, and client synchronization.
-
-These protocols may share domain representations without
-requiring identical message formats.
-
-## 3. Protocol Design Requirements
-
-The protocol should provide:
-
-- Explicit message boundaries.
-- Explicit numeric field representations.
-- Validated message lengths.
-- Stable message identifiers.
-- Explicit sequence scope.
-- Explicit timestamp semantics.
-- Predictable decoding behavior.
-- Bounded resource consumption.
-- Documented compatibility rules.
-- Cross-language interoperability.
-
-Protocol messages must not depend on compiler-specific
-structure padding or native object layout.
+- Explicit binary representation.
+- Versioned message formats.
+- Fixed-width financial values.
+- Deterministic encoding.
+- Bounded message sizes.
+- Strict validation.
+- Transport independence.
+- Explicit sequence and timestamp semantics.
+- No dependence on compiler-specific structure layout.
 
 ## 4. Transport Independence
 
-Protocol messages and transport frames are distinct concepts.
+The native protocol represents logical binary messages.
 
-```mermaid
-flowchart TD
-    A["Domain Event"]
-    B["Protocol Message"]
-    C["Transport Frame"]
-    D["Network Delivery"]
+TCP and other stream transports may require additional
+framing and buffering.
 
-    A --> B
-    B --> C
-    C --> D
-```
+UDP and other datagram transports may lose, duplicate,
+or reorder messages.
 
-A protocol message represents logical market data or
-control information.
+A transport adapter must preserve complete logical
+message boundaries.
 
-A transport frame provides the boundaries required by
-the selected communication mechanism.
+The native protocol must not depend on a particular
+socket implementation.
 
-A TCP read may contain:
+## 5. Native Protocol Header
 
-- Part of a frame.
-- One complete frame.
-- Multiple complete frames.
-- Complete frames followed by a partial frame.
+The Maxwell V1 header occupies 40 bytes.
 
-A UDP datagram preserves datagram boundaries but does not
-guarantee delivery, uniqueness, or ordering.
+All multibyte fields use little-endian encoding.
 
-Framing rules must be defined for each supported transport.
+| Offset | Size | Field |
+|--------|------|-------|
+| 0 | 2 | Magic: MX |
+| 2 | 1 | Major version |
+| 3 | 1 | Minor version |
+| 4 | 1 | Message kind |
+| 5 | 1 | Flags |
+| 6 | 2 | Payload length |
+| 8 | 4 | Stream identifier |
+| 12 | 8 | Session identifier |
+| 20 | 8 | Sequence number |
+| 28 | 4 | Instrument identifier |
+| 32 | 8 | Exchange timestamp |
 
-## 5. Message Categories
+Current native protocol version:
 
-The following table describes logical message categories
-required or anticipated by the integrated platform.
+    Major: 1
+    Minor: 0
 
-It does not assign wire identifiers or imply that every
-category currently has a complete codec.
+Maximum representable payload length:
 
-| Category | Purpose |
-|----------|---------|
-| Instrument definition | Describe an instrument |
-| Book update | Modify market book state |
-| Trade | Represent an execution |
-| Quote | Represent published quote information |
-| Snapshot | Establish market state |
-| Instrument status | Describe instrument availability |
-| Feed status | Describe upstream synchronization |
-| Heartbeat | Provide liveness information |
-| Recovery request | Request missing market data |
-| Recovery response | Return requested recovery data |
-| Subscription request | Select downstream market data |
-| Subscription response | Confirm or reject a subscription |
-| Session control | Coordinate downstream session state |
-| Invalidation | Notify a consumer of stale state |
-| Error | Communicate supported protocol failures |
+    65,535 bytes
 
-The publisher's EventKind enumeration defines publication
-categories. Its discriminants must not automatically be
-treated as wire message identifiers.
+Maximum complete native message length:
 
-## 6. Message Header Contract
+    65,575 bytes
 
-A binary protocol header may contain the following
-information, depending on the message family:
+A conservative UDP application payload target is 1,200
+bytes. This is a deployment recommendation rather than
+a native protocol limit.
 
-| Field Concept | Purpose |
-|---------------|---------|
-| Message type | Select the decoding schema |
-| Message length | Establish message boundaries |
-| Protocol version | Identify compatible representation |
-| Feed identifier | Identify upstream sequencing scope |
-| Sequence | Establish ordering within a scope |
-| Timestamp | Represent a documented event time |
-| Flags | Represent explicitly defined optional behavior |
+## 6. Message Flags
 
-This table is a conceptual schema, not an exact header
-layout.
+The exchange-timestamp-present flag indicates whether
+the exchange timestamp is present.
 
-The actual implementation must document:
+Unsupported flag combinations must be handled according
+to the decoder's compatibility rules.
 
-- Field order.
-- Field width.
-- Signedness.
-- Byte ordering.
-- Valid ranges.
-- Required and optional fields.
-- Reserved values.
-- Maximum supported message length.
+Reserved bits must not acquire undocumented semantics.
 
-## 7. Binary Representation
+## 7. Market Event Payloads
 
-### 7.1 Integer Encoding
+The V1 event payload sizes are:
 
-Integer fields must use explicitly documented widths.
+| Event | Payload Bytes |
+|-------|---------------|
+| OrderAdded | 25 |
+| OrderModified | 24 |
+| OrderCancelled | 16 |
+| OrderDeleted | 8 |
+| OrderExecuted | 32 |
+| Trade | 25 |
+| PriceLevelUpdated | 22 |
+| BookCleared | 1 |
+| TradingStatusChanged | 1 |
 
-Rust and C++ implementations must agree on:
+The encoder and decoder define the exact field order,
+representation, and event-kind discriminants.
 
-- Signed or unsigned interpretation.
-- Field width.
-- Byte ordering.
-- Valid range.
-- Overflow behavior.
-
-Rust encoding should use explicit conversions such as
-to_be_bytes or to_le_bytes according to the selected
-wire contract.
-
-C++ encoding should use corresponding explicit
-byte-order conversion.
-
-Native byte order must not be assumed.
-
-### 7.2 Structure Layout
-
-The following is not a sufficient interoperability
-contract:
-
-```text
-Serialize the bytes of a native C++ or Rust structure.
-```
-
-Native structures may contain:
-
-- Alignment padding.
-- Compiler-specific layout.
-- Platform-dependent representations.
-- Uninitialized padding bytes.
-
-Prefer explicit field-by-field serialization.
-
-Even when a representation attribute or packed structure
-is used, byte ordering and validation remain necessary.
-
-### 7.3 Variable-Length Fields
-
-Variable-length fields must define:
-
-- Length representation.
-- Maximum allowed length.
-- Encoding.
-- Empty-value semantics.
-- Truncation behavior.
-- Validation requirements.
-
-An untrusted length must not directly trigger unrestricted
-memory allocation.
-
-### 7.4 Reserved Fields
-
-Reserved fields and flags must have documented behavior.
-
-Unknown reserved values should be rejected or ignored only
-according to an explicit compatibility policy.
+Changes to these representations require compatibility
+review and corresponding protocol tests.
 
 ## 8. Financial Values
 
-Prices and quantities use validated fixed-point domain
-representations.
+Prices and quantities use fixed-point domain types.
 
-Conceptually:
+Floating-point representations must not be substituted
+for authoritative financial values.
 
-```text
-represented_value = raw_integer / scale
-```
+Instrument definitions establish applicable price and
+quantity constraints.
 
-For illustration only, a scale of 10,000 and a raw integer
-of 1,234,567 would represent 123.4567.
-
-This example does not establish Maxwell's actual scale.
-
-The protocol specification must define:
-
-- Price scale.
-- Quantity scale.
-- Signedness.
-- Minimum and maximum values.
-- Tick-size constraints.
-- Lot-size constraints.
-- Zero-value semantics.
-- Conversion and rounding rules.
-
-Rust and C++ implementations must agree on these properties.
-
-### 8.1 Arithmetic
-
-Intermediate calculations may require a wider integer type
-than the final wire representation.
-
-Overflow must be detected before narrowing conversions.
-
-### 8.2 Human-Readable Formatting
-
-Decimal formatting belongs primarily at application
-boundaries.
-
-The internal market data processing path should retain
-the validated fixed-point representation.
+Encoding must preserve the underlying financial value
+without unintended rounding or conversion.
 
 ## 9. Sequence Semantics
 
-### 9.1 Upstream Feed Sequence
+Three independent sequence domains exist.
 
-The upstream sequence establishes event ordering within
-a defined feed or stream.
+### 9.1 Upstream Sequence
 
-The protocol must define:
+Identifies authoritative market event ordering within
+a feed.
 
-- Initial sequence.
-- Increment behavior.
-- Sequence scope.
-- Duplicate semantics.
-- Reset semantics.
-- Exhaustion behavior.
-- Stream restart or epoch identification.
+A feed is identified by its stream and session identifiers.
+
+Missing upstream sequences may require recovery.
+
+Duplicate upstream events must not be applied twice.
 
 ### 9.2 Publication Sequence
 
-The publication sequence establishes accepted publication
-ordering within a publisher instance.
+Identifies downstream publication ordering.
 
-Filtered subscriptions may receive nonconsecutive values.
+Subscription filtering may introduce visible publication
+sequence gaps without implying upstream data loss.
 
-A global publication sequence must not be interpreted
-as a session-local delivery sequence.
+### 9.3 Connection Sequence
 
-### 9.3 Session Sequence
+Identifies ordering within a downstream session.
 
-If supported, a session-local sequence should establish
-continuity across messages delivered to one session.
+A connection sequence is not an authoritative market
+sequence.
 
-Its relationship to control messages, snapshots, and
-incremental publications must be documented.
+### 9.4 Historical Sequence
 
-### 9.4 Watermarks
+Historical journals preserve the original upstream
+sequence.
 
-A watermark identifies a state boundary.
-
-The protocol must specify whether a watermark represents:
-
-- The last event included in state.
-- The next event expected after state.
-- Another explicitly defined boundary.
-
-These interpretations are not interchangeable.
+Replay does not renumber events.
 
 ## 10. Timestamp Semantics
 
-Timestamp fields must define:
+Maxwell distinguishes several time domains.
 
-- Unit.
-- Epoch or clock origin.
-- Clock domain.
-- Signedness.
-- Valid range.
-- Meaning of zero.
-- Event represented by the timestamp.
+| Timestamp | Meaning |
+|-----------|---------|
+| Exchange timestamp | Time associated with the upstream event |
+| Monotonic timestamp | Local processing or reception time |
+| Journal creation time | Wall-clock Unix timestamp |
+| Recording timestamp | Relative journal playback time |
+| Playback elapsed time | Time within a replay execution |
 
-Possible timestamp categories include:
+Wall-clock timestamps must not be used directly for
+monotonic latency measurements.
 
-| Category | Meaning |
-|----------|---------|
-| Exchange event time | Time assigned by Planck |
-| Receive time | Time observed at Maxwell ingestion |
-| Processing time | Local processing measurement |
-| Publication time | Time associated with publication |
-| Client receive time | Time observed by a consumer |
+Timestamps from different hosts are not automatically
+comparable.
 
-Monotonic clocks are appropriate for local elapsed-time
-measurement.
-
-Wall-clock timestamps may be appropriate for externally
-meaningful event times.
-
-Timestamps from independent hosts cannot be subtracted
-meaningfully for precise latency measurement without
-appropriate clock synchronization.
+Cross-host latency measurement requires an appropriate
+clock synchronization strategy.
 
 ## 11. Decoding Requirements
 
-A decoder should validate input before producing a
-trusted domain event.
+A decoder must validate:
 
-```mermaid
-flowchart TD
-    A["Input Buffer"]
-    B{"Sufficient Header Bytes?"}
-    C{"Valid Message Length?"}
-    D{"Supported Message Type?"}
-    E{"Complete Message?"}
-    F{"Valid Field Values?"}
-    G["Decoded Event"]
-    X["Explicit Error"]
-    W["Await More Bytes"]
+- Message magic.
+- Supported version.
+- Message kind.
+- Flags.
+- Declared payload length.
+- Available bytes.
+- Event-specific payload structure.
+- Financial domain values.
 
-    A --> B
-    B -->|No| W
-    B -->|Yes| C
-    C -->|No| X
-    C -->|Yes| D
-    D -->|No| X
-    D -->|Yes| E
-    E -->|No| W
-    E -->|Yes| F
-    F -->|No| X
-    F -->|Yes| G
-```
+Malformed input must not cause out-of-bounds access or
+partial market mutation.
 
-The distinction between incomplete input and invalid input
-is particularly important for stream transports.
+The exact-message decoder must reject unexpected trailing
+bytes.
 
-### 11.1 Required Validation
+Transport framing is responsible for isolating individual
+messages from stream input.
 
-- Buffer length.
-- Header length.
-- Declared message length.
-- Supported message type.
-- Supported protocol version where applicable.
-- Field boundaries.
-- Domain values.
-- Reserved values.
-- Event-specific constraints.
+## 12. Recovery Protocol
 
-### 11.2 Error Handling
+Recovery coordination requires sufficient information to
+identify:
 
-Malformed messages must not cause:
-
-- Out-of-bounds reads.
-- Unbounded allocation.
-- Partial market state mutation.
-- Silent sequence advancement.
-- Undocumented connection state changes.
-
-The application must decide whether a protocol error
-requires message rejection, feed invalidation, or
-connection termination.
-
-## 12. Snapshot Protocol
-
-A snapshot must establish a consistent state boundary.
-
-Its logical contents should identify:
-
-- Snapshot scope.
-- Relevant instruments.
-- Represented market state.
-- Recovery or publication watermark.
-- Completeness information.
-- Snapshot identity where fragmentation is supported.
-
-### 12.1 Fragmented Snapshots
-
-If snapshots are transmitted across multiple messages,
-the protocol must define:
-
-- Snapshot identifier.
-- Fragment ordering.
-- Completion detection.
-- Duplicate fragment behavior.
-- Missing fragment behavior.
-- Maximum total size.
-- Timeout and invalidation behavior.
-
-A partially received snapshot must not be treated as
-complete synchronized state.
-
-### 12.2 Snapshot and Incremental Ordering
-
-```mermaid
-sequenceDiagram
-    participant S as Snapshot Producer
-    participant C as Consumer
-
-    S->>C: Snapshot at watermark W
-    C->>C: Validate and apply snapshot
-    S->>C: Eligible update after W
-    S->>C: Subsequent eligible update
-```
-
-The exact sequence domain represented by W must be
-specified.
-
-Snapshot consistency must be established before
-incremental delivery is considered synchronized.
-
-## 13. Recovery Protocol
-
-### 13.1 Retransmission Request
-
-A recovery request should identify:
-
-- Feed or stream scope.
+- Feed identity.
 - Missing sequence range.
-- Recovery request identity where needed.
-- Relevant stream epoch.
+- Recovery scope.
+- Recovered event identity.
+- Snapshot watermark where applicable.
 
-The range convention must be explicit.
+A recovered event must satisfy the same logical validation
+requirements as a live event.
 
-For example, inclusive start and end values differ from
-a half-open range.
+Production recovery request correlation, timeout policy,
+and remote transport representation remain Phase III
+design work.
 
-### 13.2 Recovery Response
+## 13. Snapshot Semantics
 
-Recovery responses must provide sufficient information to
-validate:
+A snapshot represents market state at a defined logical
+watermark.
 
-- The affected feed.
-- The requested range.
-- Returned event ordering.
-- Completeness.
-- Availability or rejection.
+A snapshot contract must identify:
 
-### 13.3 Snapshot Fallback
+- Feed identity.
+- Instrument scope.
+- Snapshot completeness.
+- Applicable sequence watermark.
+- Subsequent incremental event boundary.
 
-When retransmission is unavailable or exceeds configured
-limits, the recovery policy may request a snapshot.
+Events already represented by the snapshot must not be
+applied again.
 
-The protocol must distinguish unavailable recovery data
-from temporary transport failure.
+A snapshot must not be advertised as complete before
+all required validation has succeeded.
 
-## 14. Downstream Session Protocol
+The exact remote snapshot exchange protocol remains
+an integration workstream.
 
-The intended downstream protocol should define:
+## 14. Downstream Session Semantics
 
-- Session establishment.
-- Subscription requests.
-- Subscription responses.
-- Snapshot delivery.
-- Incremental delivery.
-- Heartbeats.
-- Invalidation.
-- Resynchronization.
-- Session termination.
+Downstream communication must preserve:
 
-Authentication and authorization requirements remain
-application-level design work.
+- Session identity.
+- Subscription scope.
+- Synchronization status.
+- Snapshot activation boundary.
+- Connection ordering.
+- Publication identity.
 
-### 14.1 Filtering
+Slow-consumer invalidation must be explicit.
 
-Subscription filtering changes the set of delivered
-publications.
+An invalidated subscriber requires resynchronization
+before ordinary incremental delivery resumes.
 
-It does not change the meaning of the publisher's global
-sequence.
+Complete remote session framing remains future work.
 
-### 14.2 Backpressure
+## 15. Historical Journal Format
 
-When downstream state becomes invalid, the session
-protocol must provide an explicit outcome.
+The replay application introduces a versioned binary
+journal format.
 
-Possible outcomes include:
+A journal contains:
 
-- Resynchronization notification.
-- Session invalidation.
-- Connection termination.
+1. A fixed-size journal header.
+2. Zero or more variable-length event records.
 
-Silent incremental loss is not an acceptable
-synchronization strategy.
+```mermaid
+flowchart LR
+    HEADER["64-byte Header"]
+    R1["Record 1"]
+    R2["Record 2"]
+    RN["Record N"]
 
-## 15. Protocol Compatibility
+    HEADER --> R1 --> R2 --> RN
+```
 
-Changes should be classified before implementation.
+Journal records embed native Maxwell protocol messages.
 
-| Change | Compatibility Concern |
-|--------|-----------------------|
-| New message type | Older decoder behavior |
-| New optional field | Length and extension rules |
-| Field width change | Breaking binary layout |
-| Byte-order change | Breaking numeric interpretation |
-| Message ID reuse | Ambiguous decoding |
-| Fixed-point scale change | Breaking financial semantics |
-| Sequence reset change | Recovery incompatibility |
-| Timestamp unit change | Incorrect time interpretation |
+The journal format version is independent of the native
+wire protocol version.
 
-A version field alone does not guarantee compatibility.
+All multibyte journal fields use little-endian encoding.
 
-Compatibility behavior must be tested explicitly.
+## 16. Journal Header V1
 
-## 16. Planck Interoperability
+The journal header occupies 64 bytes.
 
-The Rust and C++ implementations must agree on the
-following contract.
+| Offset | Size | Field |
+|--------|------|-------|
+| 0 | 8 | Magic: MXWJRNL followed by NUL |
+| 8 | 2 | Journal format version |
+| 10 | 1 | Journal mode |
+| 11 | 1 | Reserved |
+| 12 | 4 | Header length |
+| 16 | 8 | Creation timestamp in nanoseconds |
+| 24 | 4 | Maximum payload bytes |
+| 28 | 4 | Stream identifier |
+| 32 | 8 | Session identifier |
+| 40 | 8 | Recording identifier |
+| 48 | 12 | Reserved |
+| 60 | 4 | CRC32C checksum |
 
-| Item | Verification Required |
-|------|-----------------------|
-| Message identifiers | Exact numeric agreement |
-| Header layout | Exact byte agreement |
-| Field widths | Exact representation |
-| Byte ordering | Exact encoding |
-| Financial scales | Exact numerical semantics |
-| Sequence scope | Identical ordering interpretation |
-| Snapshot watermark | Identical state boundary |
-| Recovery ranges | Identical range convention |
-| Timestamp units | Identical clock interpretation |
-| Framing | Identical message boundaries |
-| Maximum message size | Compatible limits |
+Current journal format version:
 
-### 16.1 Golden Test Vectors
+    1
 
-Golden vectors should be shared between the projects.
+Journal mode values:
 
-Each vector should include:
+| Value | Mode |
+|-------|------|
+| 0 | Authoritative |
+| 1 | RawCapture |
 
-- Protocol version.
-- Message type.
-- Logical field values.
-- Expected encoded bytes.
-- Expected decoded values.
-- Expected error for invalid vectors.
+The header checksum covers the first 60 bytes.
 
-Recommended tests:
+Reserved fields must be handled according to the format
+validation contract.
 
-1. Encode in Planck and decode in Maxwell.
-2. Encode in Maxwell and decode in Planck.
-3. Compare encoded bytes against golden vectors.
-4. Verify boundary values.
-5. Verify malformed input rejection.
+Each journal represents one feed identity.
 
-### 16.2 Golden Vector Governance
+## 17. Journal Record V1
 
-Golden vectors should be version-controlled.
+Each record contains a length prefix, metadata, encoded
+protocol message, and checksum.
 
-Changes to existing vectors require a documented protocol
-change or correction.
+| Field | Size |
+|-------|------|
+| Record length | 4 bytes |
+| Upstream sequence | 8 bytes |
+| Recording timestamp | 8 bytes |
+| Encoded protocol message | Variable |
+| CRC32C checksum | 4 bytes |
 
-Generated vectors should not be regenerated automatically
-during ordinary tests in a way that conceals regressions.
+The record length excludes the four-byte length prefix.
 
-## 17. Normative Wire Specification Checklist
+For an encoded protocol message of P bytes:
 
-Before live interoperability is declared complete:
+    Record length = P + 20
+    Total stored bytes = P + 24
 
-- [ ] Enumerate all supported wire message identifiers.
-- [ ] Document exact header layout.
-- [ ] Document every supported message layout.
-- [ ] Document byte ordering.
-- [ ] Document financial scales.
-- [ ] Document sequence scope and initial values.
-- [ ] Document stream restart behavior.
-- [ ] Document timestamp semantics.
-- [ ] Document maximum frame and message lengths.
-- [ ] Document snapshot representation.
-- [ ] Document recovery request and response formats.
-- [ ] Document downstream session semantics.
-- [ ] Establish cross-language golden vectors.
-- [ ] Verify Planck-to-Maxwell integration.
-- [ ] Verify malformed message handling.
-- [ ] Verify compatibility and versioning behavior.
+The checksum covers:
 
-## 18. Related Documentation
+- Record length prefix.
+- Upstream sequence.
+- Recording timestamp.
+- Encoded protocol message.
+
+The stored sequence must agree with the sequence in the
+decoded event envelope.
+
+The decoded feed must agree with the journal header.
+
+## 18. Journal Modes
+
+### 18.1 Authoritative
+
+An authoritative journal requires contiguous upstream
+sequence ordering.
+
+The first record establishes the journal's initial
+sequence context.
+
+Subsequent records must preserve sequence continuity.
+
+A contiguous journal beginning after the start of a
+market session may still require an external baseline.
+
+### 18.2 RawCapture
+
+A raw capture preserves the order in which events were
+received.
+
+It may contain:
+
+- Missing upstream sequences.
+- Duplicate upstream sequences.
+- Reordered upstream sequences.
+
+Raw capture does not renumber events.
+
+Both modes require nondecreasing recording timestamps
+and consistent feed identity.
+
+## 19. Journal Integrity
+
+CRC32C detects accidental corruption.
+
+It does not provide:
+
+- Cryptographic authentication.
+- Tamper resistance.
+- Encryption.
+- Authorization.
+
+A journal reader validates:
+
+- Header structure and checksum.
+- Record length and configured payload bounds.
+- Record checksum.
+- Embedded protocol message.
+- Feed identity.
+- Sequence metadata consistency.
+- Timestamp ordering.
+- Authoritative sequence continuity where applicable.
+
+## 20. Incomplete Journal Tails
+
+Strict reading rejects incomplete records.
+
+The optional incomplete-tail policy permits a valid
+journal prefix followed by an incomplete final record.
+
+It must not silently accept:
+
+- Invalid checksums.
+- Invalid complete record lengths.
+- Unsupported versions.
+- Malformed complete messages.
+- Sequence violations in authoritative records.
+
+A valid prefix is not equivalent to a complete journal.
+
+## 21. Indexing and Seeking
+
+The replay application builds a sparse in-memory index.
+
+Index entries identify:
+
+- Record ordinal.
+- File offset.
+- Upstream sequence.
+- Recording timestamp.
+
+Sequence seeking identifies an exact sequence.
+
+Timestamp seeking identifies the first applicable record
+at or after the requested timestamp.
+
+Raw captures cannot assume monotonic upstream sequence
+ordering.
+
+Seeking does not modify event identity.
+
+The current index is not persisted as a separate file.
+
+## 22. Playback Semantics
+
+Supported playback modes include:
+
+- Unbounded.
+- Virtual.
+- Real-time.
+- Rationally scaled playback.
+
+Playback timing is derived from recording timestamps.
+
+The replay engine retains a pending record until its
+sink accepts delivery.
+
+Backpressure must not silently discard the pending record.
+
+Filtered or seeked playback is not automatically suitable
+for authoritative market reconstruction.
+
+## 23. Compatibility Policy
+
+Protocol and journal format changes must be reviewed
+independently.
+
+Compatibility review should address:
+
+- Version changes.
+- Header layout changes.
+- Message-kind additions.
+- Payload representation changes.
+- Reserved fields.
+- Checksum coverage.
+- Sequence semantics.
+- Timestamp semantics.
+- Existing journal readability.
+
+Maintain binary golden vectors for compatibility-sensitive
+formats.
+
+Do not infer compatibility merely because both systems
+use the same programming-language primitive types.
+
+## 24. Planck Interoperability
+
+Live Planck interoperability requires an explicit mapping
+between Planck's event representation and Maxwell's
+native domain model.
+
+The integration must reconcile:
+
+- Byte order.
+- Message framing.
+- Event-kind mappings.
+- Identifier widths.
+- Price and quantity scales.
+- Sequence ownership.
+- Feed identity.
+- Timestamp units.
+- Recovery contracts.
+
+Cross-language golden-vector tests should verify C++ and
+Rust encoding and decoding behavior.
+
+This integration is planned rather than complete.
+
+## 25. Related Documentation
 
 - [Architecture](architecture.md)
 - [Crate Reference](crates.md)
-- [Architectural Decisions](decisions.md)
+- [Concurrency](concurrency.md)
 - [Testing](testing.md)
+- [Design Decisions](decisions.md)

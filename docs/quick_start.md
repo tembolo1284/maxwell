@@ -2,73 +2,40 @@
 
 ## 1. Purpose
 
-This guide describes how to establish a development environment,
-build the Maxwell workspace, execute tests, and begin working
-on individual components.
+This guide introduces the Maxwell development environment,
+workspace validation, and operational command-line interface.
 
-The library crates have an initial implementation.
-
-The server, simulator, replay, and CLI applications remain
-under development. Commands for those applications are
-provided only when explicitly identified as planned.
+The initial applications support local simulation,
+historical recording, journal inspection, validation,
+replay, and throughput benchmarking.
 
 ## 2. Prerequisites
 
-Required development tools:
+Recommended development environment:
 
-- Git.
-- Rust stable.
+- Linux, macOS, or WSL2.
+- Current stable Rust toolchain supporting Rust 2024.
 - Cargo.
+- Git.
 - rustfmt.
 - Clippy.
-- A native linker and platform development tools.
 
-Linux is the preferred environment for performance-oriented
-development.
+Linux is recommended for future networking and performance
+engineering work.
 
-Windows through WSL2 and macOS may also be used where supported
-by the relevant transport implementations.
+Docker, Terraform, and AWS CLI are not required for the
+current local workflow.
 
-The workspace manifests and any rust-toolchain.toml file
-take precedence over this guide when determining toolchain
-requirements.
+## 3. Install Rust
 
-## 3. Linux Environment
-
-### 3.1 Ubuntu or Debian
-
-Install the basic development packages:
+If Rust is not already installed:
 
 ```bash
-sudo apt update
-
-sudo apt install -y \
-    build-essential \
-    git \
-    curl \
-    pkg-config
+curl --proto '=https' --tlsv1.2 -sSf \
+    https://sh.rustup.rs | sh
 ```
 
-Optional debugging and profiling packages:
-
-```bash
-sudo apt install -y \
-    gdb \
-    strace \
-    valgrind
-```
-
-Linux perf installation varies by distribution and kernel.
-
-Use the appropriate package for the running kernel.
-
-### 3.2 Install Rust
-
-Follow the official installation instructions:
-
-https://rustup.rs/
-
-After installation:
+Load the Cargo environment:
 
 ```bash
 source "$HOME/.cargo/env"
@@ -77,6 +44,7 @@ source "$HOME/.cargo/env"
 Install development components:
 
 ```bash
+rustup update stable
 rustup component add rustfmt clippy
 ```
 
@@ -86,644 +54,577 @@ Verify the environment:
 rustc --version
 cargo --version
 rustup show
-rustfmt --version
-cargo clippy --version
 ```
 
-Do not override a repository-pinned toolchain without
-understanding the compatibility implications.
+Record the toolchain version when reporting benchmark
+results or reproducible build problems.
 
 ## 4. Clone the Repository
 
 ```bash
 git clone https://github.com/tembolo1284/maxwell.git
-
 cd maxwell
 ```
 
 Inspect the workspace:
 
 ```bash
-git status
-
-ls
-
-ls crates
-
-cat Cargo.toml
-```
-
-Inspect recognized Cargo packages:
-
-```bash
 cargo metadata --no-deps --format-version 1
+cargo tree --workspace
 ```
 
-The workspace should contain the following library packages:
+## 5. Build and Validate
 
-```text
-maxwell-core
-maxwell-protocol
-maxwell-sequencer
-maxwell-book
-maxwell-transport
-maxwell-recovery
-maxwell-publisher
-maxwell-gateway
-maxwell-client
-maxwell-metrics
-```
-
-## 5. Build the Workspace
-
-### 5.1 Type Checking
-
-```bash
-cargo check --workspace
-```
-
-This is generally the fastest way to identify compilation
-errors during development.
-
-### 5.2 Development Build
+Development build:
 
 ```bash
 cargo build --workspace
 ```
 
-### 5.3 Release Build
+Release build:
 
 ```bash
 cargo build --workspace --release
 ```
 
-Development artifacts are normally located under:
-
-```text
-target/debug/
-```
-
-Release artifacts are normally located under:
-
-```text
-target/release/
-```
-
-The Cargo target directory may be overridden by local
-configuration or environment variables.
-
-Library builds do not necessarily produce executable
-applications.
-
-### 5.4 Individual Crate
+Complete validation:
 
 ```bash
-cargo check -p maxwell-book
-
-cargo build -p maxwell-book
-
-cargo test -p maxwell-book
-```
-
-Cargo automatically builds the dependencies required by
-the selected package.
-
-## 6. Run Tests
-
-### 6.1 Complete Workspace
-
-```bash
+cargo fmt --all -- --check
+cargo check --workspace
 cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-### 6.2 Individual Components
-
-```bash
-cargo test -p maxwell-core
-cargo test -p maxwell-protocol
-cargo test -p maxwell-sequencer
-cargo test -p maxwell-book
-cargo test -p maxwell-transport
-cargo test -p maxwell-recovery
-cargo test -p maxwell-publisher
-cargo test -p maxwell-gateway
-cargo test -p maxwell-client
-cargo test -p maxwell-metrics
-```
-
-### 6.3 Release-Mode Tests
+Release-mode tests:
 
 ```bash
 cargo test --workspace --release
 ```
 
-### 6.4 Display Test Output
-
-```bash
-cargo test -p maxwell-book -- --nocapture
-```
-
-### 6.5 List Available Tests
-
-```bash
-cargo test -p maxwell-book -- --list
-```
-
-### 6.6 Run Matching Tests
-
-```bash
-cargo test -p maxwell-metrics histogram
-```
-
-The filter selects tests whose names contain the specified
-string.
-
-### 6.7 Run a Specific Integration Test Target
-
-```bash
-cargo test -p maxwell-metrics --test concurrency
-```
-
-Integration test target names correspond to files under
-the package's tests directory.
-
-### 6.8 Sequential Test Execution
-
-```bash
-cargo test --workspace -- --test-threads=1
-```
-
-Sequential execution can help diagnose interference between
-tests that share external resources.
-
-It is not a substitute for testing concurrent behavior.
-
-## 7. Formatting and Static Analysis
-
-Apply standard Rust formatting:
-
-```bash
-cargo fmt --all
-```
-
-Check formatting without modifying files:
-
-```bash
-cargo fmt --all -- --check
-```
-
-Run Clippy:
-
-```bash
-cargo clippy --workspace --all-targets -- -D warnings
-```
-
-Run Clippy for one component:
-
-```bash
-cargo clippy -p maxwell-publisher --all-targets -- -D warnings
-```
-
-Warnings should be investigated rather than globally disabled.
-
-Any narrowly scoped lint suppression should have a clear
-technical justification.
-
-## 8. Generate API Documentation
-
-```bash
-cargo doc --workspace --no-deps
-```
-
-Open generated documentation:
+Generate API documentation:
 
 ```bash
 cargo doc --workspace --no-deps --open
 ```
 
-Documentation is normally generated under:
+## 6. Install the Maxwell CLI
 
-```text
-target/doc/
-```
-
-For individual packages:
+Build the executable:
 
 ```bash
-cargo doc -p maxwell-recovery --no-deps --open
+cargo build --release -p maxwell-cli
 ```
 
-Generated Rust documentation is the preferred reference
-for exact public API signatures.
-
-## 9. First Example: Metrics
-
-The following example demonstrates a standalone Maxwell
-library component without requiring network connectivity
-or a running matching engine.
-
-Create:
-
-```text
-crates/maxwell-metrics/examples/basic.rs
-```
-
-```rust
-use maxwell_metrics::{
-    histogram::LATENCY_BOUNDS_NS,
-    write_prometheus,
-    MetricsRegistry,
-};
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut metrics = MetricsRegistry::<24>::new(4)?;
-
-    let received = metrics.register_counter(
-        "maxwell_messages_received_total",
-    )?;
-
-    let latency = metrics.register_histogram(
-        "maxwell_processing_latency_nanoseconds",
-        LATENCY_BOUNDS_NS,
-    )?;
-
-    for value in [100, 200, 300, 400, 500] {
-        metrics.increment(received)?;
-        metrics.record(latency, value)?;
-    }
-
-    let snapshot = metrics.histogram(latency)?.snapshot();
-
-    println!("Observations: {}", snapshot.count);
-    println!("Mean: {:?} ns", snapshot.mean());
-    println!("P99: {:?} ns", snapshot.p99());
-
-    let stdout = std::io::stdout();
-    let mut writer = stdout.lock();
-
-    write_prometheus(&mut writer, metrics.snapshots())?;
-
-    Ok(())
-}
-```
-
-Run the example:
+Run directly from the workspace:
 
 ```bash
-cargo run -p maxwell-metrics --example basic
+./target/release/maxwell help
 ```
 
-Expected summary:
+Alternatively, install the executable:
+
+```bash
+cargo install --path apps/maxwell-cli
+```
+
+Ensure the Cargo binary directory is on PATH:
+
+```bash
+export PATH="$HOME/.cargo/bin:$PATH"
+```
+
+Verify installation:
+
+```bash
+maxwell version
+maxwell help
+```
+
+The remaining examples assume the installed executable
+is available on PATH.
+
+## 7. Available Commands
+
+| Command | Purpose |
+|---------|---------|
+| help | Display usage |
+| version | Display version |
+| scenarios | List simulation scenarios |
+| simulate | Execute a simulation |
+| record | Record market events |
+| inspect | Inspect journal metadata |
+| validate | Validate journal contents |
+| replay | Replay historical events |
+| benchmark | Measure simulator throughput |
+
+## 8. Run Your First Simulation
+
+List predefined scenarios:
+
+```bash
+maxwell scenarios
+```
+
+Execute a deterministic smoke workload:
+
+```bash
+maxwell simulate \
+    --scenario smoke \
+    --events 1000 \
+    --seed 42
+```
+
+The output includes:
+
+- Selected scenario.
+- Random seed.
+- Generated and delivered events.
+- Event-type counts.
+- Resting order counts.
+- Delivery fault statistics.
+- Elapsed time and throughput.
+- Completion status.
+
+The same seed and configuration reproduce the logical
+market workload.
+
+Elapsed time and measured throughput may differ.
+
+## 9. Record Historical Market Data
+
+Create a local data directory:
+
+```bash
+mkdir -p data
+```
+
+Record a clean market stream:
+
+```bash
+maxwell record \
+    --scenario smoke \
+    --events 10000 \
+    --seed 42 \
+    --output data/market.mxj
+```
+
+The default recording mode is Authoritative.
+
+An authoritative journal requires contiguous upstream
+event ordering.
+
+The output file must not already exist.
+
+Use a different filename for subsequent recordings.
+
+## 10. Configure Recording Durability
+
+Flush buffered data periodically:
+
+```bash
+maxwell record \
+    --scenario clean \
+    --events 100000 \
+    --seed 42 \
+    --flush-every 1024 \
+    --output data/flushed.mxj
+```
+
+Synchronize file data periodically:
+
+```bash
+maxwell record \
+    --scenario clean \
+    --events 100000 \
+    --seed 42 \
+    --sync-every 4096 \
+    --durable \
+    --output data/durable.mxj
+```
+
+The durability options have different meanings:
+
+| Option | Meaning |
+|--------|---------|
+| --flush-every N | Flush after every N records |
+| --sync-every N | Synchronize file data after every N records |
+| --durable | Synchronize file data at successful completion |
+
+Flush and sync intervals are mutually exclusive.
+
+Flushing does not guarantee persistence across power loss.
+
+File-data synchronization does not guarantee directory-entry
+durability.
+
+## 11. Inspect a Journal
+
+```bash
+maxwell inspect data/market.mxj
+```
+
+Inspection displays:
+
+- Journal mode.
+- Recording identifier.
+- Creation timestamp.
+- Stream and session identifiers.
+- Maximum payload size.
+- File size.
+
+Inspection validates the header without scanning every
+record.
+
+Use the validate command for full journal validation.
+
+## 12. Validate a Journal
+
+```bash
+maxwell validate data/market.mxj
+```
+
+Validation checks the complete journal for:
+
+- Supported format version.
+- Record lengths.
+- Integrity checksums.
+- Protocol decoding.
+- Feed identity.
+- Recording timestamp ordering.
+- Authoritative sequence continuity.
+
+Successful strict validation reports:
 
 ```text
-Observations: 5
-Mean: Some(300) ns
-P99: Some(500) ns
+Status: VALID
 ```
 
-The remaining output contains Prometheus-compatible metric
-samples.
+For a journal with an incomplete final record:
 
-The example uses synthetic latency values and does not
-measure actual processing performance.
-
-## 10. First Example: Publisher
-
-Create:
-
-```text
-crates/maxwell-publisher/examples/basic.rs
+```bash
+maxwell validate data/market.mxj \
+    --allow-incomplete-tail
 ```
 
-```rust
-use maxwell_publisher::{
-    EventKind,
-    Publisher,
-    PublisherConfig,
-    SubscriberId,
-    SubscriptionFilter,
-};
+This option permits a valid prefix followed by an
+incomplete final record.
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut publisher =
-        Publisher::<u32, u64>::new(
-            PublisherConfig::default(),
-        )?;
+It does not permit arbitrary corruption or checksum
+failures.
 
-    let subscriber = SubscriberId::new(1);
+## 13. Replay Historical Events
 
-    publisher.subscribe(
-        subscriber,
-        SubscriptionFilter::all(),
-    )?;
+Replay the entire journal without wall-clock delays:
 
-    let watermark = publisher.last_sequence();
-
-    publisher.activate(subscriber, watermark)?;
-
-    publisher.publish(
-        Some(1001),
-        EventKind::Trade,
-        0,
-        42,
-    )?;
-
-    while let Some(publication) =
-        publisher.pop(subscriber)?
-    {
-        println!("{publication:?}");
-    }
-
-    Ok(())
-}
+```bash
+maxwell replay data/market.mxj \
+    --speed unbounded
 ```
+
+Require authoritative replay:
+
+```bash
+maxwell replay data/market.mxj \
+    --authoritative \
+    --speed unbounded
+```
+
+Virtual playback:
+
+```bash
+maxwell replay data/market.mxj \
+    --speed virtual
+```
+
+Real-time playback:
+
+```bash
+maxwell replay data/market.mxj \
+    --speed realtime
+```
+
+Ten-times accelerated playback:
+
+```bash
+maxwell replay data/market.mxj \
+    --speed 10
+```
+
+Half-speed playback:
+
+```bash
+maxwell replay data/market.mxj \
+    --speed 1/2
+```
+
+Playback speed affects timing rather than event identity
+or sequence values.
+
+The initial CLI replay sink prints or discards records.
+It does not publish them to a remote server.
+
+## 14. Filter and Seek
+
+Replay events for one instrument:
+
+```bash
+maxwell replay data/market.mxj \
+    --instrument 1 \
+    --print-events
+```
+
+Replay an inclusive sequence range:
+
+```bash
+maxwell replay data/market.mxj \
+    --from-sequence 100 \
+    --to-sequence 200 \
+    --print-events
+```
+
+Seek to an exact upstream sequence:
+
+```bash
+maxwell replay data/market.mxj \
+    --seek-sequence 5000
+```
+
+Seek by relative recording timestamp:
+
+```bash
+maxwell replay data/market.mxj \
+    --seek-time 1000000
+```
+
+Configure the processing batch size:
+
+```bash
+maxwell replay data/market.mxj \
+    --batch-size 256
+```
+
+Disable index construction for sequential playback:
+
+```bash
+maxwell replay data/market.mxj \
+    --no-index
+```
+
+Seeking requires an index.
+
+Filtering and seeking cannot be combined with the
+authoritative replay option.
+
+A partial stream requires an appropriate market baseline
+before it can reconstruct authoritative state.
+
+## 15. Simulate Delivery Faults
+
+Execute a faulty workload:
+
+```bash
+maxwell simulate \
+    --scenario mixed-faults \
+    --events 10000 \
+    --seed 42
+```
+
+Record the original delivery order:
+
+```bash
+maxwell record \
+    --scenario mixed-faults \
+    --events 10000 \
+    --seed 42 \
+    --raw \
+    --output data/faulty.mxj
+```
+
+Validate the raw capture:
+
+```bash
+maxwell validate data/faulty.mxj
+```
+
+Replay the captured arrival order:
+
+```bash
+maxwell replay data/faulty.mxj \
+    --speed unbounded
+```
+
+Raw captures may contain gaps, duplicates, and reordered
+upstream sequences.
+
+A valid raw capture is not necessarily a complete
+authoritative market stream.
+
+## 16. Benchmark Simulator Throughput
+
+Use a release executable:
+
+```bash
+cargo build --release -p maxwell-cli
+```
+
+Execute a reproducible benchmark:
+
+```bash
+./target/release/maxwell benchmark \
+    --scenario high-throughput \
+    --events 1000000 \
+    --seed 42 \
+    --iterations 5 \
+    --warmup 2
+```
+
+The benchmark reports:
+
+- Minimum throughput.
+- Median throughput.
+- Maximum throughput.
+- Mean throughput.
+- Aggregate throughput.
+- Total measured events.
+- Total measured execution time.
+
+The measurement covers simulator generation and local
+sink delivery.
+
+It excludes simulator initialization, post-run consistency
+validation, network communication, and journal persistence.
+
+See [Performance](performance.md) for measurement guidance.
+
+## 17. Working with Individual Packages
+
+Test the order book:
+
+```bash
+cargo test -p maxwell-book
+```
+
+Test the simulator:
+
+```bash
+cargo test -p maxwell-simulator
+```
+
+Test historical persistence and replay:
+
+```bash
+cargo test -p maxwell-replay
+```
+
+Test the CLI:
+
+```bash
+cargo test -p maxwell-cli
+```
+
+Run strict Clippy for one package:
+
+```bash
+cargo clippy -p maxwell-cli --all-targets -- -D warnings
+```
+
+## 18. Troubleshooting
+
+### Command Not Found
+
+Verify installation:
+
+```bash
+ls "$HOME/.cargo/bin/maxwell"
+echo "$PATH"
+```
+
+Alternatively, execute the binary directly from
+target/release.
+
+### Output File Already Exists
+
+Recording deliberately refuses to overwrite an existing
+journal.
+
+Choose a new output filename.
+
+### Unsupported Rust Features
+
+Update the stable toolchain:
+
+```bash
+rustup update stable
+```
+
+Verify the selected toolchain:
+
+```bash
+rustup show
+```
+
+### Clippy Warnings
 
 Run:
 
 ```bash
-cargo run -p maxwell-publisher --example basic
-```
-
-This example uses synthetic instrument identifiers and
-payloads to demonstrate the generic publisher interface.
-
-It is not a complete market data subscription protocol.
-
-The activation step is appropriate for this empty synthetic
-state. Real sessions require coordinated snapshot delivery.
-
-## 11. Working with Individual Crates
-
-Recommended workflow:
-
-```bash
-git checkout main
-
-git pull origin main
-
-git checkout -b feature/book-improvement
-```
-
-Inspect the relevant component:
-
-```bash
-ls crates/maxwell-book/src
-
-ls crates/maxwell-book/tests
-
-cat crates/maxwell-book/Cargo.toml
-```
-
-Make the required changes.
-
-Run focused validation:
-
-```bash
-cargo fmt --all
-
-cargo check -p maxwell-book
-
-cargo test -p maxwell-book
-
-cargo clippy -p maxwell-book \
-    --all-targets -- -D warnings
-```
-
-Then validate the entire workspace:
-
-```bash
-cargo check --workspace
-
-cargo test --workspace
-```
-
-Changes to a lower-level crate may affect several
-downstream components.
-
-## 12. Inspect Dependencies
-
-Display the workspace dependency tree:
-
-```bash
-cargo tree --workspace
-```
-
-Display one package's dependencies:
-
-```bash
-cargo tree -p maxwell-client
-```
-
-Display reverse dependencies:
-
-```bash
-cargo tree -i maxwell-core
-```
-
-Identify duplicate dependency versions:
-
-```bash
-cargo tree --duplicates
-```
-
-The Cargo manifests and generated dependency tree are the
-authoritative references for actual crate dependencies.
-
-## 13. Debugging
-
-### 13.1 Backtraces
-
-```bash
-RUST_BACKTRACE=1 cargo test -p maxwell-book
-```
-
-For a more detailed backtrace:
-
-```bash
-RUST_BACKTRACE=full cargo test -p maxwell-book
-```
-
-### 13.2 Inspect Compiler Diagnostics
-
-```bash
-cargo check -p maxwell-book
-```
-
-Resolve the earliest relevant compilation error before
-investigating secondary errors.
-
-### 13.3 Inspect Build Commands
-
-```bash
-cargo build -p maxwell-book -vv
-```
-
-### 13.4 Clean Build Artifacts
-
-```bash
-cargo clean
-```
-
-Cleaning the workspace removes generated build artifacts.
-
-Use this when investigating stale artifacts or build
-configuration problems, not as a routine response to
-ordinary compilation errors.
-
-## 14. Common Build Problems
-
-### 14.1 Missing Workspace Package Metadata
-
-Example:
-
-```text
-error inheriting repository from workspace root manifest
-```
-
-A crate may contain:
-
-```toml
-repository.workspace = true
-```
-
-The workspace root must then define the corresponding
-metadata under its existing workspace.package section.
-
-```toml
-[workspace.package]
-repository = "https://github.com/tembolo1284/maxwell"
-```
-
-Alternatively, remove the inherited field if repository
-metadata is not required.
-
-Do not create a duplicate workspace.package table.
-
-### 14.2 Package Not Found
-
-Example:
-
-```text
-package ID specification did not match any packages
-```
-
-Check:
-
-- The package name in its Cargo.toml.
-- Workspace member declarations.
-- Workspace exclusion rules.
-- The current working directory.
-
-### 14.3 Unused Internal Methods
-
-Example:
-
-```text
-warning: method is never used
-```
-
-Determine whether the method is:
-
-- Required by upcoming integration.
-- Accidentally unused.
-- Redundant.
-- Intended only for tests.
-
-Remove redundant code or use a narrowly scoped lint
-suppression with an appropriate explanation.
-
-Do not make internal methods public solely to suppress
-dead-code warnings.
-
-### 14.4 Workspace Formatting Failure
-
-cargo fmt requires valid Cargo manifests.
-
-Resolve manifest parsing and workspace metadata errors
-before retrying formatting.
-
-### 14.5 Linker Not Found
-
-On Ubuntu or Debian, verify that build-essential is
-installed.
-
-Other platforms require their corresponding native
-development toolchain.
-
-## 15. Planned Application Startup
-
-The following package commands describe the intended
-application entry points.
-
-They will become available after the corresponding
-packages are implemented and registered in the workspace.
-
-```bash
-cargo run -p maxwell-server --release
-
-cargo run -p maxwell-simulator --release
-
-cargo run -p maxwell-replay --release
-
-cargo run -p maxwell-cli --release
-```
-
-Command-line arguments, configuration file formats,
-network addresses, and startup ordering remain to be
-finalized.
-
-Do not assume these commands currently start a functioning
-integrated system.
-
-## 16. Recommended Daily Development Commands
-
-```bash
-cargo fmt --all
-
-cargo check --workspace
-
-cargo test --workspace
-
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-Before submitting a significant change:
+Correct the underlying warning rather than introducing
+unnecessary lint suppressions.
+
+### Invalid Journal
+
+Run strict validation:
 
 ```bash
-cargo fmt --all -- --check
+maxwell validate data/market.mxj
+```
 
+Preserve the original journal for investigation.
+
+Do not modify historical data merely to make validation
+succeed.
+
+## 19. Recommended Daily Development Workflow
+
+```bash
+cargo fmt --all
 cargo check --workspace
-
-cargo clippy --workspace --all-targets -- -D warnings
-
 cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+```
 
+Before a performance measurement:
+
+```bash
+cargo build --workspace --release
+```
+
+Before a milestone release:
+
+```bash
 cargo test --workspace --release
-
 cargo doc --workspace --no-deps
 ```
 
-## 17. Developer Onboarding Checklist
+## 20. Deployment Status
 
-- [ ] Clone the repository.
-- [ ] Verify the Rust toolchain.
-- [ ] Inspect the workspace manifests.
-- [ ] Build the workspace.
-- [ ] Run all workspace tests.
-- [ ] Run Clippy.
-- [ ] Generate Rust API documentation.
-- [ ] Read the architecture document.
-- [ ] Review the crate reference.
-- [ ] Review the architectural decisions.
-- [ ] Review the concurrency requirements.
-- [ ] Identify the component being maintained.
-- [ ] Review its unit and integration tests.
-- [ ] Create a development branch.
+The current quick-start workflow is local.
 
-## 18. Related Documentation
+Distributed producer-to-server communication, Docker
+deployment, Terraform infrastructure, AWS integration,
+and live Planck interoperability are planned for Phase III.
+
+See [Roadmap](roadmap.md) for implementation sequencing.
+
+## 21. Related Documentation
 
 - [Architecture](architecture.md)
 - [Crate Reference](crates.md)
+- [Operations](operations.md)
 - [Testing](testing.md)
 - [Performance](performance.md)
-- [Operations](operations.md)
+- [Roadmap](roadmap.md)

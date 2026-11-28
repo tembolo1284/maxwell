@@ -1,962 +1,693 @@
-# Maxwell Operations and Observability
+# Maxwell Operations
 
 ## 1. Purpose
 
-This document defines Maxwell's intended operational model,
-configuration requirements, monitoring strategy, deployment
-considerations, and incident response procedures.
+This document describes Maxwell's operational workflows,
+configuration, capacity planning, diagnostics, monitoring,
+failure handling, and deployment requirements.
 
-The foundational library crates are implemented in initial
-form.
+The current operational environment is local.
 
-The integrated server, runtime configuration, network
-listeners, deployment automation, and monitoring endpoints
-remain application-level development work.
-
-Operational procedures in this document describe the
-intended production model unless explicitly identified
-as currently available.
+Distributed networking, container deployment, and AWS
+infrastructure are planned development workstreams.
 
 ## 2. Operational Objectives
 
-Maxwell should provide:
+- Preserve market data correctness.
+- Detect synchronization failures.
+- Maintain bounded resource consumption.
+- Make backpressure observable.
+- Preserve historical data integrity.
+- Support reproducible workload execution.
+- Provide actionable diagnostics.
+- Support controlled startup and shutdown.
 
-- Predictable startup and shutdown.
-- Explicit configuration validation.
-- Bounded runtime resource consumption.
-- Observable synchronization state.
-- Observable overload behavior.
-- Reliable recovery procedures.
-- Clear diagnostic information.
-- Independent failure isolation where possible.
-- Reproducible deployment configuration.
+## 3. Operational Interface
 
-The primary operational requirement is market data
-correctness.
+The maxwell-cli package provides the maxwell executable.
 
-An unavailable or explicitly stale feed is preferable
-to silently distributing inconsistent market state.
-
-## 3. Deployment Architecture
-
-```mermaid
-flowchart LR
-    P["Planck Matching Engine"]
-    M["Maxwell Server"]
-    C1["Trading Consumer"]
-    C2["Analytics Consumer"]
-    C3["Diagnostic Client"]
-    O["Monitoring Infrastructure"]
-
-    P -->|Market Data| M
-    M -->|Recovery Requests| P
-
-    M --> C1
-    M --> C2
-    M --> C3
-
-    M -->|Metrics and Logs| O
+```bash
+cargo install --path apps/maxwell-cli
 ```
 
-Deployment may initially use a single Maxwell process.
+| Command | Operational Purpose |
+|---------|---------------------|
+| scenarios | Discover supported workloads |
+| simulate | Exercise market generation |
+| record | Persist synthetic market data |
+| inspect | Inspect journal metadata |
+| validate | Validate historical records |
+| replay | Execute historical playback |
+| benchmark | Measure local simulator throughput |
 
-Additional processes or partitions should be introduced
-according to measured capacity and operational requirements.
+See [Quick Start](quick_start.md) for complete command
+examples.
 
 ## 4. Configuration
 
-Runtime configuration should be validated before network
-connections and processing loops are started.
+### 4.1 Server Configuration
 
-Configuration should be explicit, reproducible, and
-version-controlled where appropriate.
+Server configuration controls application lifecycle,
+market capacity, recovery, publication, and downstream
+session resources.
 
-Secrets must not be committed to the repository.
+Important configuration categories include:
 
-### 4.1 Configuration Categories
+- Maximum registered instruments.
+- Maximum resting orders.
+- Price-level capacity.
+- Recovery buffer limits.
+- Subscriber limits.
+- Subscriber queue capacity.
+- Publication backpressure policy.
+- Downstream session resources.
 
-| Category | Examples |
-|----------|----------|
-| Application | Instance identity, environment |
-| Upstream | Feed identity, transport endpoints |
-| Protocol | Supported version, message size limits |
-| Book | Instrument and state capacity |
-| Sequencing | Initial state and stream scope |
-| Recovery | Buffer capacity, retry policy |
-| Publisher | Subscriber limits, queue capacity |
-| Gateway | Session capacity, delivery limits |
-| Metrics | Collection interval, export configuration |
-| Logging | Severity, destination |
-| Runtime | Thread topology, affinity |
-| Shutdown | Drain deadline, termination policy |
+Dense price-level capacity must accommodate the complete
+instrument price band.
 
-### 4.2 Proposed Configuration Format
+The current server configuration is constructed through
+Rust application interfaces.
 
-The following TOML is an illustrative configuration
-proposal.
+A unified external production configuration file remains
+future work.
 
-The server configuration parser has not yet established
-these field names as a supported interface.
+### 4.2 Simulator Configuration
 
-```toml
-[application]
-instance_id = "maxwell-local"
-environment = "development"
+The simulator exposes predefined scenarios and configurable
+workload parameters.
 
-[upstream]
-transport = "tcp"
-address = "127.0.0.1:9000"
-feed_id = 1
+Common CLI options:
 
-[protocol]
-max_message_bytes = 65536
+| Option | Purpose |
+|--------|---------|
+| --scenario | Select predefined workload |
+| --events | Override event count |
+| --seed | Override deterministic seed |
+| --stream-id | Select upstream stream |
+| --session-id | Select upstream session |
 
-[recovery]
-buffer_capacity = 65536
-max_retries = 3
-request_timeout_ms = 1000
+The underlying simulator configuration additionally
+controls market structure, event distribution, pacing,
+fault injection, and resource limits.
 
-[publisher]
-max_subscribers = 64
-queue_capacity = 4096
-max_instruments_per_subscription = 256
-backpressure_policy = "require_resync"
+### 4.3 Journal Configuration
 
-[gateway]
-listen_address = "127.0.0.1:9100"
-max_sessions = 64
+Recording options include:
 
-[metrics]
-enabled = true
-listen_address = "127.0.0.1:9200"
-collection_interval_ms = 1000
+| Option | Purpose |
+|--------|---------|
+| --output | Journal destination |
+| --raw | Select raw-capture mode |
+| --recording-id | Identify recording |
+| --flush-every | Periodic buffered flush |
+| --sync-every | Periodic file-data synchronization |
+| --durable | Synchronize at completion |
 
-[logging]
-level = "info"
+Existing files are not overwritten.
 
-[runtime]
-processing_threads = 1
+The journal writer exposes additional buffer and payload
+configuration through its Rust interfaces.
 
-[shutdown]
-drain_timeout_ms = 5000
-```
+### 4.4 Replay Configuration
 
-Addresses, ports, timeout values, and application
-configuration keys are proposed examples.
+Replay options include:
 
-Publisher capacity values reflect the initial publisher
-defaults.
+| Option | Purpose |
+|--------|---------|
+| --speed | Playback pacing |
+| --instrument | Instrument filter |
+| --from-sequence | Inclusive lower sequence filter |
+| --to-sequence | Inclusive upper sequence filter |
+| --from-time | Inclusive lower timestamp filter |
+| --to-time | Inclusive upper timestamp filter |
+| --seek-sequence | Exact sequence seek |
+| --seek-time | Timestamp seek |
+| --batch-size | Processing budget |
+| --print-events | Display delivered records |
+| --authoritative | Require authoritative stream |
+| --no-index | Disable sparse indexing |
+| --allow-incomplete-tail | Permit valid journal prefix |
 
-### 4.3 Configuration Validation
-
-Validate:
-
-- Required fields.
-- Supported transport types.
-- Valid endpoint representations.
-- Positive capacities.
-- Compatible session and subscriber limits.
-- Valid timeout values.
-- Supported backpressure policies.
-- Arithmetic overflow in capacity calculations.
-- Compatible protocol configuration.
-- Resource requirements.
-
-Reject invalid configuration before accepting market data.
-
-### 4.4 Configuration Changes
-
-Configuration changes should be classified as:
-
-- Safe runtime changes.
-- Changes requiring component reinitialization.
-- Changes requiring process restart.
-- Changes requiring protocol coordination.
-
-Capacity, sequencing, financial representation, and
-recovery configuration changes may affect correctness.
-
-Hot configuration reload must not be introduced without
-explicit state-transition semantics.
+The replay engine additionally exposes a configurable
+backpressure-attempt budget.
 
 ## 5. Capacity Planning
 
-Resource requirements depend on:
+Resource limits should be selected according to workload
+requirements.
+
+Important dimensions include:
 
 - Instrument count.
-- Order book depth.
+- Resting orders per instrument.
+- Price levels per instrument.
+- Event rate.
 - Subscriber count.
-- Publication payload size.
 - Subscriber queue capacity.
+- Recovery history length.
 - Recovery buffer capacity.
-- Session capacity.
-- Transport buffer sizes.
-- Snapshot size.
-- Telemetry storage.
+- Journal retention.
+- Disk throughput.
+- Sparse index capacity.
 
-### 5.1 Subscriber Queue Memory
+Approximate subscriber queue memory:
 
-A first-order estimate is:
+    Subscriber count
+    x Queue capacity
+    x Stored publication size
 
-```text
-queue_memory =
-    subscriber_count
-    * queue_capacity
-    * publication_entry_size
+Approximate dense ladder memory:
+
+    Instrument count
+    x Price levels per instrument
+    x Stored price-level size
+
+These estimates exclude allocator overhead, metadata,
+and additional component state.
+
+Actual memory usage must be measured.
+
+### 5.1 Journal Storage Estimation
+
+For an average encoded message size of P bytes and
+N recorded events:
+
+    Journal bytes = 64 + N x (P + 24)
+
+For example, assuming an average encoded message size
+of 65 bytes:
+
+    One million events = 89,000,064 bytes
+
+At a sustained recording rate of 100,000 events per second:
+
+    Approximately 8.9 MB per second
+    Approximately 32.04 GB per hour
+
+These are illustrative uncompressed storage estimates,
+not measured Maxwell throughput results.
+
+## 6. Local Startup Procedure
+
+Validate the workspace:
+
+```bash
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-For illustration:
+Build release binaries:
 
-```text
-Subscribers:          64
-Entries per queue:    4,096
-Entry size:           64 bytes
-
-Estimated payload storage:
-64 * 4,096 * 64 = 16,777,216 bytes
-
-Approximately 16 MiB
+```bash
+cargo build --workspace --release
 ```
 
-This excludes allocator overhead, queue metadata,
-subscription filters, transport buffers, and other state.
+Execute a smoke workload:
 
-The actual entry size depends on the instantiated Rust
-publication types.
-
-### 5.2 Recovery Buffer Memory
-
-```text
-recovery_memory =
-    feed_count
-    * recovery_buffer_capacity
-    * buffered_event_size
+```bash
+./target/release/maxwell simulate \
+    --scenario smoke \
+    --events 1000 \
+    --seed 42
 ```
 
-Recovery buffers must be included in peak memory estimates.
+Verify:
 
-Multiple feeds may enter recovery simultaneously.
+- Successful process exit.
+- Completed simulation status.
+- Consistent event accounting.
+- No unexpected backpressure.
+- No unexpected operational errors.
 
-### 5.3 Queue Sizing
+## 7. Historical Recording Runbook
 
-A simplified burst capacity estimate is:
+Create a dedicated recording directory:
 
-```text
-required_entries =
-    max(0, arrival_rate - service_rate)
-    * burst_duration
+```bash
+mkdir -p data
 ```
 
-For example:
+Record a clean stream:
 
-```text
-Arrival rate:    200,000 events/s
-Service rate:    150,000 events/s
-Burst duration:  0.1 seconds
-
-Required temporary capacity:
-5,000 entries
+```bash
+maxwell record \
+    --scenario clean \
+    --events 100000 \
+    --seed 42 \
+    --output data/session-001.mxj \
+    --flush-every 1024 \
+    --durable
 ```
 
-This estimate assumes constant rates during the burst.
+Inspect the completed journal:
 
-Real workloads require measured arrival distributions
-and an appropriate safety margin.
-
-Larger queues may reduce immediate rejection while
-increasing queueing latency.
-
-Queue capacity must not be treated as a substitute for
-adequate processing capacity.
-
-## 6. Startup Procedure
-
-The intended startup sequence is:
-
-```mermaid
-flowchart TD
-    A["Load Configuration"]
-    B["Validate Configuration"]
-    C["Allocate Bounded Resources"]
-    D["Initialize Components"]
-    E["Establish Upstream Connectivity"]
-    F["Synchronize Market State"]
-    G["Enable Synchronized Distribution"]
-    H["Ready"]
-
-    A --> B --> C --> D --> E --> F --> G --> H
+```bash
+maxwell inspect data/session-001.mxj
 ```
 
-A running process is not necessarily a ready market
-data service.
+Validate all records:
 
-The application must distinguish successful process
-initialization from successful feed synchronization.
-
-### 6.1 Startup Checks
-
-- Configuration is valid.
-- Required resources are available.
-- Transport endpoints are accessible.
-- Protocol configuration is compatible.
-- Feed identity is correct.
-- Initial synchronization completes.
-- Required monitoring is available.
-- Downstream readiness is correctly advertised.
-
-## 7. Health and Readiness
-
-The application should distinguish the following
-operational concepts.
-
-| State | Meaning |
-|-------|---------|
-| Starting | Initialization is in progress |
-| Unsynchronized | Market state is not yet valid |
-| Ready | Required synchronization is established |
-| Degraded | Some functionality is unavailable |
-| Recovering | Synchronization restoration is active |
-| Stopping | Controlled shutdown is in progress |
-| Failed | Required functionality cannot continue |
-
-These are proposed operational categories rather than
-exact existing application state variants.
-
-### 7.1 Liveness
-
-Liveness indicates whether the process is functioning.
-
-### 7.2 Readiness
-
-Readiness indicates whether the service can perform
-its required market data responsibilities.
-
-A live process may be unready during recovery.
-
-### 7.3 Feed-Level Health
-
-When multiple independent feeds are supported, health
-should be available at feed scope.
-
-A process-wide ready flag may be insufficient to describe
-partial feed failure.
-
-## 8. Observability
-
-Maxwell's metrics crate provides:
-
-- Saturating counters.
-- Signed gauges.
-- Fixed-capacity latency histograms.
-- Atomic counters.
-- Bounded metric registration.
-- Owned metric snapshots.
-- Prometheus-compatible text exposition.
-
-The application is responsible for collecting component
-statistics and exposing them through operational interfaces.
-
-## 9. Proposed Operational Metrics
-
-Metric names below are recommended application-level
-names.
-
-They must be reconciled with the final server
-instrumentation.
-
-### 9.1 Ingestion
-
-| Metric | Type |
-|--------|------|
-| maxwell_messages_received_total | Counter |
-| maxwell_bytes_received_total | Counter |
-| maxwell_messages_decoded_total | Counter |
-| maxwell_decode_errors_total | Counter |
-| maxwell_transport_errors_total | Counter |
-
-### 9.2 Sequencing
-
-| Metric | Type |
-|--------|------|
-| maxwell_sequence_gaps_total | Counter |
-| maxwell_duplicate_events_total | Counter |
-| maxwell_out_of_order_events_total | Counter |
-| maxwell_events_processed_total | Counter |
-| maxwell_events_rejected_total | Counter |
-
-### 9.3 Recovery
-
-| Metric | Type |
-|--------|------|
-| maxwell_recovery_requests_total | Counter |
-| maxwell_recovery_completed_total | Counter |
-| maxwell_recovery_failures_total | Counter |
-| maxwell_recovery_buffer_depth | Gauge |
-| maxwell_recovering_feeds | Gauge |
-| maxwell_recovery_duration_seconds | Histogram |
-
-### 9.4 Publication
-
-| Metric | Type |
-|--------|------|
-| maxwell_publications_accepted_total | Counter |
-| maxwell_publications_rejected_total | Counter |
-| maxwell_deliveries_enqueued_total | Counter |
-| maxwell_deliveries_dequeued_total | Counter |
-| maxwell_deliveries_discarded_total | Counter |
-| maxwell_deliveries_missed_total | Counter |
-| maxwell_subscriber_invalidations_total | Counter |
-| maxwell_subscriber_queue_high_watermark | Gauge |
-
-### 9.5 Sessions
-
-| Metric | Type |
-|--------|------|
-| maxwell_active_sessions | Gauge |
-| maxwell_active_subscribers | Gauge |
-| maxwell_sessions_created_total | Counter |
-| maxwell_sessions_closed_total | Counter |
-| maxwell_session_errors_total | Counter |
-
-### 9.6 Latency
-
-| Metric | Type |
-|--------|------|
-| maxwell_decode_latency_nanoseconds | Histogram |
-| maxwell_book_latency_nanoseconds | Histogram |
-| maxwell_processing_latency_nanoseconds | Histogram |
-| maxwell_publication_latency_nanoseconds | Histogram |
-
-The current histogram implementation records integer
-observations and exports their original units.
-
-For metrics named with a seconds suffix, the application
-must provide a correctly defined conversion or exporter
-representation. It must not export nanosecond values
-under a seconds metric name.
-
-Prometheus generally recommends base units such as seconds.
-The initial Maxwell implementation retains integer
-nanoseconds for precision and simplicity.
-
-## 10. Metrics Collection Policy
-
-Prefer owner-local recording.
-
-```mermaid
-flowchart TD
-    A["Ingestion Metrics"]
-    B["Processing Metrics"]
-    C["Publisher Metrics"]
-    D["Session Metrics"]
-
-    A --> E["Telemetry Collector"]
-    B --> E
-    C --> E
-    D --> E
-
-    E --> F["Text Exporter"]
-    F --> G["Monitoring Endpoint"]
+```bash
+maxwell validate data/session-001.mxj
 ```
 
-The collector must obtain metrics through safe,
-explicit ownership or synchronization mechanisms.
+Record the following operational metadata:
 
-Do not read concurrently mutated non-atomic metrics
-through unsynchronized shared memory.
+- Application version.
+- Scenario.
+- Seed.
+- Feed identity.
+- Recording identifier.
+- Event count.
+- Journal size.
+- Durability policy.
+- Validation result.
 
-### 10.1 Cumulative Counters
+A journal should not be treated as successfully finalized
+until the recording command has completed successfully.
 
-Counters intended for Prometheus should normally remain
-cumulative for the process lifetime.
+## 8. Historical Replay Runbook
 
-Counter resets must be interpreted correctly by the
-monitoring system.
+Validate the source journal:
 
-### 10.2 Interval Metrics
-
-Interval collection may use explicit reset or take
-operations.
-
-Interval values must not be exposed as cumulative counters
-without an appropriate accumulation mechanism.
-
-### 10.3 Histogram Aggregation
-
-Aggregate compatible histogram observations before
-calculating combined percentiles.
-
-Do not average percentiles across threads.
-
-### 10.4 Cardinality
-
-Avoid unrestricted metric creation per instrument,
-subscriber, or event.
-
-The initial registry uses bounded registration and
-static metric names.
-
-Any future label support must include a cardinality
-policy.
-
-## 11. Prometheus Integration
-
-The current metrics crate provides text exposition.
-
-An HTTP endpoint remains to be implemented by the server
-or a dedicated reporting component.
-
-An illustrative future Prometheus configuration:
-
-```yaml
-global:
-  scrape_interval: 5s
-
-scrape_configs:
-  - job_name: maxwell
-    static_configs:
-      - targets:
-          - "127.0.0.1:9200"
+```bash
+maxwell validate data/session-001.mxj
 ```
 
-The endpoint address is a proposed example.
+Replay the authoritative stream:
 
-The metrics endpoint should not be publicly exposed
-without an appropriate network security policy.
-
-## 12. Example Monitoring Queries
-
-The following PromQL queries assume the proposed metric
-names have been implemented.
-
-### 12.1 Ingestion Rate
-
-```promql
-rate(maxwell_messages_received_total[1m])
+```bash
+maxwell replay data/session-001.mxj \
+    --authoritative \
+    --speed unbounded
 ```
 
-### 12.2 Processing Rate
+Verify:
 
-```promql
-rate(maxwell_events_processed_total[1m])
-```
+- Successful completion.
+- Expected delivered record count.
+- No unexpected filtered records.
+- No unexpected backpressure.
+- Expected final sequence.
+- No incomplete tail.
 
-### 12.3 Sequence Gaps
+The current CLI sink does not reconstruct a remote market.
 
-```promql
-increase(maxwell_sequence_gaps_total[5m])
-```
+Server reconstruction is exercised through library
+integration and reconstruction tests.
 
-### 12.4 Publication Rejections
+## 9. Health and Readiness
 
-```promql
-rate(maxwell_publications_rejected_total[1m])
-```
+Process liveness is not equivalent to market readiness.
 
-### 12.5 Subscriber Invalidations
+A running market data process may be:
 
-```promql
-increase(maxwell_subscriber_invalidations_total[5m])
-```
+- Initializing.
+- Unsynchronized.
+- Recovering.
+- Backpressured.
+- Operationally degraded.
+- Ready.
 
-### 12.6 Estimated P99 Processing Latency
+A future readiness endpoint should consider:
 
-```promql
-histogram_quantile(
-  0.99,
-  sum by (le) (
-    rate(
-      maxwell_processing_latency_nanoseconds_bucket[5m]
-    )
-  )
-)
-```
+- Valid configuration.
+- Completed initialization.
+- Required instrument registration.
+- Upstream synchronization.
+- Resource availability.
+- Absence of fatal processing errors.
 
-This query returns an estimated value in nanoseconds.
+Health and readiness endpoints are planned rather than
+currently exposed production services.
 
-It uses Prometheus histogram interpolation, which differs
-from Maxwell's local nearest-rank bucket-upper-bound
-estimation.
+## 10. Observability
 
-## 13. Monitoring Dashboard
+Operational measurements should distinguish:
 
-A recommended dashboard should contain:
+| Area | Measurements |
+|------|--------------|
+| Ingestion | Received and accepted events |
+| Sequencing | Gaps, duplicates, and expected sequence |
+| Recovery | Attempts, failures, and duration |
+| Book | Instruments, orders, and consistency failures |
+| Publisher | Publications, queue occupancy, rejection |
+| Gateway | Active and invalidated sessions |
+| Simulator | Generated, delivered, and faulted events |
+| Recorder | Records, bytes, flushes, synchronizations |
+| Replay | Read, delivered, filtered, and blocked records |
+| System | CPU, memory, disk, and network utilization |
 
-### Market Data Health
+These are operational measurement categories.
 
-- Feed synchronization status.
-- Sequence gap rate.
-- Recovery state.
-- Recovery failures.
-- Last observed market event.
+Exact metric names depend on the instrumentation and
+exporter implementation.
 
-### Processing
+## 11. Monitoring Integration
 
-- Ingestion rate.
-- Processing rate.
+The metrics crate provides counters, gauges, histograms,
+registries, and Prometheus-compatible text formatting.
+
+Future monitoring infrastructure may include:
+
+- CloudWatch logs.
+- CloudWatch custom metrics.
+- Prometheus collection.
+- Grafana dashboards.
+- Alerting and operational notifications.
+
+An HTTP metrics endpoint and production cloud exporter
+are not implied by the existing metrics primitives.
+
+## 12. Proposed Operational Dashboard
+
+A future dashboard should include:
+
+### Market Data
+
+- Upstream event rate.
+- Accepted event rate.
+- Expected upstream sequence.
+- Synchronization status.
+- Recovery activity.
+
+### Distribution
+
 - Publication rate.
-- Subscriber delivery rate.
-- Rejection rate.
-
-### Latency
-
-- P50 processing latency.
-- P99 processing latency.
-- P99.9 processing latency.
-- Recovery duration.
-- Queueing latency where instrumented.
-
-### Capacity
-
-- Active sessions.
-- Active subscribers.
+- Subscriber count.
 - Queue occupancy.
-- Recovery buffer occupancy.
-- Resident memory.
+- Backpressure.
+- Subscriber invalidation.
+
+### Persistence
+
+- Journal write rate.
+- Journal size.
+- Flush and synchronization activity.
+- Journal validation failures.
+- Available disk capacity.
+
+### System Resources
+
 - CPU utilization.
+- Resident memory.
+- Disk throughput.
+- Network throughput.
+- Process availability.
 
-### Reliability
+## 13. Logging
 
-- Transport errors.
-- Subscriber invalidations.
-- Reconnect rate.
-- Process restarts.
-- Unexpected shutdowns.
+Operational logs should provide enough context to diagnose
+failures without unnecessarily increasing critical-path
+latency.
 
-## 14. Logging
+Useful fields include:
 
-Logging should provide sufficient diagnostic information
-without overwhelming the critical processing path.
-
-Recommended severity categories:
-
-| Level | Intended Use |
-|-------|--------------|
-| TRACE | Detailed development diagnostics |
-| DEBUG | Component and state-transition diagnostics |
-| INFO | Startup, shutdown, lifecycle events |
-| WARN | Recoverable operational abnormalities |
-| ERROR | Failed operations requiring investigation |
-
-Structured logs should include relevant context:
-
-- Instance identifier.
-- Feed identifier.
-- Instrument identifier where relevant.
-- Session identifier where relevant.
-- Expected sequence.
-- Observed sequence.
-- Recovery state.
-- Error category.
 - Timestamp.
+- Application version.
+- Component.
+- Feed identity.
+- Instrument identifier where applicable.
+- Sequence number.
+- Lifecycle state.
+- Error category.
+- Recovery or retry outcome.
 
-Do not synchronously log every market event in a
-production-oriented processing loop.
+Avoid logging every event during normal high-throughput
+execution.
 
-High-frequency errors should use bounded logging or
-aggregation policies.
+Detailed event output should be enabled explicitly for
+diagnostics.
 
-Logging suppression must not conceal operationally
-important state transitions.
+Structured production logging remains a future extension.
 
-## 15. Alerting
+## 14. Alerting
+
+Potential alert conditions include:
+
+- Loss of upstream synchronization.
+- Repeated recovery failures.
+- Sustained publication backpressure.
+- Subscriber invalidation.
+- Journal write failures.
+- Journal corruption.
+- Disk capacity exhaustion.
+- Unexpected process termination.
+- Sustained latency degradation.
 
 Alert thresholds should be established from measured
-baselines and operational requirements.
+workloads and operational objectives.
 
-Recommended alert categories:
+No production alert thresholds are currently assumed.
 
-| Condition | Operational Concern |
-|-----------|---------------------|
-| Feed unsynchronized | Market data unavailable or stale |
-| Repeated recovery failures | Persistent synchronization problem |
-| Sustained queue growth | Processing capacity shortage |
-| Frequent subscriber invalidation | Downstream overload |
-| Increasing decode errors | Protocol incompatibility or malformed input |
-| Elevated tail latency | Processing degradation |
-| Unexpected process restart | Stability problem |
-| Sustained memory growth | Resource leak or capacity issue |
+## 15. Incident Response
 
-Alerts should identify the affected feed, instance, or
-session where practical.
-
-Avoid alerting on every individual recoverable event
-when aggregate behavior is more meaningful.
-
-## 16. Incident Response
-
-### 16.1 Sequence Gap
-
-Symptoms:
-
-- Increasing sequence gap counter.
-- Feed enters recovery.
-- Buffered events accumulate.
-
-Investigation:
+### 15.1 Sequence Gap
 
 1. Identify the affected feed.
-2. Record expected and observed sequences.
-3. Inspect upstream transport errors.
-4. Inspect recovery requests.
-5. Verify recovery buffer capacity.
-6. Verify recovery response scope.
-7. Confirm synchronization restoration.
+2. Record the expected and received sequences.
+3. Determine whether recovery is active.
+4. Inspect retained history and recovery capacity.
+5. Confirm that unsynchronized state is not advertised
+   as valid.
+6. Restore synchronization through the appropriate
+   recovery mechanism.
 
-Do not manually advance expected sequence values merely
-to suppress gap detection.
-
-### 16.2 Recovery Failure
-
-Symptoms:
-
-- Repeated recovery requests.
-- Invalid snapshot or retransmission responses.
-- Recovery buffer exhaustion.
-- Feed remains unsynchronized.
-
-Investigation:
-
-1. Verify upstream recovery availability.
-2. Verify protocol compatibility.
-3. Verify snapshot watermark semantics.
-4. Inspect buffered event continuity.
-5. Determine whether a fresh snapshot is required.
-6. Apply the documented recovery restart procedure.
-
-Do not advertise synchronized state before recovery
-validation succeeds.
-
-### 16.3 Slow Subscriber
-
-Symptoms:
-
-- Increasing subscriber queue occupancy.
-- Publication rejection.
-- Subscriber invalidation.
-- Increasing discarded deliveries.
-
-Investigation:
+### 15.2 Subscriber Backpressure
 
 1. Identify the affected subscriber.
-2. Inspect its delivery rate.
-3. Inspect transport write failures.
-4. Verify the configured backpressure policy.
-5. Determine whether resynchronization is required.
-6. Evaluate subscriber workload and capacity.
+2. Inspect queue occupancy.
+3. Determine the configured backpressure policy.
+4. Verify whether the subscriber was invalidated.
+5. Restore downstream synchronization before resuming
+   ordinary incremental delivery.
 
-Increasing queue capacity may delay failure without
-resolving the underlying service-rate problem.
+### 15.3 Journal Write Failure
 
-### 16.4 High Processing Latency
+1. Stop treating the recording as successfully finalized.
+2. Preserve the partial journal.
+3. Record the I/O error and available disk capacity.
+4. Validate the journal using strict reading.
+5. If necessary, inspect the valid prefix using the
+   incomplete-tail policy.
+6. Start a new recording rather than overwriting the
+   original evidence.
 
-Investigation:
+### 15.4 Journal Corruption
 
-1. Confirm the measurement boundary.
-2. Compare current and baseline workload.
-3. Inspect queue occupancy.
-4. Inspect CPU utilization.
-5. Inspect context switches.
-6. Inspect allocation behavior.
-7. Inspect recovery activity.
-8. Collect a CPU profile.
-9. Identify the limiting component.
+1. Preserve the original file.
+2. Record the validation error and affected offset.
+3. Determine whether the failure is an incomplete tail
+   or corruption of a complete record.
+4. Restore from a known valid copy where available.
+5. Do not silently bypass checksum validation.
 
-Do not optimize an assumed bottleneck without evidence.
+### 15.5 Replay Failure
 
-### 16.5 Protocol Decode Failures
+1. Record the journal identity and replay configuration.
+2. Validate the journal independently.
+3. Inspect the final accepted sequence.
+4. Determine whether a record remains pending.
+5. Identify the sink or processing failure.
+6. Restart from a valid baseline if reconstruction
+   correctness cannot otherwise be guaranteed.
 
-Investigation:
+## 16. Linux Diagnostics
 
-1. Identify the message type.
-2. Inspect declared and actual message lengths.
-3. Verify protocol version.
-4. Verify byte ordering.
-5. Compare against golden vectors.
-6. Verify Planck and Maxwell deployment versions.
-7. Determine whether synchronization was affected.
-
-Malformed message payloads should be retained only under
-an appropriate diagnostic and data-retention policy.
-
-### 16.6 Memory Growth
-
-Investigation:
-
-1. Inspect subscriber and session counts.
-2. Inspect queue capacities and occupancy.
-3. Inspect recovery buffer occupancy.
-4. Inspect snapshot retention.
-5. Inspect telemetry cardinality.
-6. Inspect allocation profiles.
-7. Verify disconnected session cleanup.
-
-Distinguish retained allocator capacity from genuinely
-unbounded application state.
-
-## 17. Linux Diagnostics
-
-Inspect a running process:
+Inspect CPU and memory usage:
 
 ```bash
-pgrep -af maxwell
-
-ps -eo pid,ppid,%cpu,%mem,rss,comm
+top
+free -h
+ps aux
 ```
 
-Inspect listening sockets:
+Inspect disk capacity:
 
 ```bash
-ss -lntup
+df -h
+du -sh data
 ```
 
-Inspect network statistics:
+Inspect process resources:
 
 ```bash
-ss -s
-
-ip -s link
+ps -o pid,pcpu,pmem,rss,vsz,comm -p <pid>
 ```
 
-Inspect process threads:
+Inspect open file descriptors:
 
 ```bash
-top -H -p <PID>
+ls -l /proc/<pid>/fd
 ```
 
-Inspect process status:
+Inspect network sockets during future network integration:
 
 ```bash
-cat /proc/<PID>/status
+ss -tulnp
 ```
 
-Replace PID with the actual process identifier.
+Profile execution:
 
-Some diagnostics require elevated permissions.
+```bash
+perf stat ./target/release/maxwell benchmark \
+    --scenario high-throughput \
+    --events 1000000 \
+    --iterations 3
+```
 
-Profiling and tracing can affect latency-sensitive
-processes and should be performed deliberately.
+Some diagnostic tools require installation or additional
+operating-system permissions.
 
-## 18. Security Requirements
+## 17. Security Requirements
 
-Production deployment should include:
+Operational deployments should enforce:
 
-- Network isolation.
 - Least-privilege process execution.
+- Restricted network access.
 - Validated external input.
-- Explicit resource limits.
-- Controlled administrative access.
-- Session authentication where required.
-- Subscription authorization where required.
-- Appropriate transport protection.
-- Restricted metrics and diagnostic endpoints.
-- Dependency security review.
-- Controlled secret management.
+- Bounded resource consumption.
+- Controlled access to journal files.
+- Secure credential storage.
+- Dependency and toolchain review.
+- Appropriate audit logging.
 
-The current library architecture does not by itself
-establish production authentication or encryption.
+Secrets must not be committed to the repository.
 
-Do not expose an experimental server directly to
-untrusted networks.
+Journal checksums do not provide cryptographic security.
 
-## 19. Shutdown Procedure
+## 18. Shutdown and Finalization
 
-The intended graceful shutdown sequence is:
+The local CLI finalizes recording output before reporting
+successful completion.
 
-1. Stop accepting new downstream sessions.
-2. Stop accepting new subscriptions.
-3. Stop or disconnect upstream ingestion.
-4. Complete or invalidate pending processing.
-5. Resolve pending publications.
-6. Drain or terminate downstream sessions.
-7. Collect final telemetry.
-8. Join processing threads.
-9. Release owned resources.
+A future long-running server shutdown should:
 
-A configured shutdown deadline should prevent indefinite
-blocking.
+1. Stop accepting new input.
+2. Resolve pending market processing.
+3. Drain required publication queues.
+4. Finalize journal output.
+5. Synchronize persistent data according to policy.
+6. Close communication resources.
+7. Report final metrics.
 
-The system must document whether pending deliveries are
-drained, discarded, or invalidated when the deadline
-expires.
+Distributed shutdown and signal handling remain future
+integration requirements.
 
-## 20. Deployment and Rollback
+## 19. Planned Container Deployment
 
-Before deployment:
+The first containerized environment should include:
 
-- Record the Git commit.
-- Record the build configuration.
-- Record the runtime configuration.
-- Verify protocol compatibility.
-- Run workspace validation.
-- Run integration tests.
-- Verify monitoring availability.
-- Establish rollback artifacts.
+- A market producer container.
+- A Maxwell consumer container.
+- Explicit network configuration.
+- Mounted journal storage.
+- Defined configuration inputs.
+- Resource limits.
+- Controlled startup and shutdown.
 
-A rollback must consider:
+Docker images should use reproducible release builds and
+minimal runtime dependencies.
 
-- Wire-format compatibility.
-- Configuration compatibility.
-- Stream restart semantics.
-- Snapshot compatibility.
-- Recovery requirements.
+The current repository does not require Docker for
+local execution.
 
-Restarting an earlier binary does not automatically
-restore synchronized market state.
+## 20. Planned AWS Deployment
 
-## 21. Operational Readiness Checklist
+The initial cloud environment will establish a small
+distributed baseline.
 
-- [ ] Server application implemented.
-- [ ] Configuration validation implemented.
-- [ ] Upstream connectivity verified.
-- [ ] Downstream connectivity verified.
-- [ ] Planck protocol compatibility verified.
-- [ ] Initial synchronization verified.
-- [ ] Retransmission recovery verified.
-- [ ] Snapshot recovery verified.
-- [ ] Subscriber invalidation verified.
-- [ ] Resource limits validated.
-- [ ] Monitoring endpoint implemented.
-- [ ] Operational metrics verified.
-- [ ] Alert thresholds established.
-- [ ] Failure injection completed.
-- [ ] Soak testing completed.
-- [ ] Security review completed.
-- [ ] Deployment procedure documented.
-- [ ] Rollback procedure verified.
-- [ ] Graceful shutdown verified.
+```mermaid
+flowchart TD
+    TF["Terraform"]
+    subgraph VPC["AWS VPC"]
+        PROD["EC2: Producer"]
+        SERVER["EC2: Maxwell Server"]
+        PROD --> SERVER
+    end
 
-## 22. Incident Report Template
+    SERVER --> S3["S3: Completed Journals"]
+    PROD --> CW["CloudWatch"]
+    SERVER --> CW
 
-```text
-Incident:
-Start time:
-End time:
-Affected instances:
-Affected feeds:
-Affected consumers:
-
-Observed symptoms:
-Initial detection:
-Relevant metrics:
-Relevant logs:
-
-Root cause:
-Contributing factors:
-Market data correctness impact:
-
-Recovery actions:
-Final synchronization status:
-
-Corrective actions:
-Regression tests:
-Documentation updates:
+    TF -.-> VPC
+    TF -.-> S3
+    TF -.-> CW
 ```
 
-## 23. Related Documentation
+Proposed infrastructure:
 
+- VPC and subnets.
+- Restricted security groups.
+- EC2 application instances.
+- IAM instance roles.
+- S3 journal bucket.
+- CloudWatch log groups.
+- Cost monitoring.
+- Automated infrastructure teardown.
+
+Completed journal files should be uploaded rather than
+treating object storage as a directly appendable local
+filesystem.
+
+AWS credentials should be supplied through IAM roles
+or approved short-lived credential mechanisms.
+
+## 21. Deployment and Rollback
+
+Future deployments should identify:
+
+- Source commit.
+- Application version.
+- Container image digest.
+- Configuration version.
+- Infrastructure revision.
+- Protocol compatibility.
+- Journal compatibility.
+
+Rollback must consider both executable compatibility
+and persisted data compatibility.
+
+A previous binary must not be assumed capable of reading
+a newer journal or protocol format.
+
+## 22. Operational Readiness Checklist
+
+- [ ] Configuration validated.
+- [ ] Workspace tests passed.
+- [ ] Strict Clippy passed.
+- [ ] Release build generated.
+- [ ] Smoke workload completed.
+- [ ] Resource limits reviewed.
+- [ ] Journal validation completed where applicable.
+- [ ] Synchronization requirements satisfied.
+- [ ] Monitoring available where applicable.
+- [ ] Shutdown behavior verified.
+- [ ] Deployment and rollback procedures documented.
+
+## 23. Incident Report Template
+
+    Incident:
+    Date and time:
+    Application version:
+    Source commit:
+    Affected component:
+    Feed identity:
+    Expected sequence:
+    Observed sequence:
+    Initial state:
+    Observed failure:
+    Operational impact:
+    Recovery actions:
+    Final state:
+    Root cause:
+    Regression test:
+    Follow-up work:
+
+## 24. Related Documentation
+
+- [Quick Start](quick_start.md)
 - [Architecture](architecture.md)
-- [Concurrency](concurrency.md)
-- [Performance](performance.md)
 - [Testing](testing.md)
+- [Performance](performance.md)
 - [Roadmap](roadmap.md)
