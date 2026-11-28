@@ -29,6 +29,7 @@ pub mod error;
 pub mod metrics;
 pub mod pipeline;
 pub mod recovery;
+pub mod runtime;
 pub mod server;
 pub mod snapshot;
 pub mod state;

@@ -12,6 +12,7 @@ use maxwell_core::{
 };
 use maxwell_gateway::{ClientRequest, GatewaySink, SessionId};
 use maxwell_publisher::SubscriptionFilter;
+use maxwell_recovery::RequestId;
 
 use crate::config::ServerConfig;
 use crate::downstream::SnapshotSink;
@@ -361,6 +362,48 @@ impl<D: UpstreamDecoder> Server<D> {
         }
 
         Ok(outcome)
+    }
+
+    // --------------------------------------------------------
+    // Upstream recovery transport
+    // --------------------------------------------------------
+
+    /// Records that a pending recovery request was handed
+    /// to the upstream transport in full.
+    ///
+    /// The request is read with `recovery().pending_request()`.
+    /// A request that was not completely written must not be
+    /// acknowledged.
+    pub fn acknowledge_recovery_request(&mut self, request_id: RequestId) -> ServerResult<()> {
+        self.require_running()?;
+
+        self.recovery.acknowledge_request(request_id)
+    }
+
+    /// Observes the highest sequence the upstream producer
+    /// reports having generated.
+    ///
+    /// This reveals trailing loss that no later event would
+    /// otherwise expose.
+    pub fn observe_upstream_watermark(
+        &mut self,
+        last_sequence: SequenceNumber,
+        now: MonotonicTimestamp,
+    ) -> ServerResult<()> {
+        self.require_running()?;
+        self.advance_clock(now)?;
+
+        let feed = self.upstream.feed();
+
+        if let Err(error) =
+            self.recovery
+                .observe_watermark(feed, last_sequence, now, &mut self.pipeline)
+        {
+            self.fail();
+            return Err(error);
+        }
+
+        self.refresh_metrics()
     }
 
     // --------------------------------------------------------

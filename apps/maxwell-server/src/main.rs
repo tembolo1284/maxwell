@@ -1,10 +1,11 @@
 //! Maxwell market data server executable.
 //!
-//! The initial executable provides configuration validation
-//! and deterministic runtime initialization checks.
+//! The executable provides configuration validation,
+//! deterministic runtime initialization checks, and the `run`
+//! command, which consumes a native Maxwell UDP feed.
 //!
-//! Network listeners and production feed adapters will be
-//! introduced after the integrated runtime is validated.
+//! Downstream network sessions and production feed adapters
+//! will be introduced after the upstream runtime is validated.
 
 #![forbid(unsafe_code)]
 
@@ -16,6 +17,7 @@ use maxwell_core::{FeedId, MonotonicTimestamp, SessionId, StreamId};
 
 use maxwell_server::config::ServerConfig;
 use maxwell_server::error::{ServerError, ServerResult};
+use maxwell_server::runtime::{RUN_USAGE, RunOptions};
 use maxwell_server::server::Server;
 
 // ============================================================
@@ -29,6 +31,7 @@ enum Command {
     CheckConfig,
     SelfCheck,
     Metrics,
+    Run,
 }
 
 impl Command {
@@ -45,6 +48,8 @@ impl Command {
             Some("--self-check") => Self::SelfCheck,
 
             Some("--metrics") => Self::Metrics,
+            // The run command parses its own options.
+            Some("run") => return Ok(Self::Run),
 
             Some(_) => {
                 return Err(ServerError::InvalidConfig("unknown command-line argument"));
@@ -78,9 +83,11 @@ fn print_help() {
          \x20 --check-config   Validate default configuration\n\
          \x20 --self-check     Verify runtime initialization\n\
          \x20 --metrics        Export initial Prometheus metrics\n\
+         \x20 run [OPTIONS]    Consume a native Maxwell UDP feed\n\
          \n\
-         The initial runtime operates in memory.\n\
-         Production network listeners are not enabled.",
+         {RUN_USAGE}\n\
+         \n\
+         Downstream network sessions are not enabled.",
         env!("CARGO_PKG_VERSION"),
     );
 }
@@ -159,6 +166,40 @@ fn export_metrics() -> ServerResult<()> {
     Ok(())
 }
 
+/// Consumes a UDP feed until a stop condition holds.
+fn run_feed() -> ServerResult<()> {
+    let options = RunOptions::parse(env::args().skip(2))?;
+    let mut runtime = options.bind()?;
+
+    println!(
+        "Maxwell server listening on {} for feed {}",
+        runtime.local_addr()?,
+        options.runtime.feed,
+    );
+
+    let stdout = io::stdout();
+    let summary = runtime.run(&mut stdout.lock())?;
+    let stats = summary.stats;
+
+    println!("Stop reason: {}", summary.reason.as_str());
+    println!("Elapsed: {} ms", summary.elapsed.as_millis());
+    println!("Synchronized: {}", summary.synchronized);
+    println!("Next upstream sequence: {}", summary.next_expected.raw());
+    println!("Publication watermark: {}", summary.publication_watermark);
+    println!("Datagrams received: {}", stats.datagrams);
+    println!("Events consumed: {}", stats.events);
+    println!("Duplicate events: {}", stats.duplicates);
+    println!("Buffered events: {}", stats.buffered);
+    println!("Heartbeats: {}", stats.heartbeats);
+    println!("Rejected datagrams: {}", stats.rejected);
+    println!("Foreign datagrams: {}", stats.foreign);
+    println!("Blocked events: {}", stats.blocked);
+    println!("Retransmission requests: {}", stats.retransmit_requests);
+    println!("Resynchronizations: {}", stats.resynchronizations);
+
+    Ok(())
+}
+
 // ============================================================
 // Application entry point
 // ============================================================
@@ -182,6 +223,8 @@ fn run() -> ServerResult<()> {
         Command::SelfCheck => self_check(),
 
         Command::Metrics => export_metrics(),
+
+        Command::Run => run_feed(),
     }
 }
 

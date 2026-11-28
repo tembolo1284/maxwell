@@ -27,6 +27,7 @@
 //! - `rng`: deterministic pseudo-random number generation.
 //! - `clock`: virtual timestamps and real-time pacing.
 //! - `market`: authoritative instrument and order state.
+//! - `network`: UDP delivery, heartbeats, and retransmission.
 //! - `generator`: valid market event generation.
 //! - `fault`: delivery fault injection.
 //! - `history`: bounded authoritative event history.
@@ -44,6 +45,7 @@ pub mod fault;
 pub mod generator;
 pub mod history;
 pub mod market;
+pub mod network;
 pub mod rng;
 pub mod scenario;
 pub mod simulator;

@@ -18,6 +18,7 @@
 //! - No implicit serialization of Rust memory layouts.
 
 pub mod constants;
+pub mod control;
 pub mod decoder;
 pub mod encoder;
 pub mod error;
@@ -62,3 +63,12 @@ pub use message::{MessageKind, ProtocolMessage};
 
 pub use decoder::Decoder;
 pub use encoder::Encoder;
+
+// ============================================================
+// Feed control datagrams
+// ============================================================
+
+pub use control::{
+    CONTROL_MAGIC, CONTROL_SIZE, CONTROL_VERSION, Complete, ControlMessage, Heartbeat,
+    RetransmitRequest,
+};

@@ -3,15 +3,21 @@
 #![forbid(unsafe_code)]
 
 use std::env;
+use std::net::SocketAddr;
 use std::process::ExitCode;
 use std::str::FromStr;
+use std::time::Duration;
 
 use maxwell_core::{FeedId, SessionId, StreamId};
 
 use maxwell_simulator::config::PacingMode;
+use maxwell_simulator::network::{NetworkConfig, NetworkRunner};
 use maxwell_simulator::scenario::Scenario;
 use maxwell_simulator::simulator::{NullSink, RuntimeLimits, Simulator};
 use maxwell_simulator::{SimulatorConfig, SimulatorError, SimulatorResult};
+
+/// Default generation batch when delivering over UDP.
+const NETWORK_GENERATION_BUDGET: usize = 8;
 
 // ============================================================
 // Command-line arguments
@@ -31,6 +37,10 @@ struct Arguments {
     delivery_budget: Option<usize>,
     events_per_second: Option<u64>,
     pacing: Option<PacingMode>,
+    target: Option<SocketAddr>,
+    bind: Option<SocketAddr>,
+    heartbeat_ms: Option<u64>,
+    linger_ms: Option<u64>,
     help: bool,
     version: bool,
     list_scenarios: bool,
@@ -117,6 +127,22 @@ impl Arguments {
                     });
                 }
 
+                "--target" => {
+                    result.target = Some(parse_value(&mut args)?);
+                }
+
+                "--bind" => {
+                    result.bind = Some(parse_value(&mut args)?);
+                }
+
+                "--heartbeat-ms" => {
+                    result.heartbeat_ms = Some(parse_value(&mut args)?);
+                }
+
+                "--linger-ms" => {
+                    result.linger_ms = Some(parse_value(&mut args)?);
+                }
+
                 _ => {
                     eprintln!("Unknown argument: {argument}");
 
@@ -193,6 +219,10 @@ impl Arguments {
 
         if let Some(budget) = self.generation_budget {
             limits.generation_budget = budget;
+        } else if self.target.is_some() {
+            // Events are sent after each generation batch. A
+            // small batch avoids bursts on the network.
+            limits.generation_budget = NETWORK_GENERATION_BUDGET;
         }
 
         if let Some(budget) = self.delivery_budget {
@@ -210,6 +240,69 @@ impl Arguments {
 // Argument helpers
 // ============================================================
 
+impl Arguments {
+    /// Builds the network delivery configuration, if a
+    /// consumer address was supplied.
+    fn network(&self) -> SimulatorResult<Option<NetworkConfig>> {
+        let Some(target) = self.target else {
+            if self.bind.is_some() || self.heartbeat_ms.is_some() || self.linger_ms.is_some() {
+                return Err(SimulatorError::InvalidArgument(
+                    "network options require --target",
+                ));
+            }
+
+            return Ok(None);
+        };
+
+        let bind = match self.bind {
+            Some(bind) => bind,
+            None if target.is_ipv4() => SocketAddr::from(([0, 0, 0, 0], 0)),
+            None => SocketAddr::from(([0u16; 8], 0)),
+        };
+
+        let mut network = NetworkConfig::new(bind, target);
+
+        if let Some(interval) = self.heartbeat_ms {
+            network.heartbeat_interval = Duration::from_millis(interval);
+        }
+
+        if let Some(linger) = self.linger_ms {
+            network.linger = Duration::from_millis(linger);
+        }
+
+        network.validate()?;
+
+        Ok(Some(network))
+    }
+}
+
+/// Delivers the simulation over UDP and reports the outcome.
+fn run_network(
+    simulator: &mut Simulator,
+    network: NetworkConfig,
+    feed: FeedId,
+) -> SimulatorResult<()> {
+    let mut runner = NetworkRunner::bind(network, feed)?;
+
+    println!("Producer socket:      {}", runner.local_addr()?);
+    println!();
+
+    let stats = runner.run(simulator)?;
+
+    println!("Network delivery");
+    println!("  Events sent:            {}", stats.events_sent);
+    println!("  Sends retried:          {}", stats.send_blocked);
+    println!("  Heartbeats sent:        {}", stats.heartbeats_sent);
+    println!("  Requests received:      {}", stats.requests_received);
+    println!("  Requests unavailable:   {}", stats.requests_unavailable);
+    println!("  Events retransmitted:   {}", stats.events_retransmitted);
+    println!("  Rejected datagrams:     {}", stats.rejected);
+    println!("  Consumer complete:      {}", stats.consumer_complete);
+    println!();
+
+    Ok(())
+}
+
 fn next_value(args: &mut impl Iterator<Item = String>) -> SimulatorResult<String> {
     args.next().ok_or(SimulatorError::InvalidArgument(
         "missing command-line argument value",
@@ -221,7 +314,7 @@ fn parse_value<T: FromStr>(args: &mut impl Iterator<Item = String>) -> Simulator
 
     value
         .parse()
-        .map_err(|_| SimulatorError::InvalidArgument("invalid numeric command-line argument"))
+        .map_err(|_| SimulatorError::InvalidArgument("invalid command-line argument value"))
 }
 
 // ============================================================
@@ -277,6 +370,7 @@ OPTIONS:
 
     --generation-budget <N>
         Maximum generated events per service iteration.
+        Default with --target: 8.
 
     --delivery-budget <N>
         Maximum delivered messages per service iteration.
@@ -287,15 +381,33 @@ OPTIONS:
     --rate <N>
         Target events per second and virtual timestamp rate.
 
+    --target <ADDR>
+        Send events as UDP datagrams to this consumer address.
+        Without it, events go to an in-process discard sink.
+
+    --bind <ADDR>
+        Local UDP address for sending and for retransmission
+        requests. Default: an ephemeral port on all interfaces.
+
+    --heartbeat-ms <N>
+        Interval between watermark heartbeats. Default: 50.
+
+    --linger-ms <N>
+        Time to wait for further retransmission requests after
+        the last event. Default: 2000.
+
 EXAMPLES:
     maxwell-simulator --scenario smoke
     maxwell-simulator --scenario mixed-faults --seed 123
     maxwell-simulator --scenario high-throughput
     maxwell-simulator --events 10000 --pacing real-time --rate 50000
+    maxwell-simulator --scenario smoke --pacing real-time --rate 2000 \\
+        --target 127.0.0.1:9100 --bind 127.0.0.1:9101
 
-The standalone executable uses an in-process discard sink.
-Reported throughput measures simulator execution, not
-network or end-to-end Maxwell server performance.",
+Without --target, reported throughput measures simulator
+execution, not network or end-to-end Maxwell server
+performance. Use real-time pacing with --target, because an
+unpaced sender overruns the consumer's socket buffer.",
         env!("CARGO_PKG_VERSION"),
     );
 }
@@ -312,7 +424,12 @@ fn print_scenarios() {
 // Configuration reporting
 // ============================================================
 
-fn print_configuration(scenario: Scenario, config: &SimulatorConfig, limits: RuntimeLimits) {
+fn print_configuration(
+    scenario: Scenario,
+    config: &SimulatorConfig,
+    limits: RuntimeLimits,
+    target: Option<SocketAddr>,
+) {
     println!("Maxwell Simulator {}", env!("CARGO_PKG_VERSION"));
     println!("================================");
 
@@ -339,7 +456,10 @@ fn print_configuration(scenario: Scenario, config: &SimulatorConfig, limits: Run
     println!("Generation budget:    {}", limits.generation_budget);
     println!("Delivery budget:      {}", limits.delivery_budget);
 
-    println!("Delivery sink:        NullSink");
+    match target {
+        Some(target) => println!("Delivery sink:        UDP {target}"),
+        None => println!("Delivery sink:        NullSink"),
+    }
     println!();
 }
 
@@ -376,20 +496,24 @@ fn run() -> SimulatorResult<()> {
         return Ok(());
     }
 
-    print_configuration(arguments.scenario, &config, limits);
+    print_configuration(arguments.scenario, &config, limits, arguments.target);
 
     let feed = FeedId::new(StreamId::new(1), SessionId::new(1));
 
     let mut simulator = Simulator::new(config, feed, limits)?;
 
-    let mut sink = NullSink;
+    if let Some(network) = arguments.network()? {
+        run_network(&mut simulator, network, feed)?;
+    } else {
+        let mut sink = NullSink;
 
-    let report = simulator.run_until_blocked(&mut sink)?;
+        let report = simulator.run_until_blocked(&mut sink)?;
 
-    if !report.is_completed() {
-        return Err(SimulatorError::InvariantViolation(
-            "null-sink simulation did not complete",
-        ));
+        if !report.is_completed() {
+            return Err(SimulatorError::InvariantViolation(
+                "null-sink simulation did not complete",
+            ));
+        }
     }
 
     simulator.validate_consistency()?;

@@ -1,0 +1,519 @@
+//! Feed control datagrams.
+//!
+//! Control datagrams travel beside market events on a datagram
+//! feed. They carry no market data. They let a consumer learn
+//! the producer's sequence watermark, ask for missing events,
+//! and report that it has consumed the complete stream.
+//!
+//! Every control datagram has the same fixed size and uses
+//! little-endian integers.
+//!
+//! | Offset | Size | Field                      |
+//! |--------|------|----------------------------|
+//! | 0      | 2    | Magic `MC`                 |
+//! | 2      | 1    | Control version            |
+//! | 3      | 1    | Control kind               |
+//! | 4      | 4    | Stream identifier          |
+//! | 8      | 8    | Session identifier         |
+//! | 16     | 8    | First kind-specific field  |
+//! | 24     | 8    | Second kind-specific field |
+//! | 32     | 8    | Third kind-specific field  |
+//!
+//! The magic differs from the market event magic, so a receiver
+//! can classify a datagram from its first two bytes.
+
+use maxwell_core::{FeedId, SequenceNumber, SequenceRange, SessionId, StreamId};
+
+use crate::error::{ProtocolError, ProtocolResult};
+use crate::reader::ByteReader;
+use crate::writer::ByteWriter;
+
+// ============================================================
+// Constants
+// ============================================================
+
+/// Magic identifying a feed control datagram.
+pub const CONTROL_MAGIC: [u8; 2] = *b"MC";
+
+/// Current control datagram layout version.
+pub const CONTROL_VERSION: u8 = 1;
+
+/// Encoded size of every control datagram.
+pub const CONTROL_SIZE: usize = 40;
+
+const KIND_HEARTBEAT: u8 = 1;
+const KIND_RETRANSMIT_REQUEST: u8 = 2;
+const KIND_COMPLETE: u8 = 3;
+
+const FLAG_FINAL: u64 = 1;
+
+// ============================================================
+// Control messages
+// ============================================================
+
+/// Producer watermark announcement.
+///
+/// A heartbeat lets a consumer detect trailing loss when no
+/// later event arrives to reveal the gap.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Heartbeat {
+    pub feed: FeedId,
+
+    /// Highest sequence the producer has generated.
+    ///
+    /// `None` means that no event has been generated yet.
+    pub last_sequence: Option<SequenceNumber>,
+
+    /// The producer will generate no further events.
+    pub is_final: bool,
+}
+
+/// Consumer request for an inclusive range of past events.
+///
+/// The producer answers with ordinary market event datagrams
+/// sent to the address the request came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RetransmitRequest {
+    pub feed: FeedId,
+    pub request_id: u64,
+    pub range: SequenceRange,
+}
+
+/// Consumer notice that it has applied the complete stream.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Complete {
+    pub feed: FeedId,
+    pub last_sequence: SequenceNumber,
+}
+
+/// One decoded feed control datagram.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ControlMessage {
+    Heartbeat(Heartbeat),
+    RetransmitRequest(RetransmitRequest),
+    Complete(Complete),
+}
+
+impl ControlMessage {
+    /// Returns the feed this message refers to.
+    #[must_use]
+    pub const fn feed(&self) -> FeedId {
+        match self {
+            Self::Heartbeat(message) => message.feed,
+            Self::RetransmitRequest(message) => message.feed,
+            Self::Complete(message) => message.feed,
+        }
+    }
+
+    /// Reports whether `datagram` starts with the control magic.
+    ///
+    /// This is a classification aid only. A matching datagram
+    /// may still fail to decode.
+    #[must_use]
+    pub fn matches(datagram: &[u8]) -> bool {
+        datagram.starts_with(&CONTROL_MAGIC)
+    }
+
+    /// Encodes the message into the start of `buffer`.
+    ///
+    /// Returns the number of bytes written, which is always
+    /// [`CONTROL_SIZE`].
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferTooSmall` if `buffer` is shorter than
+    /// [`CONTROL_SIZE`].
+    pub fn encode(&self, buffer: &mut [u8]) -> ProtocolResult<usize> {
+        let (kind, fields) = match self {
+            Self::Heartbeat(message) => (
+                KIND_HEARTBEAT,
+                [
+                    message.last_sequence.map_or(0, SequenceNumber::raw),
+                    if message.is_final { FLAG_FINAL } else { 0 },
+                    0,
+                ],
+            ),
+            Self::RetransmitRequest(message) => (
+                KIND_RETRANSMIT_REQUEST,
+                [
+                    message.request_id,
+                    message.range.start().raw(),
+                    message.range.end().raw(),
+                ],
+            ),
+            Self::Complete(message) => (KIND_COMPLETE, [message.last_sequence.raw(), 0, 0]),
+        };
+
+        let feed = self.feed();
+
+        let mut writer = ByteWriter::new(buffer);
+
+        writer.ensure_capacity(CONTROL_SIZE)?;
+        writer.write_bytes(&CONTROL_MAGIC)?;
+        writer.write_u8(CONTROL_VERSION)?;
+        writer.write_u8(kind)?;
+        writer.write_u32(feed.stream_id.raw())?;
+        writer.write_u64(feed.session_id.raw())?;
+
+        for field in fields {
+            writer.write_u64(field)?;
+        }
+
+        Ok(writer.position())
+    }
+
+    /// Decodes exactly one control datagram.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidPayloadLength` if the datagram is not
+    /// [`CONTROL_SIZE`] bytes, `InvalidMagic`,
+    /// `UnsupportedVersion`, or `UnknownMessageKind` for an
+    /// unrecognized prefix, and `InvalidFlags` or
+    /// `NonCanonicalEncoding` for an invalid field value.
+    pub fn decode(datagram: &[u8]) -> ProtocolResult<Self> {
+        if datagram.len() != CONTROL_SIZE {
+            return Err(ProtocolError::InvalidPayloadLength {
+                expected: CONTROL_SIZE,
+                actual: datagram.len(),
+            });
+        }
+
+        let mut reader = ByteReader::new(datagram);
+
+        if reader.read_array::<2>()? != CONTROL_MAGIC {
+            return Err(ProtocolError::InvalidMagic);
+        }
+
+        let version = reader.read_u8()?;
+
+        if version != CONTROL_VERSION {
+            return Err(ProtocolError::UnsupportedVersion {
+                major: version,
+                minor: 0,
+            });
+        }
+
+        let kind = reader.read_u8()?;
+
+        let feed = FeedId::new(
+            StreamId::new(reader.read_u32()?),
+            SessionId::new(reader.read_u64()?),
+        );
+
+        let fields = [reader.read_u64()?, reader.read_u64()?, reader.read_u64()?];
+
+        reader.finish()?;
+
+        match kind {
+            KIND_HEARTBEAT => decode_heartbeat(feed, fields),
+            KIND_RETRANSMIT_REQUEST => decode_retransmit_request(feed, fields),
+            KIND_COMPLETE => decode_complete(feed, fields),
+            other => Err(ProtocolError::UnknownMessageKind(other)),
+        }
+    }
+}
+
+// ============================================================
+// Kind-specific decoding
+// ============================================================
+
+fn decode_heartbeat(feed: FeedId, fields: [u64; 3]) -> ProtocolResult<ControlMessage> {
+    let [last_sequence, flags, reserved] = fields;
+
+    if flags > FLAG_FINAL {
+        return Err(ProtocolError::InvalidFlags(flags.to_le_bytes()[0]));
+    }
+
+    if reserved != 0 {
+        return Err(ProtocolError::NonCanonicalEncoding);
+    }
+
+    Ok(ControlMessage::Heartbeat(Heartbeat {
+        feed,
+        last_sequence: (last_sequence != 0).then(|| SequenceNumber::new(last_sequence)),
+        is_final: flags == FLAG_FINAL,
+    }))
+}
+
+fn decode_retransmit_request(feed: FeedId, fields: [u64; 3]) -> ProtocolResult<ControlMessage> {
+    let [request_id, first, last] = fields;
+
+    if first == 0 {
+        return Err(ProtocolError::NonCanonicalEncoding);
+    }
+
+    let range = SequenceRange::new(SequenceNumber::new(first), SequenceNumber::new(last))
+        .ok_or(ProtocolError::NonCanonicalEncoding)?;
+
+    Ok(ControlMessage::RetransmitRequest(RetransmitRequest {
+        feed,
+        request_id,
+        range,
+    }))
+}
+
+const fn decode_complete(feed: FeedId, fields: [u64; 3]) -> ProtocolResult<ControlMessage> {
+    let [last_sequence, second, third] = fields;
+
+    if last_sequence == 0 || second != 0 || third != 0 {
+        return Err(ProtocolError::NonCanonicalEncoding);
+    }
+
+    Ok(ControlMessage::Complete(Complete {
+        feed,
+        last_sequence: SequenceNumber::new(last_sequence),
+    }))
+}
+
+// ============================================================
+// Tests
+// ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::constants::PROTOCOL_MAGIC;
+
+    fn feed() -> FeedId {
+        FeedId::new(StreamId::new(7), SessionId::new(42))
+    }
+
+    fn range(first: u64, last: u64) -> SequenceRange {
+        SequenceRange::new(SequenceNumber::new(first), SequenceNumber::new(last)).unwrap()
+    }
+
+    fn roundtrip(message: ControlMessage) -> [u8; CONTROL_SIZE] {
+        let mut buffer = [0xAA; CONTROL_SIZE];
+
+        assert_eq!(message.encode(&mut buffer).unwrap(), CONTROL_SIZE);
+        assert_eq!(ControlMessage::decode(&buffer).unwrap(), message);
+
+        buffer
+    }
+
+    #[test]
+    fn heartbeat_roundtrip() {
+        roundtrip(ControlMessage::Heartbeat(Heartbeat {
+            feed: feed(),
+            last_sequence: Some(SequenceNumber::new(1_234)),
+            is_final: false,
+        }));
+
+        roundtrip(ControlMessage::Heartbeat(Heartbeat {
+            feed: feed(),
+            last_sequence: None,
+            is_final: false,
+        }));
+
+        roundtrip(ControlMessage::Heartbeat(Heartbeat {
+            feed: feed(),
+            last_sequence: Some(SequenceNumber::new(u64::MAX)),
+            is_final: true,
+        }));
+    }
+
+    #[test]
+    fn retransmit_request_roundtrip() {
+        roundtrip(ControlMessage::RetransmitRequest(RetransmitRequest {
+            feed: feed(),
+            request_id: 9,
+            range: range(5, 5),
+        }));
+
+        roundtrip(ControlMessage::RetransmitRequest(RetransmitRequest {
+            feed: feed(),
+            request_id: u64::MAX,
+            range: range(100, 4_195),
+        }));
+    }
+
+    #[test]
+    fn complete_roundtrip() {
+        roundtrip(ControlMessage::Complete(Complete {
+            feed: feed(),
+            last_sequence: SequenceNumber::new(500),
+        }));
+    }
+
+    #[test]
+    fn layout_is_stable() {
+        let bytes = roundtrip(ControlMessage::RetransmitRequest(RetransmitRequest {
+            feed: feed(),
+            request_id: 0x0102_0304_0506_0708,
+            range: range(0x11, 0x22),
+        }));
+
+        let mut expected = [0u8; CONTROL_SIZE];
+
+        expected[0..2].copy_from_slice(b"MC");
+        expected[2] = 1;
+        expected[3] = 2;
+        expected[4..8].copy_from_slice(&7u32.to_le_bytes());
+        expected[8..16].copy_from_slice(&42u64.to_le_bytes());
+        expected[16..24].copy_from_slice(&0x0102_0304_0506_0708u64.to_le_bytes());
+        expected[24..32].copy_from_slice(&0x11u64.to_le_bytes());
+        expected[32..40].copy_from_slice(&0x22u64.to_le_bytes());
+
+        assert_eq!(bytes, expected);
+    }
+
+    #[test]
+    fn magic_differs_from_market_events() {
+        assert_ne!(CONTROL_MAGIC, PROTOCOL_MAGIC);
+
+        let bytes = roundtrip(ControlMessage::Complete(Complete {
+            feed: feed(),
+            last_sequence: SequenceNumber::ONE,
+        }));
+
+        assert!(ControlMessage::matches(&bytes));
+        assert!(!ControlMessage::matches(&PROTOCOL_MAGIC));
+        assert!(!ControlMessage::matches(&[]));
+    }
+
+    #[test]
+    fn rejects_short_encode_buffer() {
+        let message = ControlMessage::Complete(Complete {
+            feed: feed(),
+            last_sequence: SequenceNumber::ONE,
+        });
+
+        let mut buffer = [0u8; CONTROL_SIZE - 1];
+
+        assert!(matches!(
+            message.encode(&mut buffer),
+            Err(ProtocolError::BufferTooSmall { .. }),
+        ));
+    }
+
+    #[test]
+    fn rejects_wrong_length() {
+        let bytes = roundtrip(ControlMessage::Complete(Complete {
+            feed: feed(),
+            last_sequence: SequenceNumber::ONE,
+        }));
+
+        assert!(matches!(
+            ControlMessage::decode(&bytes[..CONTROL_SIZE - 1]),
+            Err(ProtocolError::InvalidPayloadLength { .. }),
+        ));
+
+        let mut long = bytes.to_vec();
+        long.push(0);
+
+        assert!(matches!(
+            ControlMessage::decode(&long),
+            Err(ProtocolError::InvalidPayloadLength { .. }),
+        ));
+    }
+
+    #[test]
+    fn rejects_invalid_prefix() {
+        let valid = roundtrip(ControlMessage::Complete(Complete {
+            feed: feed(),
+            last_sequence: SequenceNumber::ONE,
+        }));
+
+        let mut bytes = valid;
+        bytes[1] = b'X';
+
+        assert_eq!(
+            ControlMessage::decode(&bytes),
+            Err(ProtocolError::InvalidMagic),
+        );
+
+        let mut bytes = valid;
+        bytes[2] = 2;
+
+        assert!(matches!(
+            ControlMessage::decode(&bytes),
+            Err(ProtocolError::UnsupportedVersion { major: 2, .. }),
+        ));
+
+        let mut bytes = valid;
+        bytes[3] = 99;
+
+        assert_eq!(
+            ControlMessage::decode(&bytes),
+            Err(ProtocolError::UnknownMessageKind(99)),
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_heartbeat_fields() {
+        let valid = roundtrip(ControlMessage::Heartbeat(Heartbeat {
+            feed: feed(),
+            last_sequence: Some(SequenceNumber::ONE),
+            is_final: true,
+        }));
+
+        let mut bytes = valid;
+        bytes[24] = 2;
+
+        assert_eq!(
+            ControlMessage::decode(&bytes),
+            Err(ProtocolError::InvalidFlags(2)),
+        );
+
+        let mut bytes = valid;
+        bytes[32] = 1;
+
+        assert_eq!(
+            ControlMessage::decode(&bytes),
+            Err(ProtocolError::NonCanonicalEncoding),
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_retransmit_range() {
+        let valid = roundtrip(ControlMessage::RetransmitRequest(RetransmitRequest {
+            feed: feed(),
+            request_id: 1,
+            range: range(10, 20),
+        }));
+
+        // First sequence of zero.
+        let mut bytes = valid;
+        bytes[24..32].copy_from_slice(&0u64.to_le_bytes());
+
+        assert_eq!(
+            ControlMessage::decode(&bytes),
+            Err(ProtocolError::NonCanonicalEncoding),
+        );
+
+        // Last sequence before the first.
+        let mut bytes = valid;
+        bytes[32..40].copy_from_slice(&9u64.to_le_bytes());
+
+        assert_eq!(
+            ControlMessage::decode(&bytes),
+            Err(ProtocolError::NonCanonicalEncoding),
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_complete_fields() {
+        let valid = roundtrip(ControlMessage::Complete(Complete {
+            feed: feed(),
+            last_sequence: SequenceNumber::new(3),
+        }));
+
+        let mut bytes = valid;
+        bytes[16..24].copy_from_slice(&0u64.to_le_bytes());
+
+        assert_eq!(
+            ControlMessage::decode(&bytes),
+            Err(ProtocolError::NonCanonicalEncoding),
+        );
+
+        let mut bytes = valid;
+        bytes[39] = 1;
+
+        assert_eq!(
+            ControlMessage::decode(&bytes),
+            Err(ProtocolError::NonCanonicalEncoding),
+        );
+    }
+}
